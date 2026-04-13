@@ -63,7 +63,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-gray-900">Email</h3>
-                    <p className="text-gray-600 text-sm">eesa@egerton.ac.ke</p>
+                    <a href="mailto:egertonengineeringstudentsasso@gmail.com" className="text-gray-600 text-sm hover:text-primary-500 transition-colors">egertonengineeringstudentsasso@gmail.com</a>
                   </div>
                 </div>
                 <div className="flex items-start gap-4">

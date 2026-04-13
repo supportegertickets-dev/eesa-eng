@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { HiMail, HiPhone, HiLocationMarker } from 'react-icons/hi';
-import { FaFacebook, FaTwitter, FaLinkedin, FaInstagram } from 'react-icons/fa';
+import { FaFacebook, FaWhatsapp, FaLinkedin, FaInstagram } from 'react-icons/fa';
+import { FaXTwitter } from 'react-icons/fa6';
 
 export default function Footer() {
   return (
@@ -18,11 +19,11 @@ export default function Footer() {
               collaboration, innovation, and community.
             </p>
             <div className="flex space-x-3">
-              <a href="#" className="text-gray-400 hover:text-accent-500 transition-colors" aria-label="Facebook">
-                <FaFacebook className="w-5 h-5" />
+              <a href="https://chat.whatsapp.com/ERuFPO3DPkF9r1QJwP8iak" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-green-500 transition-colors" aria-label="WhatsApp">
+                <FaWhatsapp className="w-5 h-5" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-accent-500 transition-colors" aria-label="Twitter">
-                <FaTwitter className="w-5 h-5" />
+              <a href="https://x.com/EESA_Egertonuni" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-accent-500 transition-colors" aria-label="X">
+                <FaXTwitter className="w-5 h-5" />
               </a>
               <a href="#" className="text-gray-400 hover:text-accent-500 transition-colors" aria-label="LinkedIn">
                 <FaLinkedin className="w-5 h-5" />
@@ -75,7 +76,7 @@ export default function Footer() {
               </li>
               <li className="flex items-center space-x-2">
                 <HiMail className="w-5 h-5 text-accent-500 flex-shrink-0" />
-                <span className="text-sm">eesa@egerton.ac.ke</span>
+                <a href="mailto:egertonengineeringstudentsasso@gmail.com" className="text-sm hover:text-accent-500 transition-colors">egertonengineeringstudentsasso@gmail.com</a>
               </li>
               <li className="flex items-center space-x-2">
                 <HiPhone className="w-5 h-5 text-accent-500 flex-shrink-0" />
