@@ -202,7 +202,11 @@ function ResourceViewer({ resource, onClose, onDownload }) {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ].includes(resource.fileType);
 
-  const proxyUrl = getResourceFileUrl(resource._id);
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [textContent, setTextContent] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   const viewerUrl = isOfficeDoc
     ? `https://docs.google.com/gview?url=${encodeURIComponent(resource.fileUrl)}&embedded=true`
     : null;
@@ -216,6 +220,33 @@ function ResourceViewer({ resource, onClose, onDownload }) {
       document.body.style.overflow = '';
     };
   }, [onClose]);
+
+  useEffect(() => {
+    if (isOfficeDoc) { setLoading(false); return; }
+    let revoke = null;
+    const fetchFile = async () => {
+      try {
+        const proxyUrl = getResourceFileUrl(resource._id);
+        const resp = await fetch(proxyUrl);
+        if (!resp.ok) throw new Error('Failed to load file');
+        if (isText) {
+          const text = await resp.text();
+          setTextContent(text);
+        } else {
+          const blob = await resp.blob();
+          const url = URL.createObjectURL(blob);
+          revoke = url;
+          setBlobUrl(url);
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchFile();
+    return () => { if (revoke) URL.revokeObjectURL(revoke); };
+  }, [resource._id, isOfficeDoc]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/70" onClick={onClose}>
@@ -238,16 +269,28 @@ function ResourceViewer({ resource, onClose, onDownload }) {
       </div>
 
       <div className="flex-1 overflow-auto" onClick={e => e.stopPropagation()}>
-        {isPdf ? (
-          <iframe src={proxyUrl} className="w-full h-full border-0" title={resource.title} />
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="w-10 h-10 animate-spin rounded-full border-4 border-white border-t-transparent" />
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center h-full text-white text-center p-8">
+            <p className="text-lg font-medium mb-2">Failed to load file</p>
+            <p className="text-gray-400 text-sm mb-6">{error}</p>
+            <button onClick={() => onDownload(resource)} className="btn-primary flex items-center gap-2">
+              <HiDownload className="w-4 h-4" /> Download instead
+            </button>
+          </div>
+        ) : isPdf ? (
+          <iframe src={blobUrl} className="w-full h-full border-0" title={resource.title} />
         ) : isImage ? (
           <div className="flex items-center justify-center min-h-full p-4">
-            <img src={proxyUrl} alt={resource.title} className="max-w-full max-h-[85vh] object-contain rounded-lg" />
+            <img src={blobUrl} alt={resource.title} className="max-w-full max-h-[85vh] object-contain rounded-lg" />
           </div>
         ) : isOfficeDoc ? (
           <iframe src={viewerUrl} className="w-full h-full border-0" title={resource.title} />
         ) : isText ? (
-          <TextViewer url={proxyUrl} />
+          <pre className="p-6 text-sm text-gray-100 whitespace-pre-wrap font-mono leading-relaxed max-w-4xl mx-auto">{textContent}</pre>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-white text-center p-8">
             <HiDocumentText className="w-16 h-16 mb-4 text-gray-400" />
@@ -260,24 +303,6 @@ function ResourceViewer({ resource, onClose, onDownload }) {
         )}
       </div>
     </div>
-  );
-}
-
-function TextViewer({ url }) {
-  const [content, setContent] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch(url)
-      .then(r => r.text())
-      .then(text => { setContent(text); setLoading(false); })
-      .catch(() => { setContent('Failed to load file content.'); setLoading(false); });
-  }, [url]);
-
-  if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 animate-spin rounded-full border-4 border-white border-t-transparent" /></div>;
-
-  return (
-    <pre className="p-6 text-sm text-gray-100 whitespace-pre-wrap font-mono leading-relaxed max-w-4xl mx-auto">{content}</pre>
   );
 }
 
