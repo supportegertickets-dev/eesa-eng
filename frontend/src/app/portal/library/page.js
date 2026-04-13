@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { uploadResource, getResources, getMyResources, getPendingResources, reviewResource, trackDownload, deleteResource } from '@/lib/api';
 import toast from 'react-hot-toast';
-import { HiBookOpen, HiPlus, HiDownload, HiCheckCircle, HiXCircle, HiTrash, HiSearch, HiDocumentText } from 'react-icons/hi';
+import { HiBookOpen, HiPlus, HiDownload, HiCheckCircle, HiXCircle, HiTrash, HiSearch, HiDocumentText, HiEye, HiX } from 'react-icons/hi';
 import { format } from 'date-fns';
 
 const CATEGORIES = ['notes', 'past-papers', 'textbooks', 'tutorials', 'lab-reports', 'other'];
@@ -17,6 +17,7 @@ export default function LibraryPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
+  const [viewingResource, setViewingResource] = useState(null);
   const isAdmin = user?.role === 'admin' || user?.role === 'leader';
 
   useEffect(() => { loadResources(); }, [tab, category]);
@@ -149,9 +150,14 @@ export default function LibraryPage() {
                 </div>
                 <div className="flex items-center gap-1 ml-2">
                   {r.status === 'approved' && (
-                    <button onClick={() => handleDownload(r)} className="p-2 text-primary-500 hover:bg-primary-50 rounded-lg" title="Download">
-                      <HiDownload className="w-5 h-5" />
-                    </button>
+                    <>
+                      <button onClick={() => setViewingResource(r)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="View">
+                        <HiEye className="w-5 h-5" />
+                      </button>
+                      <button onClick={() => handleDownload(r)} className="p-2 text-primary-500 hover:bg-primary-50 rounded-lg" title="Download">
+                        <HiDownload className="w-5 h-5" />
+                      </button>
+                    </>
                   )}
                   {tab === 'pending' && isAdmin && r.status === 'pending' && (
                     <>
@@ -177,7 +183,102 @@ export default function LibraryPage() {
           ))}
         </div>
       )}
+
+      {viewingResource && (
+        <ResourceViewer resource={viewingResource} onClose={() => setViewingResource(null)} onDownload={handleDownload} />
+      )}
     </div>
+  );
+}
+
+function ResourceViewer({ resource, onClose, onDownload }) {
+  const isPdf = resource.fileType === 'application/pdf';
+  const isImage = resource.fileType?.startsWith('image/');
+  const isText = resource.fileType === 'text/plain';
+  const isOfficeDoc = [
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ].includes(resource.fileType);
+
+  const viewerUrl = isOfficeDoc
+    ? `https://docs.google.com/gview?url=${encodeURIComponent(resource.fileUrl)}&embedded=true`
+    : null;
+
+  useEffect(() => {
+    const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handleEsc);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleEsc);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-black/70" onClick={onClose}>
+      <div className="flex items-center justify-between px-4 py-3 bg-gray-900 text-white" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3 min-w-0">
+          <HiDocumentText className="w-5 h-5 flex-shrink-0" />
+          <h3 className="font-semibold truncate">{resource.title}</h3>
+          <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full capitalize flex-shrink-0">
+            {resource.category?.replace('-', ' ')}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button onClick={() => onDownload(resource)} className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm">
+            <HiDownload className="w-4 h-4" /> Download
+          </button>
+          <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-lg">
+            <HiX className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto" onClick={e => e.stopPropagation()}>
+        {isPdf ? (
+          <iframe src={resource.fileUrl} className="w-full h-full border-0" title={resource.title} />
+        ) : isImage ? (
+          <div className="flex items-center justify-center min-h-full p-4">
+            <img src={resource.fileUrl} alt={resource.title} className="max-w-full max-h-[85vh] object-contain rounded-lg" />
+          </div>
+        ) : isOfficeDoc ? (
+          <iframe src={viewerUrl} className="w-full h-full border-0" title={resource.title} />
+        ) : isText ? (
+          <TextViewer url={resource.fileUrl} />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full text-white text-center p-8">
+            <HiDocumentText className="w-16 h-16 mb-4 text-gray-400" />
+            <p className="text-lg font-medium mb-2">Preview not available for this file type</p>
+            <p className="text-gray-400 text-sm mb-6">{resource.fileType || 'Unknown type'}</p>
+            <button onClick={() => onDownload(resource)} className="btn-primary flex items-center gap-2">
+              <HiDownload className="w-4 h-4" /> Download to view
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TextViewer({ url }) {
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch(url)
+      .then(r => r.text())
+      .then(text => { setContent(text); setLoading(false); })
+      .catch(() => { setContent('Failed to load file content.'); setLoading(false); });
+  }, [url]);
+
+  if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 animate-spin rounded-full border-4 border-white border-t-transparent" /></div>;
+
+  return (
+    <pre className="p-6 text-sm text-gray-100 whitespace-pre-wrap font-mono leading-relaxed max-w-4xl mx-auto">{content}</pre>
   );
 }
 
