@@ -213,8 +213,8 @@ export default function ElectionsPage() {
                             )}
 
                             {election.status === 'completed' && results[election._id] && (() => {
-                              const posResults = results[election._id]?.find(r => r.position === c.position);
-                              const cResult = posResults?.candidates?.find(rc => rc.candidateId === c._id);
+                              const posResults = results[election._id][c.position];
+                              const cResult = posResults?.find(rc => rc._id === c._id);
                               return cResult ? <p className="text-lg font-bold text-primary-600 mt-2">{cResult.voteCount} votes</p> : null;
                             })()}
                           </div>
