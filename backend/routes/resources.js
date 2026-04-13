@@ -1,8 +1,6 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
-const https = require('https');
-const http = require('http');
 const Resource = require('../models/Resource');
 const { protect, adminOnly } = require('../middleware/auth');
 const { uploadFile } = require('../middleware/upload');
@@ -143,25 +141,61 @@ router.get('/:id/file', async (req, res) => {
     const resource = await Resource.findById(req.params.id);
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
-    const fileUrl = resource.fileUrl;
-    if (!fileUrl) return res.status(404).json({ message: 'File URL not found' });
+    if (!resource.filePublicId && !resource.fileUrl) {
+      return res.status(404).json({ message: 'File not found' });
+    }
 
-    const fetcher = fileUrl.startsWith('https') ? https : http;
-    fetcher.get(fileUrl, (proxyRes) => {
-      if (proxyRes.statusCode !== 200) {
-        return res.status(proxyRes.statusCode).json({ message: 'Failed to fetch file' });
+    // Generate a signed Cloudinary URL to guarantee access
+    let fileUrl = resource.fileUrl;
+    if (resource.filePublicId) {
+      try {
+        // Detect resource_type from the stored URL path
+        const urlPath = resource.fileUrl || '';
+        let resType = 'raw';
+        if (urlPath.includes('/image/upload/')) resType = 'image';
+        else if (urlPath.includes('/video/upload/')) resType = 'video';
+        else if (urlPath.includes('/raw/upload/')) resType = 'raw';
+
+        fileUrl = cloudinary.url(resource.filePublicId, {
+          resource_type: resType,
+          type: 'upload',
+          sign_url: true,
+          secure: true,
+        });
+      } catch (e) {
+        console.error('Cloudinary signed URL error:', e);
+        // Fall back to stored URL
       }
-      res.set('Content-Type', resource.fileType || 'application/octet-stream');
-      const safeName = (resource.title || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
-      res.set('Content-Disposition', `inline; filename="${safeName}"`);
-      if (proxyRes.headers['content-length']) {
-        res.set('Content-Length', proxyRes.headers['content-length']);
+    }
+
+    const upstream = await fetch(fileUrl, { redirect: 'follow' });
+    if (!upstream.ok) {
+      console.error('Cloudinary fetch failed:', upstream.status, upstream.statusText, fileUrl);
+      // If signed raw URL failed, try the original stored URL as fallback
+      if (fileUrl !== resource.fileUrl) {
+        const retry = await fetch(resource.fileUrl, { redirect: 'follow' });
+        if (retry.ok) {
+          res.set('Content-Type', resource.fileType || retry.headers.get('content-type') || 'application/octet-stream');
+          const safeName = (resource.title || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+          res.set('Content-Disposition', `inline; filename="${safeName}"`);
+          const cl = retry.headers.get('content-length');
+          if (cl) res.set('Content-Length', cl);
+          const { Readable } = require('stream');
+          Readable.fromWeb(retry.body).pipe(res);
+          return;
+        }
       }
-      proxyRes.pipe(res);
-    }).on('error', (err) => {
-      console.error('File proxy error:', err);
-      res.status(500).json({ message: 'Failed to fetch file' });
-    });
+      return res.status(upstream.status).json({ message: 'Failed to fetch file from storage' });
+    }
+
+    res.set('Content-Type', resource.fileType || upstream.headers.get('content-type') || 'application/octet-stream');
+    const safeName = (resource.title || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+    res.set('Content-Disposition', `inline; filename="${safeName}"`);
+    const cl = upstream.headers.get('content-length');
+    if (cl) res.set('Content-Length', cl);
+
+    const { Readable } = require('stream');
+    Readable.fromWeb(upstream.body).pipe(res);
   } catch (error) {
     console.error('File proxy error:', error);
     res.status(500).json({ message: 'Server error' });
