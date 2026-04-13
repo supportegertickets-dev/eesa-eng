@@ -6,12 +6,13 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 import { getNotifications } from '@/lib/api';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { HiHome, HiUser, HiCalendar, HiUsers, HiNewspaper, HiCog, HiLogout, HiCash, HiBookOpen, HiBell, HiPhotograph, HiClipboardList, HiStar } from 'react-icons/hi';
+import { HiHome, HiUser, HiCalendar, HiUsers, HiNewspaper, HiCog, HiLogout, HiCash, HiBookOpen, HiBell, HiPhotograph, HiClipboardList, HiStar, HiDotsHorizontal, HiX } from 'react-icons/hi';
 
 export default function PortalLayout({ children }) {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [mobileMore, setMobileMore] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -101,14 +102,57 @@ export default function PortalLayout({ children }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className="flex flex-col items-center p-2 text-gray-600 hover:text-primary-500"
+                className="flex flex-col items-center p-2 text-gray-600 hover:text-primary-500 relative"
+                onClick={() => setMobileMore(false)}
               >
                 <item.icon className="w-5 h-5" />
                 <span className="text-xs mt-1">{item.label}</span>
+                {item.badge > 0 && (
+                  <span className="absolute top-1 right-0 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{item.badge}</span>
+                )}
               </Link>
             ))}
+            <button
+              onClick={() => setMobileMore(!mobileMore)}
+              className="flex flex-col items-center p-2 text-gray-600 hover:text-primary-500"
+            >
+              {mobileMore ? <HiX className="w-5 h-5" /> : <HiDotsHorizontal className="w-5 h-5" />}
+              <span className="text-xs mt-1">More</span>
+            </button>
           </div>
         </div>
+
+        {/* Mobile More Menu */}
+        {mobileMore && (
+          <div className="lg:hidden fixed inset-0 z-30" onClick={() => setMobileMore(false)}>
+            <div className="absolute inset-0 bg-black/30" />
+            <div className="absolute bottom-16 left-0 right-0 bg-white rounded-t-2xl shadow-2xl p-4 max-h-[70vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="grid grid-cols-3 gap-3">
+                {navItems.slice(4).map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setMobileMore(false)}
+                    className="flex flex-col items-center gap-1.5 p-3 rounded-xl hover:bg-primary-50 text-gray-700 hover:text-primary-600 transition-colors relative"
+                  >
+                    <item.icon className="w-6 h-6" />
+                    <span className="text-xs font-medium text-center">{item.label}</span>
+                    {item.badge > 0 && (
+                      <span className="absolute top-2 right-2 bg-red-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{item.badge}</span>
+                    )}
+                  </Link>
+                ))}
+                <button
+                  onClick={() => { logout(); router.push('/'); }}
+                  className="flex flex-col items-center gap-1.5 p-3 rounded-xl hover:bg-red-50 text-red-600 transition-colors"
+                >
+                  <HiLogout className="w-6 h-6" />
+                  <span className="text-xs font-medium">Sign Out</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Main Content */}
         <main className="flex-1 lg:ml-64 pb-20 lg:pb-0">
