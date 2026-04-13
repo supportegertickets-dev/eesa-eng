@@ -63,7 +63,7 @@ const userSchema = new mongoose.Schema({
   },
   role: {
     type: String,
-    enum: ['member', 'leader', 'admin'],
+    enum: ['member', 'admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', '1st_cohort_rep', 'treasurer'],
     default: 'member'
   },
   bio: {

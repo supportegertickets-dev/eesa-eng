@@ -14,7 +14,7 @@ export default function PaymentsPage() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = ['admin', 'chairperson'].includes(user?.role);
 
   useEffect(() => { loadPayments(); }, [tab]);
 

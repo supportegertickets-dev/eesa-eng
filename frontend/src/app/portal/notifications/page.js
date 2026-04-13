@@ -21,7 +21,7 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const isAdmin = user?.role === 'admin' || user?.role === 'leader';
+  const isAdmin = ['admin', 'chairperson'].includes(user?.role);
 
   useEffect(() => { loadNotifications(); }, []);
 

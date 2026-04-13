@@ -15,7 +15,7 @@ export default function PortalGalleryPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [selectedImg, setSelectedImg] = useState(null);
   const [category, setCategory] = useState('');
-  const isAdmin = user?.role === 'admin' || user?.role === 'leader';
+  const isAdmin = ['admin', 'chairperson'].includes(user?.role);
 
   useEffect(() => { loadImages(); }, [category]);
 

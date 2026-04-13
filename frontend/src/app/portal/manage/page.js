@@ -10,7 +10,8 @@ export default function ManagePage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('event');
 
-  if (user?.role !== 'admin' && user?.role !== 'leader') {
+  const LEADERSHIP_ROLES = ['admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', '1st_cohort_rep', 'treasurer'];
+  if (!LEADERSHIP_ROLES.includes(user?.role)) {
     return (
       <div className="text-center py-20">
         <p className="text-gray-500 text-lg">Access denied. Leadership only.</p>

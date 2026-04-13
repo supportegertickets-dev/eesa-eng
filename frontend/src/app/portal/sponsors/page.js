@@ -21,7 +21,7 @@ export default function SponsorsManagePage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = ['admin', 'chairperson'].includes(user?.role);
 
   useEffect(() => { loadSponsors(); }, []);
 

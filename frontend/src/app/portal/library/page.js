@@ -18,7 +18,7 @@ export default function LibraryPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [viewingResource, setViewingResource] = useState(null);
-  const isAdmin = user?.role === 'admin' || user?.role === 'leader';
+  const isAdmin = ['admin', 'chairperson'].includes(user?.role);
 
   useEffect(() => { loadResources(); }, [tab, category]);
 

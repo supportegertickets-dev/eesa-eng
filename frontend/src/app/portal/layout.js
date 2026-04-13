@@ -44,7 +44,10 @@ export default function PortalLayout({ children }) {
     { href: '/portal/members', icon: HiUsers, label: 'Members' },
   ];
 
-  if (user.role === 'admin' || user.role === 'leader') {
+  const LEADERSHIP_ROLES = ['admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', '1st_cohort_rep', 'treasurer'];
+  const ROLE_LABELS = { admin: 'Admin', chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer', member: 'Member' };
+
+  if (LEADERSHIP_ROLES.includes(user.role)) {
     navItems.push({ href: '/portal/sponsors', icon: HiStar, label: 'Sponsors' });
     navItems.push({ href: '/portal/manage', icon: HiCog, label: 'Manage' });
   }
@@ -62,7 +65,7 @@ export default function PortalLayout({ children }) {
                 </div>
                 <div>
                   <p className="font-semibold text-sm text-gray-900">{user.firstName} {user.lastName}</p>
-                  <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+                  <p className="text-xs text-gray-500">{ROLE_LABELS[user.role] || user.role}</p>
                 </div>
               </div>
             </div>

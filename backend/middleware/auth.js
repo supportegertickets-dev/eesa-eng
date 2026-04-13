@@ -21,8 +21,11 @@ const protect = async (req, res, next) => {
   }
 };
 
+const LEADERSHIP_ROLES = ['admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', '1st_cohort_rep', 'treasurer'];
+const POWER_ROLES = ['admin', 'chairperson'];
+
 const adminOnly = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
+  if (req.user && POWER_ROLES.includes(req.user.role)) {
     next();
   } else {
     return res.status(403).json({ message: 'Access denied. Admin only.' });
@@ -30,11 +33,11 @@ const adminOnly = (req, res, next) => {
 };
 
 const leadershipOnly = (req, res, next) => {
-  if (req.user && (req.user.role === 'admin' || req.user.role === 'leader')) {
+  if (req.user && LEADERSHIP_ROLES.includes(req.user.role)) {
     next();
   } else {
     return res.status(403).json({ message: 'Access denied. Leadership only.' });
   }
 };
 
-module.exports = { protect, adminOnly, leadershipOnly };
+module.exports = { protect, adminOnly, leadershipOnly, LEADERSHIP_ROLES, POWER_ROLES };

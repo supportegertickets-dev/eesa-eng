@@ -14,7 +14,7 @@ export default function MembersPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [department, setDepartment] = useState('');
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = ['admin', 'chairperson'].includes(currentUser?.role);
 
   const departments = [
     'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
@@ -114,12 +114,17 @@ export default function MembersPage() {
                     className="mt-2 text-xs border rounded px-2 py-1 text-gray-600 bg-white mx-auto"
                   >
                     <option value="member">Member</option>
-                    <option value="leader">Leader</option>
-                    <option value="admin">Admin</option>
+                    <option value="chairperson">Chairperson</option>
+                    <option value="vice_chairperson">Vice Chairperson</option>
+                    <option value="organizing_secretary">Organizing Secretary</option>
+                    <option value="secretary_general">Secretary General</option>
+                    <option value="publicity_manager">Publicity Manager</option>
+                    <option value="1st_cohort_rep">1st Cohort Rep</option>
+                    <option value="treasurer">Treasurer</option>
                   </select>
                 ) : member.role !== 'member' && (
-                  <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-medium bg-accent-100 text-accent-700 capitalize">
-                    {member.role}
+                  <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-medium bg-accent-100 text-accent-700">
+                    {{ chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer' }[member.role] || member.role}
                   </span>
                 )}
                 {member.bio && (

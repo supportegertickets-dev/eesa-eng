@@ -1,6 +1,6 @@
 const express = require('express');
 const User = require('../models/User');
-const { protect, adminOnly } = require('../middleware/auth');
+const { protect, adminOnly, LEADERSHIP_ROLES } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -12,7 +12,7 @@ router.get('/', async (req, res) => {
     const skip = (page - 1) * limit;
     const department = req.query.department;
 
-    const filter = { isActive: true };
+    const filter = { isActive: true, role: { $ne: 'admin' } };
     if (department) filter.department = department;
 
     const [users, total] = await Promise.all([
@@ -38,7 +38,7 @@ router.get('/', async (req, res) => {
 // GET /api/users/leaders - Get leadership team
 router.get('/leaders', async (req, res) => {
   try {
-    const leaders = await User.find({ role: { $in: ['admin', 'leader'] }, isActive: true })
+    const leaders = await User.find({ role: { $in: LEADERSHIP_ROLES, $ne: 'admin' }, isActive: true })
       .select('firstName lastName department role avatar bio');
     res.json(leaders);
   } catch (error) {
@@ -72,7 +72,7 @@ router.get('/stats', async (req, res) => {
 router.put('/:id/role', protect, adminOnly, async (req, res) => {
   try {
     const { role } = req.body;
-    if (!['member', 'leader', 'admin'].includes(role)) {
+    if (!['member', 'admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', '1st_cohort_rep', 'treasurer'].includes(role)) {
       return res.status(400).json({ message: 'Invalid role' });
     }
 

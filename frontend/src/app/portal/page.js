@@ -108,7 +108,7 @@ export default function PortalDashboard() {
       </div>
 
       {/* Quick Actions */}
-      {(user?.role === 'admin' || user?.role === 'leader') && (
+      {['admin', 'chairperson'].includes(user?.role) && (
         <div className="mt-8">
           <h2 className="font-heading text-lg font-semibold mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

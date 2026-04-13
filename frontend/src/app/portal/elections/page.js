@@ -17,7 +17,7 @@ export default function ElectionsPage() {
   const [showApply, setShowApply] = useState(null);
   const [voting, setVoting] = useState(null);
   const [editingCandidate, setEditingCandidate] = useState(null);
-  const isAdmin = user?.role === 'admin' || user?.role === 'leader';
+  const isAdmin = ['admin', 'chairperson'].includes(user?.role);
 
   useEffect(() => { loadElections(); }, []);
 

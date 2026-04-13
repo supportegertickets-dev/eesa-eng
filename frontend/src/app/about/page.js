@@ -1,14 +1,27 @@
 'use client';
 
-import { HiAcademicCap, HiUserGroup, HiLightBulb, HiCog, HiGlobe } from 'react-icons/hi';
+import { useState, useEffect } from 'react';
+import { HiAcademicCap, HiUserGroup, HiLightBulb, HiCog, HiGlobe, HiUser } from 'react-icons/hi';
+import { getLeaders } from '@/lib/api';
+
+const ROLE_LABELS = { chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer' };
+const ROLE_ORDER = ['chairperson', 'vice_chairperson', 'secretary_general', 'organizing_secretary', 'treasurer', 'publicity_manager', '1st_cohort_rep'];
 
 export default function AboutPage() {
-  const leadership = [
-    { role: 'Chairperson', name: 'To Be Updated', department: 'Engineering' },
-    { role: 'Vice Chairperson', name: 'To Be Updated', department: 'Engineering' },
-    { role: 'Secretary General', name: 'To Be Updated', department: 'Engineering' },
-    { role: 'Treasurer', name: 'To Be Updated', department: 'Engineering' },
-  ];
+  const [leadership, setLeadership] = useState([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await getLeaders();
+        const leaders = (Array.isArray(data) ? data : data.leaders || [])
+          .filter(l => l.role !== 'admin')
+          .sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
+        setLeadership(leaders);
+      } catch {}
+    };
+    load();
+  }, []);
 
   return (
     <>
@@ -98,16 +111,25 @@ export default function AboutPage() {
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {leadership.map((leader, i) => (
+            {leadership.length > 0 ? leadership.map((leader, i) => (
               <div key={i} className="card text-center">
-                <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <HiUserGroup className="w-10 h-10 text-primary-500" />
+                <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden">
+                  {leader.avatar ? (
+                    <img src={leader.avatar} alt={`${leader.firstName} ${leader.lastName}`} className="w-full h-full object-cover" />
+                  ) : (
+                    <HiUser className="w-10 h-10 text-primary-500" />
+                  )}
                 </div>
-                <h3 className="font-heading font-semibold text-lg">{leader.name}</h3>
-                <p className="text-accent-600 font-medium text-sm">{leader.role}</p>
+                <h3 className="font-heading font-semibold text-lg">{leader.firstName} {leader.lastName}</h3>
+                <p className="text-accent-600 font-medium text-sm">{ROLE_LABELS[leader.role] || leader.role}</p>
                 <p className="text-gray-500 text-xs mt-1">{leader.department}</p>
               </div>
-            ))}
+            )) : (
+              <div className="col-span-full text-center text-gray-500 py-8">
+                <HiUserGroup className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>Leadership team will be updated soon</p>
+              </div>
+            )}
           </div>
         </div>
       </section>
