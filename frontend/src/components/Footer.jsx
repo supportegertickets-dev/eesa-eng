@@ -10,9 +10,7 @@ export default function Footer() {
           {/* Brand */}
           <div className="col-span-1 md:col-span-1">
             <div className="flex items-center space-x-2 mb-4">
-              <div className="w-10 h-10 bg-accent-500 rounded-full flex items-center justify-center font-heading font-bold text-lg text-white">
-                E
-              </div>
+              <img src="/logo.png" alt="EESA Logo" className="w-10 h-10 rounded-full object-cover" />
               <span className="font-heading font-bold text-xl text-white">EESA</span>
             </div>
             <p className="text-sm text-gray-400 mb-4">

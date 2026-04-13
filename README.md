@@ -10,6 +10,9 @@ A professional web portal for the Egerton Engineering Student Association. Featu
 | Backend    | Express.js, Mongoose                |
 | Database   | MongoDB Atlas                       |
 | Auth       | JWT (jsonwebtoken + bcryptjs)       |
+| Uploads    | Cloudinary + Multer                 |
+| Email      | Brevo REST API + SMTP fallback      |
+| Payments   | M-Pesa Daraja API (STK Push)        |
 | Hosting    | Vercel (frontend), Render (backend) |
 
 ## Project Structure
@@ -22,7 +25,9 @@ EESA2/
 │   ├── models/         # Mongoose schemas
 │   ├── routes/         # API route handlers
 │   ├── server.js       # Entry point
-│   └── render.yaml     # Render deployment blueprint
+│   ├── seed.js         # Seed admin user
+│   ├── render.yaml     # Render deployment blueprint
+│   └── .env.example    # Environment variables template
 ├── frontend/           # Next.js application
 │   ├── src/
 │   │   ├── app/        # App Router pages
@@ -30,7 +35,9 @@ EESA2/
 │   │   │   └── ...     # Public pages
 │   │   ├── components/ # Reusable React components
 │   │   └── lib/        # API client & auth context
-│   └── vercel.json     # Vercel deployment config
+│   ├── vercel.json     # Vercel deployment config
+│   └── .env.example    # Environment variables template
+├── package.json        # Root scripts (install, dev, seed)
 └── README.md
 ```
 
@@ -39,7 +46,7 @@ EESA2/
 ### Public Website
 - Home page with hero, stats, upcoming events, and projects
 - About page with mission, values, leadership, and departments
-- Events listing and detail pages
+- Events listing and detail pages with RSVP
 - Project showcase
 - News and articles
 - Contact form
@@ -47,149 +54,157 @@ EESA2/
 ### Member Portal
 - Dashboard with stats and upcoming events
 - Profile management
-- Event RSVP
+- Elections (voting, candidate registration)
+- Payments (M-Pesa STK Push, manual receipt upload)
+- Library (resource sharing, reviews)
+- Gallery (photo albums)
+- Sponsors management
+- Notifications
 - Member directory
-- Content management (admin/leadership)
 
 ### Roles
-| Role       | Permissions                                   |
-|------------|-----------------------------------------------|
-| `member`   | View content, RSVP, update own profile        |
-| `leader`   | Create/edit events, news, projects            |
-| `admin`    | All leader permissions + manage users & roles  |
+| Role       | Permissions                                                |
+|------------|------------------------------------------------------------|
+| `member`   | View content, RSVP, update profile, vote, upload payments  |
+| `leader`   | Create/edit events, news, projects, manage elections        |
+| `admin`    | Full control: manage users, roles, all content, approvals   |
 
-## Getting Started
+---
+
+## Quick Start (Local Development)
 
 ### Prerequisites
-- Node.js ≥ 18
-- MongoDB Atlas cluster (or local MongoDB)
+- **Node.js** ≥ 18 — [download](https://nodejs.org)
+- **MongoDB** — [Atlas (free)](https://www.mongodb.com/cloud/atlas) or local install
+- **Cloudinary** account — [sign up (free)](https://cloudinary.com)
+- **Brevo** account — [sign up (free)](https://www.brevo.com) *(for emails)*
 
 ### 1. Clone the repository
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/your-username/EESA2.git
 cd EESA2
 ```
 
-### 2. Backend setup
+### 2. Install all dependencies
 ```bash
-cd backend
 npm install
 ```
+This installs root, backend, and frontend dependencies in one command.
 
-Create a `.env` file from the example:
+### 3. Configure environment variables
+
+**Backend** — copy the template and fill in your values:
 ```bash
+cd backend
 cp .env.example .env
 ```
 
-Fill in your values:
-```
+Edit `backend/.env`:
+```env
 PORT=5000
-MONGO_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/eesa
-JWT_SECRET=your_jwt_secret_here
+MONGODB_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/eesa
+JWT_SECRET=change_this_to_a_long_random_string
 FRONTEND_URL=http://localhost:3000
 NODE_ENV=development
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+# Brevo Email
+BREVO_API_KEY=your_brevo_api_key
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=your_smtp_user
+SMTP_PASS=your_smtp_pass
+SMTP_FROM=your_email@example.com
+
+# M-Pesa (optional)
+MPESA_CONSUMER_KEY=your_consumer_key
+MPESA_CONSUMER_SECRET=your_consumer_secret
+MPESA_SHORTCODE=your_shortcode
+MPESA_PASSKEY=your_passkey
+MPESA_CALLBACK_URL=http://localhost:5000/api/payments/mpesa/callback
 ```
 
-Start the dev server:
+**Frontend** — copy the template:
 ```bash
-npm run dev
+cd ../frontend
+cp .env.example .env
 ```
 
-### 3. Frontend setup
-```bash
-cd frontend
-npm install
-```
-
-Create a `.env.local` file:
-```
+`frontend/.env` should contain:
+```env
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
 ```
 
-Start the dev server:
+### 4. Seed the admin user
 ```bash
-npm run dev
+cd ..
+npm run seed
 ```
+This creates the default admin:
+- **Email:** `admin@example.com` *(edit `backend/seed.js` to change)*
+- **Password:** `Admin@2024`
 
-The frontend runs on `http://localhost:3000` and the backend on `http://localhost:5000`.
+### 5. Start both servers
 
-## API Endpoints
+Open **two terminals**:
 
-### Auth
-| Method | Endpoint              | Access  |
-|--------|-----------------------|---------|
-| POST   | `/api/auth/register`  | Public  |
-| POST   | `/api/auth/login`     | Public  |
-| GET    | `/api/auth/me`        | Auth    |
-| PUT    | `/api/auth/profile`   | Auth    |
+**Terminal 1 – Backend:**
+```bash
+npm run dev:backend
+```
+Backend runs on `http://localhost:5000`
 
-### Events
-| Method | Endpoint                    | Access     |
-|--------|-----------------------------|------------|
-| GET    | `/api/events`               | Public     |
-| GET    | `/api/events/:id`           | Public     |
-| POST   | `/api/events`               | Leadership |
-| PUT    | `/api/events/:id`           | Leadership |
-| DELETE | `/api/events/:id`           | Admin      |
-| POST   | `/api/events/:id/rsvp`      | Auth       |
+**Terminal 2 – Frontend:**
+```bash
+npm run dev:frontend
+```
+Frontend runs on `http://localhost:3000`
 
-### News
-| Method | Endpoint                    | Access     |
-|--------|-----------------------------|------------|
-| GET    | `/api/news`                 | Public     |
-| GET    | `/api/news/:id`             | Public     |
-| POST   | `/api/news`                 | Leadership |
-| PUT    | `/api/news/:id`             | Leadership |
-| DELETE | `/api/news/:id`             | Admin      |
+Open `http://localhost:3000` in your browser.
 
-### Projects
-| Method | Endpoint                    | Access     |
-|--------|-----------------------------|------------|
-| GET    | `/api/projects`             | Public     |
-| GET    | `/api/projects/:id`         | Public     |
-| POST   | `/api/projects`             | Leadership |
-| PUT    | `/api/projects/:id`         | Leadership |
-| DELETE | `/api/projects/:id`         | Admin      |
-| POST   | `/api/projects/:id/join`    | Auth       |
-
-### Users
-| Method | Endpoint                    | Access     |
-|--------|-----------------------------|------------|
-| GET    | `/api/users`                | Auth       |
-| GET    | `/api/users/leaders`        | Public     |
-| GET    | `/api/users/stats`          | Auth       |
-| PUT    | `/api/users/:id/role`       | Admin      |
-| PUT    | `/api/users/:id/deactivate` | Admin      |
-
-### Contact
-| Method | Endpoint                    | Access     |
-|--------|-----------------------------|------------|
-| POST   | `/api/contact`              | Public     |
-| GET    | `/api/contact`              | Admin      |
-| PUT    | `/api/contact/:id/read`     | Admin      |
-| DELETE | `/api/contact/:id`          | Admin      |
+---
 
 ## Deployment
 
 ### Backend → Render
+
 1. Push the repo to GitHub.
 2. In [Render](https://render.com), create a **New Web Service** from the repo.
 3. Set **Root Directory** to `backend`.
-4. Render will use `render.yaml` for configuration.
-5. Add environment variables: `MONGO_URI`, `JWT_SECRET`, `FRONTEND_URL`, `NODE_ENV=production`.
+4. **Build Command:** `npm install`
+5. **Start Command:** `node server.js`
+6. Add all environment variables from `backend/.env.example` with production values.
+7. Set `FRONTEND_URL` to your Vercel frontend URL (e.g. `https://eesa-en.vercel.app`).
 
 ### Frontend → Vercel
+
 1. Import the repo in [Vercel](https://vercel.com).
 2. Set **Root Directory** to `frontend`.
-3. Add environment variable: `NEXT_PUBLIC_API_URL=https://your-backend.onrender.com/api`.
+3. Add environment variable: `NEXT_PUBLIC_API_URL=https://your-backend.onrender.com/api`
 4. Deploy.
 
-## Departments
-- Civil Engineering
-- Mechanical Engineering
-- Electrical Engineering
-- Agricultural Engineering
-- Chemical Engineering
+### Environment Variables Checklist (Production)
 
-## License
-MIT
+| Variable | Where | Example |
+|----------|-------|---------|
+| `MONGODB_URI` | Render | `mongodb+srv://...` |
+| `JWT_SECRET` | Render | Long random string |
+| `FRONTEND_URL` | Render | `https://eesa-en.vercel.app` |
+| `NODE_ENV` | Render | `production` |
+| `CLOUDINARY_CLOUD_NAME` | Render | Your Cloudinary cloud name |
+| `CLOUDINARY_API_KEY` | Render | Your Cloudinary API key |
+| `CLOUDINARY_API_SECRET` | Render | Your Cloudinary API secret |
+| `BREVO_API_KEY` | Render | Your Brevo API key |
+| `SMTP_HOST` | Render | `smtp-relay.brevo.com` |
+| `SMTP_PORT` | Render | `587` |
+| `SMTP_USER` | Render | Your Brevo SMTP user |
+| `SMTP_PASS` | Render | Your Brevo SMTP password |
+| `SMTP_FROM` | Render | Your sender email |
+| `MPESA_*` | Render | Your Daraja API credentials |
+| `NEXT_PUBLIC_API_URL` | Vercel | `https://your-backend.onrender.com/api` |
+
+---

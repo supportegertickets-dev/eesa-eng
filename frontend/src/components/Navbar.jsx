@@ -25,9 +25,7 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-accent-500 rounded-full flex items-center justify-center font-heading font-bold text-lg text-white">
-              E
-            </div>
+            <img src="/logo.png" alt="EESA Logo" className="w-10 h-10 rounded-full object-cover" />
             <span className="font-heading font-bold text-xl hidden sm:block">EESA</span>
           </Link>
 
