@@ -21,6 +21,9 @@ const galleryRoutes = require('./routes/gallery');
 
 const app = express();
 
+// Trust proxy (Render uses a reverse proxy)
+app.set('trust proxy', 1);
+
 // Connect to database
 connectDB();
 
