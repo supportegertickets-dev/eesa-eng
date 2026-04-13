@@ -208,12 +208,15 @@ function ResourceViewer({ resource, onClose, onDownload }) {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ].includes(resource.fileType);
 
+  // PDFs and Office docs use Google Docs Viewer (works on mobile)
+  const useGoogleViewer = isPdf || isOfficeDoc;
+
   const [blobUrl, setBlobUrl] = useState(null);
   const [textContent, setTextContent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const viewerUrl = isOfficeDoc
+  const googleViewerUrl = useGoogleViewer
     ? `https://docs.google.com/gview?url=${encodeURIComponent(resource.fileUrl)}&embedded=true`
     : null;
 
@@ -228,7 +231,13 @@ function ResourceViewer({ resource, onClose, onDownload }) {
   }, [onClose]);
 
   useEffect(() => {
-    if (isOfficeDoc) { setLoading(false); return; }
+    // For Google Viewer types, trigger proxy fetch to auto-publicize, then show viewer
+    if (useGoogleViewer) {
+      const proxyUrl = getResourceFileUrl(resource._id);
+      fetch(proxyUrl).catch(() => {});  // fire-and-forget to ensure resource is publicized
+      setLoading(false);
+      return;
+    }
     let revoke = null;
     const fetchFile = async () => {
       try {
@@ -252,7 +261,7 @@ function ResourceViewer({ resource, onClose, onDownload }) {
     };
     fetchFile();
     return () => { if (revoke) URL.revokeObjectURL(revoke); };
-  }, [resource._id, isOfficeDoc]);
+  }, [resource._id, useGoogleViewer]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/70" onClick={onClose}>
@@ -287,14 +296,12 @@ function ResourceViewer({ resource, onClose, onDownload }) {
               <HiDownload className="w-4 h-4" /> Download instead
             </button>
           </div>
-        ) : isPdf ? (
-          <iframe src={blobUrl} className="w-full h-full border-0" title={resource.title} />
+        ) : useGoogleViewer ? (
+          <iframe src={googleViewerUrl} className="w-full h-full border-0" title={resource.title} allow="autoplay" />
         ) : isImage ? (
           <div className="flex items-center justify-center min-h-full p-4">
             <img src={blobUrl} alt={resource.title} className="max-w-full max-h-[85vh] object-contain rounded-lg" />
           </div>
-        ) : isOfficeDoc ? (
-          <iframe src={viewerUrl} className="w-full h-full border-0" title={resource.title} />
         ) : isText ? (
           <pre className="p-6 text-sm text-gray-100 whitespace-pre-wrap font-mono leading-relaxed max-w-4xl mx-auto">{textContent}</pre>
         ) : (
