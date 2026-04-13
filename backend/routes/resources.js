@@ -141,61 +141,91 @@ router.get('/:id/file', async (req, res) => {
     const resource = await Resource.findById(req.params.id);
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
-    if (!resource.filePublicId && !resource.fileUrl) {
+    if (!resource.fileUrl) {
       return res.status(404).json({ message: 'File not found' });
     }
 
-    // Generate a signed Cloudinary URL to guarantee access
-    let fileUrl = resource.fileUrl;
+    // Build list of URLs to try (in order)
+    const urlsToTry = [];
+
+    // 1) Try the original stored URL first (works for public resources)
+    urlsToTry.push({ label: 'stored URL', url: resource.fileUrl });
+
+    // 2) Generate signed URLs with different resource_types
+    if (resource.filePublicId) {
+      // Detect resource_type from URL path
+      const urlPath = resource.fileUrl;
+      let detectedType = 'raw';
+      if (urlPath.includes('/image/upload/')) detectedType = 'image';
+      else if (urlPath.includes('/video/upload/')) detectedType = 'video';
+
+      // Extract version from URL
+      const vMatch = urlPath.match(/\/v(\d+)\//);
+      const version = vMatch ? vMatch[1] : undefined;
+
+      // Try detected type first, then others
+      const types = [detectedType, ...['image', 'raw', 'video'].filter(t => t !== detectedType)];
+      for (const resType of types) {
+        try {
+          const opts = { resource_type: resType, type: 'upload', sign_url: true, secure: true };
+          if (version) opts.version = version;
+          const signedUrl = cloudinary.url(resource.filePublicId, opts);
+          if (signedUrl !== resource.fileUrl) {
+            urlsToTry.push({ label: `signed ${resType}`, url: signedUrl });
+          }
+        } catch {}
+      }
+    }
+
+    // Try each URL until one works
+    for (const { label, url } of urlsToTry) {
+      try {
+        const upstream = await fetch(url, { redirect: 'follow' });
+        if (upstream.ok) {
+          const buffer = Buffer.from(await upstream.arrayBuffer());
+          res.set('Content-Type', resource.fileType || upstream.headers.get('content-type') || 'application/octet-stream');
+          const safeName = (resource.title || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+          res.set('Content-Disposition', `inline; filename="${safeName}"`);
+          res.set('Content-Length', buffer.length);
+          return res.send(buffer);
+        }
+        console.log(`File proxy: ${label} returned ${upstream.status} for resource ${req.params.id}`);
+      } catch (err) {
+        console.log(`File proxy: ${label} error for resource ${req.params.id}:`, err.message);
+      }
+    }
+
+    // All attempts failed - try making the resource public on Cloudinary
     if (resource.filePublicId) {
       try {
-        // Detect resource_type from the stored URL path
-        const urlPath = resource.fileUrl || '';
+        const urlPath = resource.fileUrl;
         let resType = 'raw';
         if (urlPath.includes('/image/upload/')) resType = 'image';
         else if (urlPath.includes('/video/upload/')) resType = 'video';
-        else if (urlPath.includes('/raw/upload/')) resType = 'raw';
 
-        fileUrl = cloudinary.url(resource.filePublicId, {
+        await cloudinary.api.update(resource.filePublicId, {
           resource_type: resType,
-          type: 'upload',
-          sign_url: true,
-          secure: true,
+          access_mode: 'public',
         });
-      } catch (e) {
-        console.error('Cloudinary signed URL error:', e);
-        // Fall back to stored URL
-      }
-    }
+        console.log(`Made resource ${req.params.id} public on Cloudinary (${resType})`);
 
-    const upstream = await fetch(fileUrl, { redirect: 'follow' });
-    if (!upstream.ok) {
-      console.error('Cloudinary fetch failed:', upstream.status, upstream.statusText, fileUrl);
-      // If signed raw URL failed, try the original stored URL as fallback
-      if (fileUrl !== resource.fileUrl) {
-        const retry = await fetch(resource.fileUrl, { redirect: 'follow' });
-        if (retry.ok) {
-          res.set('Content-Type', resource.fileType || retry.headers.get('content-type') || 'application/octet-stream');
+        // Retry with original URL after making public
+        const upstream = await fetch(resource.fileUrl, { redirect: 'follow' });
+        if (upstream.ok) {
+          const buffer = Buffer.from(await upstream.arrayBuffer());
+          res.set('Content-Type', resource.fileType || upstream.headers.get('content-type') || 'application/octet-stream');
           const safeName = (resource.title || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
           res.set('Content-Disposition', `inline; filename="${safeName}"`);
-          const cl = retry.headers.get('content-length');
-          if (cl) res.set('Content-Length', cl);
-          const { Readable } = require('stream');
-          Readable.fromWeb(retry.body).pipe(res);
-          return;
+          res.set('Content-Length', buffer.length);
+          return res.send(buffer);
         }
+      } catch (e) {
+        console.error('Cloudinary make-public failed:', e.message);
       }
-      return res.status(upstream.status).json({ message: 'Failed to fetch file from storage' });
     }
 
-    res.set('Content-Type', resource.fileType || upstream.headers.get('content-type') || 'application/octet-stream');
-    const safeName = (resource.title || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
-    res.set('Content-Disposition', `inline; filename="${safeName}"`);
-    const cl = upstream.headers.get('content-length');
-    if (cl) res.set('Content-Length', cl);
-
-    const { Readable } = require('stream');
-    Readable.fromWeb(upstream.body).pipe(res);
+    console.error(`File proxy: ALL attempts failed for resource ${req.params.id}, fileUrl: ${resource.fileUrl}, publicId: ${resource.filePublicId}`);
+    return res.status(502).json({ message: 'Failed to fetch file from storage' });
   } catch (error) {
     console.error('File proxy error:', error);
     res.status(500).json({ message: 'Server error' });
