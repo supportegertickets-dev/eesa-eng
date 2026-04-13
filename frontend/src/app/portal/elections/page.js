@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { getElections, getElection, createElection, deleteElection, updateElection, registerCandidate, updateCandidate, removeCandidate, castVote, getElectionResults, getUsers } from '@/lib/api';
+import { getElections, getElection, createElection, deleteElection, updateElection, registerCandidate, updateCandidate, removeCandidate, castVote, getUsers } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { HiClipboardList, HiPlus, HiCheckCircle, HiClock, HiX, HiChevronDown, HiChevronUp, HiUser, HiTrash, HiPencil, HiPhotograph } from 'react-icons/hi';
 import { format } from 'date-fns';
@@ -12,7 +12,7 @@ export default function ElectionsPage() {
   const [elections, setElections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
-  const [results, setResults] = useState({});
+
   const [showCreate, setShowCreate] = useState(false);
   const [showApply, setShowApply] = useState(null);
   const [voting, setVoting] = useState(null);
@@ -39,12 +39,7 @@ export default function ElectionsPage() {
     finally { setVoting(null); }
   };
 
-  const viewResults = async (electionId) => {
-    try {
-      const data = await getElectionResults(electionId);
-      setResults(prev => ({ ...prev, [electionId]: data.results || data }));
-    } catch { toast.error('Failed to load results'); }
-  };
+
 
   const handleDeleteElection = async (id) => {
     if (!confirm('Are you sure you want to delete this election?')) return;
@@ -124,7 +119,7 @@ export default function ElectionsPage() {
             <div key={election._id} className="card">
               <div className="flex items-start justify-between cursor-pointer" onClick={() => {
                 setExpandedId(expandedId === election._id ? null : election._id);
-                if (election.status === 'completed' && !results[election._id]) viewResults(election._id);
+
               }}>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
@@ -212,11 +207,9 @@ export default function ElectionsPage() {
                               </button>
                             )}
 
-                            {election.status === 'completed' && results[election._id] && (() => {
-                              const posResults = results[election._id][c.position];
-                              const cResult = posResults?.find(rc => rc._id === c._id);
-                              return cResult ? <p className="text-lg font-bold text-primary-600 mt-2">{cResult.voteCount} votes</p> : null;
-                            })()}
+                            {election.status === 'completed' && (
+                              <p className="text-lg font-bold text-primary-600 mt-2">{c.votes?.length || 0} votes</p>
+                            )}
                           </div>
                         </div>
                       ))}

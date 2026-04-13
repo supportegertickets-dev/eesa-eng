@@ -53,17 +53,23 @@ export default function PublicGalleryPage() {
             <p className="text-lg">No photos yet</p>
           </div>
         ) : (
-          <div className="columns-2 sm:columns-3 lg:columns-4 gap-4 space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {images.map((img) => (
-              <div key={img._id} className="break-inside-avoid group cursor-pointer" onClick={() => setSelectedImg(img)}>
-                <div className="relative rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow">
-                  <img src={img.imageUrl} alt={img.title} className="w-full group-hover:scale-105 transition-transform duration-300" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="absolute bottom-0 left-0 right-0 p-4">
-                      <p className="text-white font-medium">{img.title}</p>
-                      <p className="text-white/70 text-sm capitalize">{img.category}</p>
-                    </div>
+              <div key={img._id} className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedImg(img)}>
+                <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+                  <img src={img.imageUrl} alt={img.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                </div>
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="font-semibold text-gray-900 line-clamp-1">{img.title}</h3>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-600 font-medium capitalize whitespace-nowrap">{img.category}</span>
                   </div>
+                  {img.description && (
+                    <p className="text-sm text-gray-500 mt-1.5 line-clamp-2">{img.description}</p>
+                  )}
+                  {img.createdAt && (
+                    <p className="text-xs text-gray-400 mt-2">{new Date(img.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                  )}
                 </div>
               </div>
             ))}
