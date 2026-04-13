@@ -135,6 +135,10 @@ export const checkMpesaStatus = (checkoutRequestId) => api.get(`/payments/mpesa/
 
 // Resources / Library
 export const uploadResource = (formData) => api.post('/resources', formData);
+export const getResourceFileUrl = (id) => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('eesa_token') : '';
+  return `${API_URL}/resources/${id}/file?token=${token}`;
+};
 export const getResources = (params = '') => api.get(`/resources${params}`);
 export const getMyResources = () => api.get('/resources/my');
 export const getPendingResources = () => api.get('/resources/pending');

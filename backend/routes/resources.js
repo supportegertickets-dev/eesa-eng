@@ -1,5 +1,8 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const jwt = require('jsonwebtoken');
+const https = require('https');
+const http = require('http');
 const Resource = require('../models/Resource');
 const { protect, adminOnly } = require('../middleware/auth');
 const { uploadFile } = require('../middleware/upload');
@@ -20,7 +23,7 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
 
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { folder: 'eesa/resources', resource_type: 'auto' },
+        { folder: 'eesa/resources', resource_type: 'auto', access_mode: 'public' },
         (error, result) => { if (error) reject(error); else resolve(result); }
       );
       stream.end(req.file.buffer);
@@ -122,6 +125,46 @@ router.put('/:id/review', protect, adminOnly, [
     res.json(populated);
   } catch (error) {
     res.status(500).json({ message: 'Server error reviewing resource' });
+  }
+});
+
+// GET /api/resources/:id/file - proxy file content (auth via query token)
+router.get('/:id/file', async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (!token) return res.status(401).json({ message: 'Not authorized' });
+
+    try {
+      jwt.verify(token, process.env.JWT_SECRET);
+    } catch {
+      return res.status(401).json({ message: 'Invalid token' });
+    }
+
+    const resource = await Resource.findById(req.params.id);
+    if (!resource) return res.status(404).json({ message: 'Resource not found' });
+
+    const fileUrl = resource.fileUrl;
+    if (!fileUrl) return res.status(404).json({ message: 'File URL not found' });
+
+    const fetcher = fileUrl.startsWith('https') ? https : http;
+    fetcher.get(fileUrl, (proxyRes) => {
+      if (proxyRes.statusCode !== 200) {
+        return res.status(proxyRes.statusCode).json({ message: 'Failed to fetch file' });
+      }
+      res.set('Content-Type', resource.fileType || 'application/octet-stream');
+      const safeName = (resource.title || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+      res.set('Content-Disposition', `inline; filename="${safeName}"`);
+      if (proxyRes.headers['content-length']) {
+        res.set('Content-Length', proxyRes.headers['content-length']);
+      }
+      proxyRes.pipe(res);
+    }).on('error', (err) => {
+      console.error('File proxy error:', err);
+      res.status(500).json({ message: 'Failed to fetch file' });
+    });
+  } catch (error) {
+    console.error('File proxy error:', error);
+    res.status(500).json({ message: 'Server error' });
   }
 });
 

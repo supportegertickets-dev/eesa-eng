@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { uploadResource, getResources, getMyResources, getPendingResources, reviewResource, trackDownload, deleteResource } from '@/lib/api';
+import { uploadResource, getResources, getMyResources, getPendingResources, reviewResource, trackDownload, deleteResource, getResourceFileUrl } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { HiBookOpen, HiPlus, HiDownload, HiCheckCircle, HiXCircle, HiTrash, HiSearch, HiDocumentText, HiEye, HiX } from 'react-icons/hi';
 import { format } from 'date-fns';
@@ -52,10 +52,8 @@ export default function LibraryPage() {
   const handleDownload = async (resource) => {
     try {
       await trackDownload(resource._id);
-      window.open(resource.fileUrl, '_blank');
-    } catch {
-      window.open(resource.fileUrl, '_blank');
-    }
+    } catch {}
+    window.open(getResourceFileUrl(resource._id), '_blank');
   };
 
   const handleDelete = async (id) => {
@@ -204,6 +202,7 @@ function ResourceViewer({ resource, onClose, onDownload }) {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ].includes(resource.fileType);
 
+  const proxyUrl = getResourceFileUrl(resource._id);
   const viewerUrl = isOfficeDoc
     ? `https://docs.google.com/gview?url=${encodeURIComponent(resource.fileUrl)}&embedded=true`
     : null;
@@ -240,15 +239,15 @@ function ResourceViewer({ resource, onClose, onDownload }) {
 
       <div className="flex-1 overflow-auto" onClick={e => e.stopPropagation()}>
         {isPdf ? (
-          <iframe src={resource.fileUrl} className="w-full h-full border-0" title={resource.title} />
+          <iframe src={proxyUrl} className="w-full h-full border-0" title={resource.title} />
         ) : isImage ? (
           <div className="flex items-center justify-center min-h-full p-4">
-            <img src={resource.fileUrl} alt={resource.title} className="max-w-full max-h-[85vh] object-contain rounded-lg" />
+            <img src={proxyUrl} alt={resource.title} className="max-w-full max-h-[85vh] object-contain rounded-lg" />
           </div>
         ) : isOfficeDoc ? (
           <iframe src={viewerUrl} className="w-full h-full border-0" title={resource.title} />
         ) : isText ? (
-          <TextViewer url={resource.fileUrl} />
+          <TextViewer url={proxyUrl} />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-white text-center p-8">
             <HiDocumentText className="w-16 h-16 mb-4 text-gray-400" />
