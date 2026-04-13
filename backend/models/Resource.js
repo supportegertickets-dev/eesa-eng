@@ -16,7 +16,7 @@ const resourceSchema = new mongoose.Schema({
   department: {
     type: String,
     enum: [
-      'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
+      'All', 'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
       'Agricultural Engineering', 'Chemical Engineering', 'General', 'Other'
     ],
     default: 'General'
