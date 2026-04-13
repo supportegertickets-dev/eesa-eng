@@ -49,11 +49,21 @@ export default function LibraryPage() {
     } catch (err) { toast.error(err.message); }
   };
 
-  const handleDownload = async (resource) => {
+  const handleDownload = async (resource, blobUrl) => {
     try {
       await trackDownload(resource._id);
     } catch {}
-    window.open(getResourceFileUrl(resource._id), '_blank');
+    if (blobUrl) {
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      const ext = resource.fileType ? ('.' + resource.fileType.split('/').pop().replace('vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx').replace('vnd.openxmlformats-officedocument.presentationml.presentation', 'pptx').replace('vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx').replace('msword', 'doc').replace('vnd.ms-powerpoint', 'ppt').replace('vnd.ms-excel', 'xls').replace('plain', 'txt').replace('pdf', 'pdf').replace('jpeg', 'jpg')) : '';
+      a.download = (resource.title || 'file') + ext;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } else {
+      window.open(getResourceFileUrl(resource._id), '_blank');
+    }
   };
 
   const handleDelete = async (id) => {
@@ -124,7 +134,8 @@ export default function LibraryPage() {
       ) : (
         <div className="space-y-3">
           {resources.map((r) => (
-            <div key={r._id} className="card">
+            <div key={r._id} className={`card ${r.status === 'approved' ? 'cursor-pointer hover:ring-2 hover:ring-primary-300 transition-all' : ''}`}
+              onClick={() => r.status === 'approved' && setViewingResource(r)}>
               <div className="flex items-start justify-between">
                 <div className="flex gap-3 flex-1 min-w-0">
                   <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -146,16 +157,11 @@ export default function LibraryPage() {
                     {r.rejectionReason && <p className="text-xs text-red-500 mt-1">Reason: {r.rejectionReason}</p>}
                   </div>
                 </div>
-                <div className="flex items-center gap-1 ml-2">
+                <div className="flex items-center gap-1 ml-2" onClick={e => e.stopPropagation()}>
                   {r.status === 'approved' && (
-                    <>
-                      <button onClick={() => setViewingResource(r)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="View">
-                        <HiEye className="w-5 h-5" />
-                      </button>
-                      <button onClick={() => handleDownload(r)} className="p-2 text-primary-500 hover:bg-primary-50 rounded-lg" title="Download">
-                        <HiDownload className="w-5 h-5" />
-                      </button>
-                    </>
+                    <button onClick={() => setViewingResource(r)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="View">
+                      <HiEye className="w-5 h-5" />
+                    </button>
                   )}
                   {tab === 'pending' && isAdmin && r.status === 'pending' && (
                     <>
@@ -183,7 +189,7 @@ export default function LibraryPage() {
       )}
 
       {viewingResource && (
-        <ResourceViewer resource={viewingResource} onClose={() => setViewingResource(null)} onDownload={handleDownload} />
+        <ResourceViewer resource={viewingResource} onClose={() => setViewingResource(null)} onDownload={(r, blob) => handleDownload(r, blob)} />
       )}
     </div>
   );
@@ -259,7 +265,7 @@ function ResourceViewer({ resource, onClose, onDownload }) {
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => onDownload(resource)} className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm">
+          <button onClick={() => onDownload(resource, blobUrl)} className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm">
             <HiDownload className="w-4 h-4" /> Download
           </button>
           <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-lg">
@@ -277,7 +283,7 @@ function ResourceViewer({ resource, onClose, onDownload }) {
           <div className="flex flex-col items-center justify-center h-full text-white text-center p-8">
             <p className="text-lg font-medium mb-2">Failed to load file</p>
             <p className="text-gray-400 text-sm mb-6">{error}</p>
-            <button onClick={() => onDownload(resource)} className="btn-primary flex items-center gap-2">
+            <button onClick={() => onDownload(resource, null)} className="btn-primary flex items-center gap-2">
               <HiDownload className="w-4 h-4" /> Download instead
             </button>
           </div>
@@ -296,7 +302,7 @@ function ResourceViewer({ resource, onClose, onDownload }) {
             <HiDocumentText className="w-16 h-16 mb-4 text-gray-400" />
             <p className="text-lg font-medium mb-2">Preview not available for this file type</p>
             <p className="text-gray-400 text-sm mb-6">{resource.fileType || 'Unknown type'}</p>
-            <button onClick={() => onDownload(resource)} className="btn-primary flex items-center gap-2">
+            <button onClick={() => onDownload(resource, blobUrl)} className="btn-primary flex items-center gap-2">
               <HiDownload className="w-4 h-4" /> Download to view
             </button>
           </div>
