@@ -40,7 +40,8 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
 
     res.status(201).json(resource);
   } catch (error) {
-    res.status(500).json({ message: 'Server error uploading resource' });
+    console.error('Resource upload error:', error);
+    res.status(500).json({ message: error.message || 'Server error uploading resource' });
   }
 });
 

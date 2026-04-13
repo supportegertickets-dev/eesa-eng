@@ -4,7 +4,7 @@ const Payment = require('../models/Payment');
 const User = require('../models/User');
 const { protect, adminOnly } = require('../middleware/auth');
 const { uploadImage } = require('../middleware/upload');
-const cloudinary = require('cloudinary').v2;
+const cloudinary = require('../config/cloudinary');
 
 const router = express.Router();
 
