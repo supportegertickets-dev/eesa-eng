@@ -10,7 +10,6 @@ export const metadata = {
   description: 'Official website and portal for the Egerton Engineering Student Association. Join us in building the future of engineering.',
   keywords: 'Egerton University, Engineering, Student Association, EESA, Kenya',
   manifest: '/manifest.json',
-  themeColor: '#800020',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -20,7 +19,13 @@ export const metadata = {
     icon: '/logo.png',
     apple: '/logo.png',
   },
-  viewport: 'width=device-width, initial-scale=1, maximum-scale=1',
+};
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  themeColor: '#800020',
 };
 
 export default function RootLayout({ children }) {

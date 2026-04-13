@@ -3,6 +3,8 @@ const { body, validationResult } = require('express-validator');
 const Payment = require('../models/Payment');
 const User = require('../models/User');
 const { protect, adminOnly } = require('../middleware/auth');
+const { uploadImage } = require('../middleware/upload');
+const cloudinary = require('cloudinary').v2;
 
 const router = express.Router();
 
@@ -153,7 +155,7 @@ router.get('/mpesa/status/:checkoutRequestId', protect, async (req, res) => {
 });
 
 // POST /api/payments - submit payment
-router.post('/', protect, [
+router.post('/', protect, uploadImage.single('proofScreenshot'), [
   body('type').isIn(['registration', 'renewal']).withMessage('Invalid payment type'),
   body('amount').isNumeric().withMessage('Amount is required'),
   body('reference').trim().notEmpty().withMessage('Payment reference is required').escape(),
@@ -164,6 +166,18 @@ router.post('/', protect, [
   try {
     const { type, amount, reference, semester, academicYear, notes } = req.body;
 
+    let proofScreenshot = '';
+    if (req.file) {
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'eesa/payments' },
+          (err, result) => err ? reject(err) : resolve(result)
+        );
+        stream.end(req.file.buffer);
+      });
+      proofScreenshot = result.secure_url;
+    }
+
     const payment = await Payment.create({
       user: req.user._id,
       type,
@@ -171,11 +185,13 @@ router.post('/', protect, [
       reference,
       semester,
       academicYear,
-      notes
+      notes,
+      proofScreenshot
     });
 
     res.status(201).json(payment);
   } catch (error) {
+    console.error('Payment submit error:', error);
     res.status(500).json({ message: 'Server error submitting payment' });
   }
 });

@@ -1,6 +1,4 @@
-export const metadata = {
-  title: 'Offline – EESA',
-};
+'use client';
 
 export default function OfflinePage() {
   return (
