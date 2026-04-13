@@ -83,20 +83,23 @@ router.put('/:id', protect, leadershipOnly, async (req, res) => {
   }
 });
 
-// POST /api/elections/:id/candidates - register as candidate
-router.post('/:id/candidates', protect, uploadImage.single('photo'), async (req, res) => {
+// POST /api/elections/:id/candidates - admin: register a candidate
+router.post('/:id/candidates', protect, adminOnly, uploadImage.single('photo'), async (req, res) => {
   try {
     const election = await Election.findById(req.params.id);
     if (!election) return res.status(404).json({ message: 'Election not found' });
     if (election.status !== 'upcoming') {
-      return res.status(400).json({ message: 'Can only register for upcoming elections' });
+      return res.status(400).json({ message: 'Can only register candidates for upcoming elections' });
     }
 
+    const userId = req.body.userId;
+    if (!userId) return res.status(400).json({ message: 'User ID is required' });
+
     const alreadyCandidate = election.candidates.some(
-      c => c.user.toString() === req.user._id.toString()
+      c => c.user.toString() === userId.toString()
     );
     if (alreadyCandidate) {
-      return res.status(400).json({ message: 'Already registered as a candidate' });
+      return res.status(400).json({ message: 'This member is already registered as a candidate' });
     }
 
     let photo = '';
@@ -114,7 +117,7 @@ router.post('/:id/candidates', protect, uploadImage.single('photo'), async (req,
     }
 
     election.candidates.push({
-      user: req.user._id,
+      user: userId,
       position: req.body.position,
       manifesto: req.body.manifesto || '',
       photo,
