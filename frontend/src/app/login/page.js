@@ -7,10 +7,12 @@ import { login } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { HiEye, HiEyeOff } from 'react-icons/hi';
 
 export default function LoginPage() {
   const [form, setForm] = useState({ identifier: '', password: '' });
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const { loginUser } = useAuth();
   const router = useRouter();
 
@@ -54,14 +56,19 @@ export default function LoginPage() {
           </div>
           <div className="mb-2">
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="input-field"
-              placeholder="••••••••"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                className="input-field pr-10"
+                placeholder="••••••••"
+              />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showPassword ? <HiEyeOff className="w-5 h-5" /> : <HiEye className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
           <div className="mb-6 text-right">
             <Link href="/forgot-password" className="text-sm text-primary-500 hover:underline">

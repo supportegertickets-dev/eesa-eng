@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { register } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 import toast from 'react-hot-toast';
+import { HiEye, HiEyeOff } from 'react-icons/hi';
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -20,6 +21,8 @@ export default function RegisterPage() {
     yearOfStudy: 1,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const { loginUser } = useAuth();
   const router = useRouter();
 
@@ -161,26 +164,36 @@ export default function RegisterPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={form.password}
-                onChange={(e) => updateForm('password', e.target.value)}
-                className="input-field"
-                placeholder="Min 6 characters"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={6}
+                  value={form.password}
+                  onChange={(e) => updateForm('password', e.target.value)}
+                  className="input-field pr-10"
+                  placeholder="Min 6 characters"
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showPassword ? <HiEyeOff className="w-5 h-5" /> : <HiEye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-              <input
-                type="password"
-                required
-                value={form.confirmPassword}
-                onChange={(e) => updateForm('confirmPassword', e.target.value)}
-                className="input-field"
-                placeholder="Repeat password"
-              />
+              <div className="relative">
+                <input
+                  type={showConfirm ? 'text' : 'password'}
+                  required
+                  value={form.confirmPassword}
+                  onChange={(e) => updateForm('confirmPassword', e.target.value)}
+                  className="input-field pr-10"
+                  placeholder="Repeat password"
+                />
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  {showConfirm ? <HiEyeOff className="w-5 h-5" /> : <HiEye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
           </div>
 
