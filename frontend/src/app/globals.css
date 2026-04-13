@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap');
+
+@layer base {
+  body {
+    @apply text-gray-800 antialiased;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-6 py-2.5 bg-primary-500 text-white rounded-lg font-medium hover:bg-primary-600 transition-colors shadow-sm;
+  }
+  .btn-accent {
+    @apply px-6 py-2.5 bg-accent-500 text-white rounded-lg font-medium hover:bg-accent-600 transition-colors shadow-sm;
+  }
+  .btn-outline {
+    @apply px-6 py-2.5 border-2 border-primary-500 text-primary-500 rounded-lg font-medium hover:bg-primary-500 hover:text-white transition-colors;
+  }
+  .input-field {
+    @apply w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all;
+  }
+  .card {
+    @apply bg-white rounded-xl shadow-md border border-gray-100 p-6;
+  }
+  .section-title {
+    @apply font-heading text-3xl sm:text-4xl font-bold text-gray-900;
+  }
+  .section-subtitle {
+    @apply text-gray-600 text-lg max-w-2xl;
+  }
+}
