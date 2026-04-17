@@ -17,10 +17,11 @@ export default function LibraryPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
+  const [yearFilter, setYearFilter] = useState('');
   const [viewingResource, setViewingResource] = useState(null);
   const isAdmin = ['admin', 'chairperson'].includes(user?.role);
 
-  useEffect(() => { loadResources(); }, [tab, category]);
+  useEffect(() => { loadResources(); }, [tab, category, yearFilter]);
 
   const loadResources = async () => {
     setLoading(true);
@@ -33,6 +34,7 @@ export default function LibraryPage() {
       } else {
         const params = new URLSearchParams();
         if (category) params.set('category', category);
+        if (yearFilter) params.set('year', yearFilter);
         if (search) params.set('search', search);
         data = await getResources(`?${params.toString()}`);
       }
@@ -118,6 +120,10 @@ export default function LibraryPage() {
             <option value="">All Categories</option>
             {CATEGORIES.map(c => <option key={c} value={c}>{c.replace('-', ' ')}</option>)}
           </select>
+          <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} className="input-field w-auto">
+            <option value="">All Years</option>
+            {[1, 2, 3, 4, 5].map((y) => <option key={y} value={y}>Year {y}</option>)}
+          </select>
           <button type="submit" className="btn-primary">Search</button>
         </form>
       )}
@@ -151,6 +157,7 @@ export default function LibraryPage() {
                     <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
                       {r.uploadedBy && <span>By {r.uploadedBy.firstName} {r.uploadedBy.lastName}</span>}
                       {r.department && <span>• {r.department}</span>}
+                      {r.year && <span>• Year {r.year}</span>}
                       <span>• {r.downloads || 0} downloads</span>
                       <span>• {format(new Date(r.createdAt), 'MMM d, yyyy')}</span>
                     </div>
@@ -320,7 +327,7 @@ function ResourceViewer({ resource, onClose, onDownload }) {
 }
 
 function UploadForm({ onUploaded, onCancel }) {
-  const [form, setForm] = useState({ title: '', description: '', category: 'notes', department: '' });
+  const [form, setForm] = useState({ title: '', description: '', category: 'notes', department: '', year: 1 });
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -360,6 +367,14 @@ function UploadForm({ onUploaded, onCancel }) {
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
           <input value={form.department} onChange={e => setForm({...form, department: e.target.value})} className="input-field" placeholder="e.g., Electrical Engineering" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+          <select value={form.year} onChange={e => setForm({...form, year: parseInt(e.target.value, 10)})} className="input-field">
+            {[1, 2, 3, 4, 5].map((y) => (
+              <option key={y} value={y}>Year {y}</option>
+            ))}
+          </select>
         </div>
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">File (PDF, Word, PPT, etc.)</label>

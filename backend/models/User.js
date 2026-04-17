@@ -50,7 +50,6 @@ const userSchema = new mongoose.Schema({
       'Mechanical Engineering',
       'Electrical Engineering',
       'Agricultural Engineering',
-      'Chemical Engineering',
       'Other'
     ],
     default: 'Other'
@@ -58,7 +57,7 @@ const userSchema = new mongoose.Schema({
   yearOfStudy: {
     type: Number,
     min: 1,
-    max: 6,
+    max: 5,
     default: 1
   },
   role: {

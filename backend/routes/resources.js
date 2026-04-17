@@ -19,6 +19,9 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'File is required' });
 
+    const year = parseInt(req.body.year, 10);
+    const validYear = [1, 2, 3, 4, 5].includes(year) ? year : undefined;
+
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         { folder: 'eesa/resources', resource_type: 'auto', access_mode: 'public' },
@@ -32,6 +35,7 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
       description: req.body.description || '',
       category: req.body.category || 'other',
       department: req.body.department || 'General',
+      year: validYear,
       fileUrl: result.secure_url,
       filePublicId: result.public_id,
       fileType: req.file.mimetype,
@@ -56,6 +60,12 @@ router.get('/', protect, async (req, res) => {
     const filter = { status: 'approved' };
     if (req.query.category) filter.category = req.query.category;
     if (req.query.department) filter.department = req.query.department;
+    if (req.query.year) {
+      const year = parseInt(req.query.year, 10);
+      if ([1, 2, 3, 4, 5].includes(year)) {
+        filter.year = year;
+      }
+    }
     if (req.query.search) {
       filter.title = { $regex: req.query.search, $options: 'i' };
     }

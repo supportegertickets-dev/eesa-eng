@@ -62,7 +62,6 @@ export default function Footer() {
               <li>Mechanical Engineering</li>
               <li>Electrical Engineering</li>
               <li>Agricultural Engineering</li>
-              <li>Chemical Engineering</li>
             </ul>
           </div>
 

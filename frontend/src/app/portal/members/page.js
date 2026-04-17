@@ -18,7 +18,7 @@ export default function MembersPage() {
 
   const departments = [
     'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
-    'Agricultural Engineering', 'Chemical Engineering',
+    'Agricultural Engineering',
   ];
 
   useEffect(() => {

@@ -2,9 +2,9 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const nodemailer = require('nodemailer');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
+const { sendEmail } = require('../utils/email');
 
 const router = express.Router();
 
@@ -20,52 +20,6 @@ const validate = (req, res, next) => {
   next();
 };
 
-// SMTP email transporter (Brevo)
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT) || 587,
-  secure: false,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
-// Brevo REST API fallback
-const sendBrevoApi = async (to, subject, htmlContent) => {
-  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
-    method: 'POST',
-    headers: {
-      'api-key': process.env.BREVO_API_KEY,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      sender: { name: 'EESA', email: process.env.SMTP_FROM || 'noreply@eesa.org' },
-      to: [{ email: to }],
-      subject,
-      htmlContent,
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || 'Brevo API email failed');
-  }
-};
-
-const sendEmail = async (to, subject, htmlContent) => {
-  // Try Brevo REST API first, fall back to SMTP
-  try {
-    await sendBrevoApi(to, subject, htmlContent);
-  } catch (apiErr) {
-    console.warn('Brevo API failed, falling back to SMTP:', apiErr.message);
-    await transporter.sendMail({
-      from: `"EESA" <${process.env.SMTP_FROM || 'noreply@eesa.org'}>`,
-      to,
-      subject,
-      html: htmlContent,
-    });
-  }
-};
 
 // POST /api/auth/register
 router.post('/register', [
@@ -77,10 +31,10 @@ router.post('/register', [
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('department').optional().isIn([
     'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
-    'Agricultural Engineering', 'Chemical Engineering', 'Other'
+    'Agricultural Engineering', 'Other'
   ]),
   body('regNumber').optional({ values: 'falsy' }).trim().escape(),
-  body('yearOfStudy').optional().isInt({ min: 1, max: 6 }),
+  body('yearOfStudy').optional().isInt({ min: 1, max: 5 }),
   validate
 ], async (req, res) => {
   try {
@@ -259,9 +213,9 @@ router.put('/profile', protect, [
   body('phone').optional().trim().escape(),
   body('department').optional().isIn([
     'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
-    'Agricultural Engineering', 'Chemical Engineering', 'Other'
+    'Agricultural Engineering', 'Other'
   ]),
-  body('yearOfStudy').optional().isInt({ min: 1, max: 6 }),
+  body('yearOfStudy').optional().isInt({ min: 1, max: 5 }),
   validate
 ], async (req, res) => {
   try {

@@ -1,7 +1,8 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Project = require('../models/Project');
-const { protect, leadershipOnly } = require('../middleware/auth');
+const { protect, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
+const { sendEmailToMembers } = require('../utils/email');
 
 const router = express.Router();
 
@@ -76,6 +77,18 @@ router.post('/', protect, leadershipOnly, [
     });
 
     await project.populate('teamLead', 'firstName lastName');
+
+    if (POWER_ROLES.includes(req.user.role)) {
+      const subject = `New EESA project: ${project.title}`;
+      const htmlContent = `
+        <h2>New project added by ${req.user.firstName} ${req.user.lastName}</h2>
+        <p><strong>${project.title}</strong></p>
+        <p>${project.description || ''}</p>
+        <p>Visit the EESA portal to learn more and join the project.</p>
+      `;
+      sendEmailToMembers(subject, htmlContent).catch(err => console.error('Notification email failed:', err));
+    }
+
     res.status(201).json(project);
   } catch (error) {
     res.status(500).json({ message: 'Server error creating project' });

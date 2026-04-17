@@ -1,8 +1,9 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Gallery = require('../models/Gallery');
-const { protect, adminOnly, leadershipOnly } = require('../middleware/auth');
+const { protect, adminOnly, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
 const { uploadImage } = require('../middleware/upload');
+const { sendEmailToMembers } = require('../utils/email');
 const cloudinary = require('../config/cloudinary');
 
 const router = express.Router();
@@ -63,6 +64,17 @@ router.post('/', protect, leadershipOnly, uploadImage.single('image'), [
       imagePublicId: result.public_id,
       uploadedBy: req.user._id
     });
+
+    if (POWER_ROLES.includes(req.user.role)) {
+      const subject = `New EESA gallery upload: ${image.title}`;
+      const htmlContent = `
+        <h2>New gallery image uploaded by ${req.user.firstName} ${req.user.lastName}</h2>
+        <p><strong>${image.title}</strong></p>
+        <p>${image.description || ''}</p>
+        <p>Visit the EESA portal gallery to view the new image.</p>
+      `;
+      sendEmailToMembers(subject, htmlContent).catch(err => console.error('Notification email failed:', err));
+    }
 
     res.status(201).json(image);
   } catch (error) {

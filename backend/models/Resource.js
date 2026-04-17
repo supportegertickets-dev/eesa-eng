@@ -17,9 +17,14 @@ const resourceSchema = new mongoose.Schema({
     type: String,
     enum: [
       'All', 'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
-      'Agricultural Engineering', 'Chemical Engineering', 'General', 'Other'
+      'Agricultural Engineering', 'General', 'Other'
     ],
     default: 'General'
+  },
+  year: {
+    type: Number,
+    min: 1,
+    max: 5,
   },
   fileUrl: { type: String, required: true },
   filePublicId: { type: String, default: '' },

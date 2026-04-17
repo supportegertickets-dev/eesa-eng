@@ -31,7 +31,6 @@ export default function RegisterPage() {
     'Mechanical Engineering',
     'Electrical Engineering',
     'Agricultural Engineering',
-    'Chemical Engineering',
     'Other',
   ];
 
@@ -154,7 +153,7 @@ export default function RegisterPage() {
                 onChange={(e) => updateForm('yearOfStudy', parseInt(e.target.value))}
                 className="input-field"
               >
-                {[1, 2, 3, 4, 5, 6].map((year) => (
+                {[1, 2, 3, 4, 5].map((year) => (
                   <option key={year} value={year}>Year {year}</option>
                 ))}
               </select>

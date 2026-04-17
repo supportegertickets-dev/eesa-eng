@@ -1,7 +1,8 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Event = require('../models/Event');
-const { protect, leadershipOnly } = require('../middleware/auth');
+const { protect, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
+const { sendEmailToMembers } = require('../utils/email');
 
 const router = express.Router();
 
@@ -77,6 +78,20 @@ router.post('/', protect, leadershipOnly, [
     });
 
     await event.populate('organizer', 'firstName lastName');
+
+    if (POWER_ROLES.includes(req.user.role)) {
+      const subject = `New EESA event: ${event.title}`;
+      const htmlContent = `
+        <h2>New event added by ${req.user.firstName} ${req.user.lastName}</h2>
+        <p><strong>${event.title}</strong></p>
+        <p>${event.description || ''}</p>
+        <p><strong>Date:</strong> ${new Date(event.date).toLocaleString()}</p>
+        <p><strong>Location:</strong> ${event.location}</p>
+        <p>Visit the EESA portal to learn more.</p>
+      `;
+      sendEmailToMembers(subject, htmlContent).catch(err => console.error('Notification email failed:', err));
+    }
+
     res.status(201).json(event);
   } catch (error) {
     res.status(500).json({ message: 'Server error creating event' });

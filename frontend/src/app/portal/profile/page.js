@@ -19,7 +19,7 @@ export default function ProfilePage() {
 
   const departments = [
     'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
-    'Agricultural Engineering', 'Chemical Engineering', 'Other',
+    'Agricultural Engineering', 'Other',
   ];
 
   const handleSubmit = async (e) => {
@@ -104,7 +104,7 @@ export default function ProfilePage() {
                   onChange={(e) => setForm({ ...form, yearOfStudy: parseInt(e.target.value) })}
                   className="input-field"
                 >
-                  {[1, 2, 3, 4, 5, 6].map((y) => (
+                  {[1, 2, 3, 4, 5].map((y) => (
                     <option key={y} value={y}>Year {y}</option>
                   ))}
                 </select>
