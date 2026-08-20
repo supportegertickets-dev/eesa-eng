@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { HiAcademicCap, HiUserGroup, HiLightBulb, HiCog, HiGlobe, HiUser } from 'react-icons/hi';
 import { getLeaders } from '@/lib/api';
 
-const ROLE_LABELS = { chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer' };
-const ROLE_ORDER = ['chairperson', 'vice_chairperson', 'secretary_general', 'organizing_secretary', 'treasurer', 'publicity_manager', '1st_cohort_rep'];
+const ROLE_LABELS = { chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', project_manager: 'Project Manager', patron: 'Patron', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer' };
+const ROLE_ORDER = ['patron', 'chairperson', 'vice_chairperson', 'secretary_general', 'organizing_secretary', 'project_manager', 'treasurer', 'publicity_manager', '1st_cohort_rep'];
 
 export default function AboutPage() {
   const [leadership, setLeadership] = useState([]);

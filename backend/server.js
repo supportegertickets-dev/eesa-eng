@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const connectDB = require('./config/db');
+const { advanceAcademicYears } = require('./utils/academicYear');
 
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
@@ -25,7 +26,12 @@ const app = express();
 app.set('trust proxy', 1);
 
 // Connect to database
-connectDB();
+connectDB().then(() => {
+  advanceAcademicYears().catch(error => console.error('Academic year rollover failed:', error));
+  setInterval(() => {
+    advanceAcademicYears().catch(error => console.error('Academic year rollover failed:', error));
+  }, 24 * 60 * 60 * 1000);
+});
 
 // Security middleware
 app.use(helmet({

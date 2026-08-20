@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { advanceAcademicYears } = require('../utils/academicYear');
 
 const protect = async (req, res, next) => {
   let token;
@@ -12,6 +13,8 @@ const protect = async (req, res, next) => {
       if (!req.user) {
         return res.status(401).json({ message: 'User not found' });
       }
+      await advanceAcademicYears();
+      req.user = await User.findById(decoded.id).select('-password');
       next();
     } catch (error) {
       return res.status(401).json({ message: 'Not authorized, token invalid' });
@@ -21,7 +24,7 @@ const protect = async (req, res, next) => {
   }
 };
 
-const LEADERSHIP_ROLES = ['admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', '1st_cohort_rep', 'treasurer'];
+const LEADERSHIP_ROLES = ['admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', 'project_manager', 'patron', '1st_cohort_rep', 'treasurer'];
 const POWER_ROLES = ['admin', 'chairperson'];
 
 const adminOnly = (req, res, next) => {

@@ -31,7 +31,7 @@ router.post('/register', [
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('department').optional().isIn([
     'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
-    'Agricultural Engineering', 'Other'
+    'Agricultural Engineering', 'Industrial Technology', 'Other'
   ]),
   body('regNumber').optional({ values: 'falsy' }).trim().escape(),
   body('yearOfStudy').optional().isInt({ min: 1, max: 5 }),
@@ -72,6 +72,9 @@ router.post('/register', [
       email: user.email,
       username: user.username,
       role: user.role,
+      department: user.department,
+      yearOfStudy: user.yearOfStudy,
+      academicStatus: user.academicStatus,
       token: generateToken(user._id)
     });
   } catch (error) {
@@ -113,6 +116,9 @@ router.post('/login', [
       email: user.email,
       username: user.username,
       role: user.role,
+      department: user.department,
+      yearOfStudy: user.yearOfStudy,
+      academicStatus: user.academicStatus,
       membershipPaid: user.membershipPaid,
       membershipExpiry: user.membershipExpiry,
       token: generateToken(user._id)
@@ -213,7 +219,7 @@ router.put('/profile', protect, [
   body('phone').optional().trim().escape(),
   body('department').optional().isIn([
     'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
-    'Agricultural Engineering', 'Other'
+    'Agricultural Engineering', 'Industrial Technology', 'Other'
   ]),
   body('yearOfStudy').optional().isInt({ min: 1, max: 5 }),
   validate

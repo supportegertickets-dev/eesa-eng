@@ -53,6 +53,26 @@ class ApiClient {
     });
   }
 
+  upload(endpoint, body, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `${this.baseURL}${endpoint}`);
+      const token = this.getToken();
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable && onProgress) onProgress(Math.round((event.loaded / event.total) * 100));
+      };
+      xhr.onload = () => {
+        let data;
+        try { data = JSON.parse(xhr.responseText); } catch { data = {}; }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else reject(new Error(data.message || 'Something went wrong'));
+      };
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.send(body);
+    });
+  }
+
   put(endpoint, body) {
     if (body instanceof FormData) {
       return this.request(endpoint, { method: 'PUT', body });
@@ -134,7 +154,7 @@ export const initiateMpesaPayment = (data) => api.post('/payments/mpesa/stkpush'
 export const checkMpesaStatus = (checkoutRequestId) => api.get(`/payments/mpesa/status/${checkoutRequestId}`);
 
 // Resources / Library
-export const uploadResource = (formData) => api.post('/resources', formData);
+export const uploadResource = (formData, onProgress) => api.upload('/resources', formData, onProgress);
 export const getResourceFileUrl = (id) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('eesa_token') : '';
   return `${API_URL}/resources/${id}/file?token=${token}`;

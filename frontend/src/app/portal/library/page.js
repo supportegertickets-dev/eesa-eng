@@ -216,7 +216,7 @@ function ResourceViewer({ resource, onClose, onDownload }) {
   ].includes(resource.fileType);
 
   // PDFs and Office docs use Google Docs Viewer (works on mobile)
-  const useGoogleViewer = isPdf || isOfficeDoc;
+  const useGoogleViewer = isOfficeDoc;
 
   const [blobUrl, setBlobUrl] = useState(null);
   const [textContent, setTextContent] = useState(null);
@@ -224,7 +224,7 @@ function ResourceViewer({ resource, onClose, onDownload }) {
   const [error, setError] = useState(null);
 
   const googleViewerUrl = useGoogleViewer
-    ? `https://docs.google.com/gview?url=${encodeURIComponent(resource.fileUrl)}&embedded=true`
+    ? `https://docs.google.com/gview?url=${encodeURIComponent(getResourceFileUrl(resource._id))}&embedded=true`
     : null;
 
   useEffect(() => {
@@ -238,10 +238,8 @@ function ResourceViewer({ resource, onClose, onDownload }) {
   }, [onClose]);
 
   useEffect(() => {
-    // For Google Viewer types, trigger proxy fetch to auto-publicize, then show viewer
+    // Office previews use Google Viewer; PDFs are loaded locally for a faster preview.
     if (useGoogleViewer) {
-      const proxyUrl = getResourceFileUrl(resource._id);
-      fetch(proxyUrl).catch(() => {});  // fire-and-forget to ensure resource is publicized
       setLoading(false);
       return;
     }
@@ -305,6 +303,8 @@ function ResourceViewer({ resource, onClose, onDownload }) {
           </div>
         ) : useGoogleViewer ? (
           <iframe src={googleViewerUrl} className="w-full h-full border-0" title={resource.title} allow="autoplay" />
+        ) : isPdf ? (
+          <iframe src={blobUrl} className="w-full h-full border-0 bg-white" title={resource.title} />
         ) : isImage ? (
           <div className="flex items-center justify-center min-h-full p-4">
             <img src={blobUrl} alt={resource.title} className="max-w-full max-h-[85vh] object-contain rounded-lg" />
@@ -330,6 +330,7 @@ function UploadForm({ onUploaded, onCancel }) {
   const [form, setForm] = useState({ title: '', description: '', category: 'notes', department: '', year: 1 });
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -339,7 +340,7 @@ function UploadForm({ onUploaded, onCancel }) {
       const fd = new FormData();
       Object.entries(form).forEach(([k, v]) => { if (v) fd.append(k, v); });
       fd.append('file', file);
-      await uploadResource(fd);
+      await uploadResource(fd, setUploadProgress);
       toast.success('Resource uploaded! Pending admin review.');
       onUploaded();
     } catch (err) { toast.error(err.message); }
@@ -384,7 +385,7 @@ function UploadForm({ onUploaded, onCancel }) {
       <div className="flex gap-3 mt-4">
         <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50 flex items-center gap-2">
           {submitting && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
-          Upload
+          {submitting ? `Uploading ${uploadProgress}%` : 'Upload'}
         </button>
         <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
       </div>

@@ -106,7 +106,7 @@ export default function MembersPage() {
                 </div>
                 <h3 className="font-semibold text-gray-900">{member.firstName} {member.lastName}</h3>
                 <p className="text-xs text-gray-500 mt-1">{member.department}</p>
-                <p className="text-xs text-gray-400">Year {member.yearOfStudy}</p>
+                <p className="text-xs text-gray-400">{member.academicStatus === 'alumni' ? 'Alumni' : `Year ${member.yearOfStudy}`}</p>
                 {isAdmin && member._id !== currentUser._id ? (
                   <select
                     value={member.role}
@@ -119,12 +119,14 @@ export default function MembersPage() {
                     <option value="organizing_secretary">Organizing Secretary</option>
                     <option value="secretary_general">Secretary General</option>
                     <option value="publicity_manager">Publicity Manager</option>
+                    <option value="project_manager">Project Manager</option>
+                    <option value="patron">Patron</option>
                     <option value="1st_cohort_rep">1st Cohort Rep</option>
                     <option value="treasurer">Treasurer</option>
                   </select>
                 ) : member.role !== 'member' && (
                   <span className="inline-block mt-2 px-2 py-0.5 rounded-full text-xs font-medium bg-accent-100 text-accent-700">
-                    {{ chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer' }[member.role] || member.role}
+                    {{ chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', project_manager: 'Project Manager', patron: 'Patron', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer' }[member.role] || member.role}
                   </span>
                 )}
                 {member.bio && (

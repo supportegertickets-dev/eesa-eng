@@ -49,9 +49,9 @@ export default function ProfilePage() {
             </span>
           </div>
           <h2 className="font-heading text-xl font-semibold">{user?.firstName} {user?.lastName}</h2>
-          <p className="text-accent-600 font-medium capitalize text-sm">{user?.role}</p>
+          <p className="text-accent-600 font-medium text-sm">{{ admin: 'Admin', chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', project_manager: 'Project Manager', patron: 'Patron', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer', member: 'Member' }[user?.role] || user?.role}</p>
           <p className="text-gray-500 text-sm mt-1">{user?.department}</p>
-          <p className="text-gray-500 text-sm">Year {user?.yearOfStudy}</p>
+          <p className="text-gray-500 text-sm">{user?.academicStatus === 'alumni' ? 'Alumni' : `Year ${user?.yearOfStudy}`}</p>
           {user?.regNumber && (
             <p className="text-gray-400 text-xs mt-2">{user.regNumber}</p>
           )}
@@ -103,6 +103,7 @@ export default function ProfilePage() {
                   value={form.yearOfStudy}
                   onChange={(e) => setForm({ ...form, yearOfStudy: parseInt(e.target.value) })}
                   className="input-field"
+                  disabled={user?.academicStatus === 'alumni'}
                 >
                   {[1, 2, 3, 4, 5].map((y) => (
                     <option key={y} value={y}>Year {y}</option>

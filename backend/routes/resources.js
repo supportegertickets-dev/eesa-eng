@@ -1,4 +1,5 @@
 const express = require('express');
+const { Readable } = require('stream');
 const { body, validationResult } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const Resource = require('../models/Resource');
@@ -7,6 +8,18 @@ const { uploadFile } = require('../middleware/upload');
 const cloudinary = require('../config/cloudinary');
 
 const router = express.Router();
+
+const streamResourceFile = (upstream, resource, res) => {
+  res.set('Content-Type', resource.fileType || upstream.headers.get('content-type') || 'application/octet-stream');
+  const contentLength = upstream.headers.get('content-length');
+  if (contentLength) res.set('Content-Length', contentLength);
+  res.set('Cache-Control', 'private, max-age=300');
+  const safeName = (resource.title || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+  res.set('Content-Disposition', `inline; filename="${safeName}"`);
+
+  if (!upstream.body) throw new Error('Storage returned an empty response');
+  return Readable.fromWeb(upstream.body).pipe(res);
+};
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
@@ -192,12 +205,7 @@ router.get('/:id/file', async (req, res) => {
       try {
         const upstream = await fetch(url, { redirect: 'follow' });
         if (upstream.ok) {
-          const buffer = Buffer.from(await upstream.arrayBuffer());
-          res.set('Content-Type', resource.fileType || upstream.headers.get('content-type') || 'application/octet-stream');
-          const safeName = (resource.title || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
-          res.set('Content-Disposition', `inline; filename="${safeName}"`);
-          res.set('Content-Length', buffer.length);
-          return res.send(buffer);
+          return streamResourceFile(upstream, resource, res);
         }
         console.log(`File proxy: ${label} returned ${upstream.status} for resource ${req.params.id}`);
       } catch (err) {
@@ -222,12 +230,7 @@ router.get('/:id/file', async (req, res) => {
         // Retry with original URL after making public
         const upstream = await fetch(resource.fileUrl, { redirect: 'follow' });
         if (upstream.ok) {
-          const buffer = Buffer.from(await upstream.arrayBuffer());
-          res.set('Content-Type', resource.fileType || upstream.headers.get('content-type') || 'application/octet-stream');
-          const safeName = (resource.title || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
-          res.set('Content-Disposition', `inline; filename="${safeName}"`);
-          res.set('Content-Length', buffer.length);
-          return res.send(buffer);
+          return streamResourceFile(upstream, resource, res);
         }
       } catch (e) {
         console.error('Cloudinary make-public failed:', e.message);

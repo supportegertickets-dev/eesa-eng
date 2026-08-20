@@ -44,8 +44,8 @@ export default function PortalLayout({ children }) {
     { href: '/portal/members', icon: HiUsers, label: 'Members' },
   ];
 
-  const LEADERSHIP_ROLES = ['admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', '1st_cohort_rep', 'treasurer'];
-  const ROLE_LABELS = { admin: 'Admin', chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer', member: 'Member' };
+  const LEADERSHIP_ROLES = ['admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', 'project_manager', 'patron', '1st_cohort_rep', 'treasurer'];
+  const ROLE_LABELS = { admin: 'Admin', chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', project_manager: 'Project Manager', patron: 'Patron', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer', member: 'Member' };
 
   if (LEADERSHIP_ROLES.includes(user.role)) {
     navItems.push({ href: '/portal/sponsors', icon: HiStar, label: 'Sponsors' });

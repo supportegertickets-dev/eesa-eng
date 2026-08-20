@@ -61,9 +61,18 @@ const userSchema = new mongoose.Schema({
     max: 5,
     default: 1
   },
+  academicStatus: {
+    type: String,
+    enum: ['student', 'alumni'],
+    default: 'student'
+  },
+  academicYearStartedAt: {
+    type: Date,
+    default: Date.now
+  },
   role: {
     type: String,
-    enum: ['member', 'admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', '1st_cohort_rep', 'treasurer'],
+    enum: ['member', 'admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', 'project_manager', 'patron', '1st_cohort_rep', 'treasurer'],
     default: 'member'
   },
   bio: {

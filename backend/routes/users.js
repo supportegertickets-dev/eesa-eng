@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
 
     const [users, total] = await Promise.all([
       User.find(filter)
-        .select('firstName lastName department yearOfStudy role avatar bio')
+        .select('firstName lastName department yearOfStudy academicStatus role avatar bio')
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
@@ -72,7 +72,7 @@ router.get('/stats', async (req, res) => {
 router.put('/:id/role', protect, adminOnly, async (req, res) => {
   try {
     const { role } = req.body;
-    if (!['member', 'admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', '1st_cohort_rep', 'treasurer'].includes(role)) {
+    if (!['member', 'admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', 'project_manager', 'patron', '1st_cohort_rep', 'treasurer'].includes(role)) {
       return res.status(400).json({ message: 'Invalid role' });
     }
 

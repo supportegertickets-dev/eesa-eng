@@ -10,7 +10,6 @@ export default function ManagePage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('event');
 
-  const LEADERSHIP_ROLES = ['admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', '1st_cohort_rep', 'treasurer'];
   if (!['admin', 'chairperson'].includes(user?.role)) {
     return (
       <div className="text-center py-20">
