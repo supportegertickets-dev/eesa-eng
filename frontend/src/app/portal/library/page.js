@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { uploadResource, getResources, getMyResources, getPendingResources, reviewResource, trackDownload, deleteResource, getResourceFileUrl } from '@/lib/api';
+import { uploadResource, getResources, getResourceCatalog, getMyResources, getPendingResources, reviewResource, trackDownload, deleteResource, getResourceFileUrl } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { HiBookOpen, HiPlus, HiDownload, HiCheckCircle, HiXCircle, HiTrash, HiSearch, HiDocumentText, HiEye, HiX } from 'react-icons/hi';
 import { format } from 'date-fns';
@@ -19,7 +19,12 @@ export default function LibraryPage() {
   const [category, setCategory] = useState('');
   const [yearFilter, setYearFilter] = useState('');
   const [viewingResource, setViewingResource] = useState(null);
+  const [catalog, setCatalog] = useState({ years: [], serviceUnits: [] });
   const isAdmin = ['admin', 'chairperson'].includes(user?.role);
+
+  useEffect(() => {
+    getResourceCatalog().then(setCatalog).catch(() => toast.error('Failed to load unit catalog'));
+  }, []);
 
   useEffect(() => { loadResources(); }, [tab, category, yearFilter]);
 
@@ -128,7 +133,7 @@ export default function LibraryPage() {
         </form>
       )}
 
-      {showUpload && <UploadForm onUploaded={() => { setShowUpload(false); loadResources(); }} onCancel={() => setShowUpload(false)} />}
+      {showUpload && <UploadForm catalog={catalog} onUploaded={() => { setShowUpload(false); loadResources(); }} onCancel={() => setShowUpload(false)} />}
 
       {loading ? (
         <div className="flex justify-center py-12"><div className="w-8 h-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>
@@ -157,7 +162,7 @@ export default function LibraryPage() {
                     <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
                       {r.uploadedBy && <span>By {r.uploadedBy.firstName} {r.uploadedBy.lastName}</span>}
                       {r.department && <span>• {r.department}</span>}
-                      {r.year && <span>• Year {r.year}</span>}
+                      {r.folder && <span>• {r.folder}</span>}
                       <span>• {r.downloads || 0} downloads</span>
                       <span>• {format(new Date(r.createdAt), 'MMM d, yyyy')}</span>
                     </div>
@@ -326,11 +331,19 @@ function ResourceViewer({ resource, onClose, onDownload }) {
   );
 }
 
-function UploadForm({ onUploaded, onCancel }) {
-  const [form, setForm] = useState({ title: '', description: '', category: 'notes', department: '', year: 1 });
+function UploadForm({ catalog, onUploaded, onCancel }) {
+  const [form, setForm] = useState({ title: '', description: '', category: 'notes', department: 'Electrical Engineering', year: 1, semester: 1, unitCode: '' });
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const units = [
+    ...(catalog.years || []).flatMap(({ year, semesters }) =>
+      Object.entries(semesters).flatMap(([semester, semesterUnits]) =>
+        semesterUnits.map(([code, name]) => ({ code, name, year, semester, label: `Year ${year} / Semester ${semester}` }))
+      )
+    ),
+    ...(catalog.serviceUnits || []).map(([code, name]) => ({ code, name, year: 'service', semester: '', label: 'Service Courses' }))
+  ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -338,7 +351,7 @@ function UploadForm({ onUploaded, onCancel }) {
     setSubmitting(true);
     try {
       const fd = new FormData();
-      Object.entries(form).forEach(([k, v]) => { if (v) fd.append(k, v); });
+      Object.entries(form).forEach(([k, v]) => { if (v !== '' && v !== undefined) fd.append(k, v); });
       fd.append('file', file);
       await uploadResource(fd, setUploadProgress);
       toast.success('Resource uploaded! Pending admin review.');
@@ -365,17 +378,19 @@ function UploadForm({ onUploaded, onCancel }) {
             {CATEGORIES.map(c => <option key={c} value={c}>{c.replace('-', ' ')}</option>)}
           </select>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-          <input value={form.department} onChange={e => setForm({...form, department: e.target.value})} className="input-field" placeholder="e.g., Electrical Engineering" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-          <select value={form.year} onChange={e => setForm({...form, year: parseInt(e.target.value, 10)})} className="input-field">
-            {[1, 2, 3, 4, 5].map((y) => (
-              <option key={y} value={y}>Year {y}</option>
-            ))}
+        <div className="sm:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Unit folder</label>
+          <select required value={form.unitCode} onChange={e => {
+            const selected = units.find(unit => unit.code === e.target.value);
+            setForm({ ...form, unitCode: selected.code, year: selected.year, semester: selected.semester });
+          }} className="input-field">
+            <option value="">Select the unit this document belongs to</option>
+            {['Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5', 'Service Courses'].map(group => {
+              const groupUnits = units.filter(unit => unit.label.startsWith(group));
+              return <optgroup key={group} label={group}>{groupUnits.map(unit => <option key={`${unit.year}-${unit.semester}-${unit.code}`} value={unit.code}>{unit.code}: {unit.name}</option>)}</optgroup>;
+            })}
           </select>
+          <p className="text-xs text-gray-500 mt-1">The system will file this document under the selected year, semester, and unit.</p>
         </div>
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">File (PDF, Word, PPT, etc.)</label>

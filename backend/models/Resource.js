@@ -26,6 +26,23 @@ const resourceSchema = new mongoose.Schema({
     min: 1,
     max: 5,
   },
+  semester: {
+    type: Number,
+    enum: [1, 2]
+  },
+  unitCode: {
+    type: String,
+    trim: true,
+    uppercase: true
+  },
+  unitName: {
+    type: String,
+    trim: true
+  },
+  folder: {
+    type: String,
+    trim: true
+  },
   fileUrl: { type: String, required: true },
   filePublicId: { type: String, default: '' },
   fileType: { type: String, default: '' },

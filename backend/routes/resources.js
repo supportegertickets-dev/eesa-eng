@@ -6,6 +6,7 @@ const Resource = require('../models/Resource');
 const { protect, adminOnly } = require('../middleware/auth');
 const { uploadFile } = require('../middleware/upload');
 const cloudinary = require('../config/cloudinary');
+const { COURSE_CATALOG, SERVICE_UNITS, findCourse } = require('../utils/courseCatalog');
 
 const router = express.Router();
 
@@ -32,12 +33,17 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'File is required' });
 
-    const year = parseInt(req.body.year, 10);
+    const year = req.body.year === 'service' ? 'service' : parseInt(req.body.year, 10);
     const validYear = [1, 2, 3, 4, 5].includes(year) ? year : undefined;
+    const semester = parseInt(req.body.semester, 10);
+    const course = findCourse(req.body.unitCode, year, semester);
+    if (!course) {
+      return res.status(400).json({ message: 'Select a valid year, semester, and unit before uploading.' });
+    }
 
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { folder: 'eesa/resources', resource_type: 'auto', access_mode: 'public' },
+        { folder: `eesa/resources/${course.folder}`, resource_type: 'auto', access_mode: 'public' },
         (error, result) => { if (error) reject(error); else resolve(result); }
       );
       stream.end(req.file.buffer);
@@ -49,6 +55,10 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
       category: req.body.category || 'other',
       department: req.body.department || 'General',
       year: validYear,
+      semester: course.semester,
+      unitCode: course.code,
+      unitName: course.name,
+      folder: course.folder,
       fileUrl: result.secure_url,
       filePublicId: result.public_id,
       fileType: req.file.mimetype,
@@ -61,6 +71,11 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
     console.error('Resource upload error:', error);
     res.status(500).json({ message: error.message || 'Server error uploading resource' });
   }
+});
+
+// GET /api/resources/catalog - available units for the library upload folders
+router.get('/catalog', protect, async (req, res) => {
+  res.json({ years: COURSE_CATALOG, serviceUnits: SERVICE_UNITS });
 });
 
 // GET /api/resources - list approved resources (members)
@@ -79,6 +94,11 @@ router.get('/', protect, async (req, res) => {
         filter.year = year;
       }
     }
+    if (req.query.semester) {
+      const semester = parseInt(req.query.semester, 10);
+      if ([1, 2].includes(semester)) filter.semester = semester;
+    }
+    if (req.query.unitCode) filter.unitCode = req.query.unitCode.toUpperCase();
     if (req.query.search) {
       filter.title = { $regex: req.query.search, $options: 'i' };
     }
@@ -86,7 +106,7 @@ router.get('/', protect, async (req, res) => {
     const [resources, total] = await Promise.all([
       Resource.find(filter)
         .populate('uploadedBy', 'firstName lastName')
-        .sort({ createdAt: -1 })
+        .sort({ year: 1, semester: 1, unitCode: 1, createdAt: -1 })
         .skip(skip)
         .limit(limit),
       Resource.countDocuments(filter)

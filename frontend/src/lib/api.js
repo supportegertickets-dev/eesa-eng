@@ -160,6 +160,7 @@ export const getResourceFileUrl = (id) => {
   return `${API_URL}/resources/${id}/file?token=${token}`;
 };
 export const getResources = (params = '') => api.get(`/resources${params}`);
+export const getResourceCatalog = () => api.get('/resources/catalog');
 export const getMyResources = () => api.get('/resources/my');
 export const getPendingResources = () => api.get('/resources/pending');
 export const reviewResource = (id, data) => api.put(`/resources/${id}/review`, data);
