@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Event = require('../models/Event');
-const { protect, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
+const { protect, adminOnly, POWER_ROLES } = require('../middleware/auth');
 const { sendEmailToMembers } = require('../utils/email');
 
 const router = express.Router();
@@ -61,8 +61,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/events - Leadership: create event
-router.post('/', protect, leadershipOnly, [
+// POST /api/events - Admin/Chairperson only: create event
+router.post('/', protect, adminOnly, [
   body('title').trim().notEmpty().withMessage('Title is required').escape(),
   body('description').trim().notEmpty().withMessage('Description is required'),
   body('date').isISO8601().withMessage('Valid date is required'),
@@ -98,8 +98,8 @@ router.post('/', protect, leadershipOnly, [
   }
 });
 
-// PUT /api/events/:id - Leadership: update event
-router.put('/:id', protect, leadershipOnly, async (req, res) => {
+// PUT /api/events/:id - Admin/Chairperson only: update event
+router.put('/:id', protect, adminOnly, async (req, res) => {
   try {
     const event = await Event.findById(req.params.id);
     if (!event) return res.status(404).json({ message: 'Event not found' });
@@ -145,8 +145,8 @@ router.post('/:id/rsvp', protect, async (req, res) => {
   }
 });
 
-// DELETE /api/events/:id - Leadership: delete event
-router.delete('/:id', protect, leadershipOnly, async (req, res) => {
+// DELETE /api/events/:id - Admin/Chairperson only: delete event
+router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
     const event = await Event.findByIdAndDelete(req.params.id);
     if (!event) return res.status(404).json({ message: 'Event not found' });

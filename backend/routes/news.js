@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const News = require('../models/News');
-const { protect, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
+const { protect, adminOnly, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
 const { sendEmailToMembers } = require('../utils/email');
 
 const router = express.Router();
@@ -58,8 +58,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/news - Leadership: create news
-router.post('/', protect, leadershipOnly, [
+// POST /api/news - Admin/Chairperson only: create news
+router.post('/', protect, adminOnly, [
   body('title').trim().notEmpty().withMessage('Title is required').escape(),
   body('content').trim().notEmpty().withMessage('Content is required'),
   body('excerpt').optional().trim().escape(),
@@ -98,7 +98,7 @@ router.post('/', protect, leadershipOnly, [
 });
 
 // PUT /api/news/:id
-router.put('/:id', protect, leadershipOnly, async (req, res) => {
+router.put('/:id', protect, adminOnly, async (req, res) => {
   try {
     const article = await News.findById(req.params.id);
     if (!article) return res.status(404).json({ message: 'Article not found' });
@@ -124,7 +124,7 @@ router.put('/:id', protect, leadershipOnly, async (req, res) => {
 });
 
 // DELETE /api/news/:id
-router.delete('/:id', protect, leadershipOnly, async (req, res) => {
+router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
     const article = await News.findByIdAndDelete(req.params.id);
     if (!article) return res.status(404).json({ message: 'Article not found' });

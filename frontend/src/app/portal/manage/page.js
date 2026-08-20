@@ -11,10 +11,10 @@ export default function ManagePage() {
   const [activeTab, setActiveTab] = useState('event');
 
   const LEADERSHIP_ROLES = ['admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', '1st_cohort_rep', 'treasurer'];
-  if (!LEADERSHIP_ROLES.includes(user?.role)) {
+  if (!['admin', 'chairperson'].includes(user?.role)) {
     return (
       <div className="text-center py-20">
-        <p className="text-gray-500 text-lg">Access denied. Leadership only.</p>
+        <p className="text-gray-500 text-lg">Access denied. Admin and Chairperson only.</p>
       </div>
     );
   }

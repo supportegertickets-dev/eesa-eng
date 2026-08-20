@@ -31,6 +31,7 @@ export default function RegisterPage() {
     'Mechanical Engineering',
     'Electrical Engineering',
     'Agricultural Engineering',
+    'Industrial Technology',
     'Other',
   ];
 

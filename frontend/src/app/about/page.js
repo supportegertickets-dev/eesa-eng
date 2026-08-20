@@ -146,6 +146,7 @@ export default function AboutPage() {
               { name: 'Mechanical Engineering', desc: 'Designing and manufacturing systems that power modern industry.' },
               { name: 'Electrical Engineering', desc: 'Harnessing electrical energy for communication, power, and automation.' },
               { name: 'Agricultural Engineering', desc: 'Applying engineering principles to improve agricultural productivity.' },
+              { name: 'Industrial Technology', desc: 'Integrating technology and innovation to optimize industrial processes and production systems.' },
             ].map((dept, i) => (
               <div key={i} className="card hover:border-primary-300 transition-colors">
                 <h3 className="font-heading font-semibold text-lg text-gray-900 mb-2">{dept.name}</h3>

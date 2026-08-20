@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
 const Project = require('../models/Project');
-const { protect, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
+const { protect, adminOnly, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
 const { sendEmailToMembers } = require('../utils/email');
 
 const router = express.Router();
@@ -62,8 +62,8 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST /api/projects
-router.post('/', protect, leadershipOnly, [
+// POST /api/projects - Admin/Chairperson only: create project
+router.post('/', protect, adminOnly, [
   body('title').trim().notEmpty().withMessage('Title is required').escape(),
   body('description').trim().notEmpty().withMessage('Description is required'),
   body('category').optional().isIn(['research', 'community', 'competition', 'innovation', 'other']),
@@ -96,7 +96,7 @@ router.post('/', protect, leadershipOnly, [
 });
 
 // PUT /api/projects/:id
-router.put('/:id', protect, leadershipOnly, async (req, res) => {
+router.put('/:id', protect, adminOnly, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: 'Project not found' });
@@ -139,7 +139,7 @@ router.post('/:id/join', protect, async (req, res) => {
 });
 
 // DELETE /api/projects/:id
-router.delete('/:id', protect, leadershipOnly, async (req, res) => {
+router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
     const project = await Project.findByIdAndDelete(req.params.id);
     if (!project) return res.status(404).json({ message: 'Project not found' });

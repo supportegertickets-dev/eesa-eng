@@ -50,6 +50,7 @@ const userSchema = new mongoose.Schema({
       'Mechanical Engineering',
       'Electrical Engineering',
       'Agricultural Engineering',
+      'Industrial Technology',
       'Other'
     ],
     default: 'Other'

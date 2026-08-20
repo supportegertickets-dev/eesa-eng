@@ -19,7 +19,7 @@ export default function ProfilePage() {
 
   const departments = [
     'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
-    'Agricultural Engineering', 'Other',
+    'Agricultural Engineering', 'Industrial Technology', 'Other',
   ];
 
   const handleSubmit = async (e) => {
