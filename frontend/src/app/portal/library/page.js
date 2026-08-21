@@ -339,11 +339,14 @@ function UploadForm({ catalog, onUploaded, onCancel }) {
   const units = [
     ...(catalog.years || []).flatMap(({ year, semesters }) =>
       Object.entries(semesters).flatMap(([semester, semesterUnits]) =>
-        semesterUnits.map(([code, name]) => ({ code, name, year, semester, label: `Year ${year} / Semester ${semester}` }))
+        semesterUnits.map(([code, name]) => ({ code, name, year: String(year), semester: String(semester) }))
       )
     ),
-    ...(catalog.serviceUnits || []).map(([code, name]) => ({ code, name, year: 'service', semester: '', label: 'Service Courses' }))
+    ...(catalog.serviceUnits || []).map(([code, name]) => ({ code, name, year: 'service', semester: '' }))
   ];
+  const availableUnits = units.filter(unit =>
+    unit.year === String(form.year) && (form.year === 'service' || unit.semester === String(form.semester))
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -378,19 +381,27 @@ function UploadForm({ catalog, onUploaded, onCancel }) {
             {CATEGORIES.map(c => <option key={c} value={c}>{c.replace('-', ' ')}</option>)}
           </select>
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+          <select value={form.year} onChange={e => setForm({ ...form, year: e.target.value, semester: e.target.value === 'service' ? '' : 1, unitCode: '' })} className="input-field">
+            {[1, 2, 3, 4, 5].map(year => <option key={year} value={year}>Year {year}</option>)}
+            <option value="service">Service Courses</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+          <select value={form.semester} disabled={form.year === 'service'} onChange={e => setForm({ ...form, semester: e.target.value, unitCode: '' })} className="input-field disabled:bg-gray-100">
+            <option value={1}>Semester 1</option>
+            <option value={2}>Semester 2</option>
+          </select>
+        </div>
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">Unit folder</label>
-          <select required value={form.unitCode} onChange={e => {
-            const selected = units.find(unit => unit.code === e.target.value);
-            setForm({ ...form, unitCode: selected.code, year: selected.year, semester: selected.semester });
-          }} className="input-field">
-            <option value="">Select the unit this document belongs to</option>
-            {['Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5', 'Service Courses'].map(group => {
-              const groupUnits = units.filter(unit => unit.label.startsWith(group));
-              return <optgroup key={group} label={group}>{groupUnits.map(unit => <option key={`${unit.year}-${unit.semester}-${unit.code}`} value={unit.code}>{unit.code}: {unit.name}</option>)}</optgroup>;
-            })}
+          <select required value={form.unitCode} onChange={e => setForm({ ...form, unitCode: e.target.value })} className="input-field">
+            <option value="">Select a unit</option>
+            {availableUnits.map(unit => <option key={unit.code} value={unit.code}>{unit.code}: {unit.name}</option>)}
           </select>
-          <p className="text-xs text-gray-500 mt-1">The system will file this document under the selected year, semester, and unit.</p>
+          <p className="text-xs text-gray-500 mt-1">Choose the year and semester first. The system will file this document under the selected unit folder.</p>
         </div>
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">File (PDF, Word, PPT, etc.)</label>
