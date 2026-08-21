@@ -176,4 +176,15 @@ const findCourse = (code, year, semester) => catalogEntries.find(unit =>
   unit.code === code && unit.year === Number(year) && unit.semester === Number(semester)
  ) || serviceEntries.find(unit => unit.code === code && year === 'service');
 
-module.exports = { COURSE_CATALOG, SERVICE_UNITS, catalogEntries, serviceEntries, findCourse };
+const findCourseFromText = (text = '', year, semester) => {
+  const normalizedText = text.toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+  return [...catalogEntries, ...serviceEntries].find(unit => {
+    const normalizedCode = unit.code.toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+    const matchesSelection = year === undefined || (
+      unit.year === Number(year) && unit.semester === Number(semester)
+    );
+    return matchesSelection && normalizedText.includes(normalizedCode);
+  });
+};
+
+module.exports = { COURSE_CATALOG, SERVICE_UNITS, catalogEntries, serviceEntries, findCourse, findCourseFromText };

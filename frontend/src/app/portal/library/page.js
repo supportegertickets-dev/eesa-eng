@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { uploadResource, getResources, getResourceCatalog, getMyResources, getPendingResources, reviewResource, trackDownload, deleteResource, getResourceFileUrl } from '@/lib/api';
+import { uploadResource, getResources, getMyResources, getPendingResources, reviewResource, trackDownload, deleteResource, getResourceFileUrl } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { HiBookOpen, HiPlus, HiDownload, HiCheckCircle, HiXCircle, HiTrash, HiSearch, HiDocumentText, HiEye, HiX } from 'react-icons/hi';
 import { format } from 'date-fns';
@@ -19,12 +19,7 @@ export default function LibraryPage() {
   const [category, setCategory] = useState('');
   const [yearFilter, setYearFilter] = useState('');
   const [viewingResource, setViewingResource] = useState(null);
-  const [catalog, setCatalog] = useState({ years: [], serviceUnits: [] });
   const isAdmin = ['admin', 'chairperson'].includes(user?.role);
-
-  useEffect(() => {
-    getResourceCatalog().then(setCatalog).catch(() => toast.error('Failed to load unit catalog'));
-  }, []);
 
   useEffect(() => { loadResources(); }, [tab, category, yearFilter]);
 
@@ -63,8 +58,7 @@ export default function LibraryPage() {
     if (blobUrl) {
       const a = document.createElement('a');
       a.href = blobUrl;
-      const ext = resource.fileType ? ('.' + resource.fileType.split('/').pop().replace('vnd.openxmlformats-officedocument.wordprocessingml.document', 'docx').replace('vnd.openxmlformats-officedocument.presentationml.presentation', 'pptx').replace('vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx').replace('msword', 'doc').replace('vnd.ms-powerpoint', 'ppt').replace('vnd.ms-excel', 'xls').replace('plain', 'txt').replace('pdf', 'pdf').replace('jpeg', 'jpg')) : '';
-      a.download = (resource.title || 'file') + ext;
+      a.download = resource.originalFileName || resource.title || 'file';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -133,7 +127,7 @@ export default function LibraryPage() {
         </form>
       )}
 
-      {showUpload && <UploadForm catalog={catalog} onUploaded={() => { setShowUpload(false); loadResources(); }} onCancel={() => setShowUpload(false)} />}
+      {showUpload && <UploadForm onUploaded={() => { setShowUpload(false); loadResources(); }} onCancel={() => setShowUpload(false)} />}
 
       {loading ? (
         <div className="flex justify-center py-12"><div className="w-8 h-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>
@@ -331,23 +325,11 @@ function ResourceViewer({ resource, onClose, onDownload }) {
   );
 }
 
-function UploadForm({ catalog, onUploaded, onCancel }) {
-  const [form, setForm] = useState({ title: '', description: '', category: 'notes', department: 'Electrical Engineering', year: 1, semester: 1, unitCode: '' });
+function UploadForm({ onUploaded, onCancel }) {
+  const [form, setForm] = useState({ title: '', description: '', category: 'notes', department: 'Electrical Engineering', year: 1, semester: 1 });
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const units = [
-    ...(catalog.years || []).flatMap(({ year, semesters }) =>
-      Object.entries(semesters).flatMap(([semester, semesterUnits]) =>
-        semesterUnits.map(([code, name]) => ({ code, name, year: String(year), semester: String(semester) }))
-      )
-    ),
-    ...(catalog.serviceUnits || []).map(([code, name]) => ({ code, name, year: 'service', semester: '' }))
-  ];
-  const availableUnits = units.filter(unit =>
-    unit.year === String(form.year) && (form.year === 'service' || unit.semester === String(form.semester))
-  );
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!file) { toast.error('Please select a file'); return; }
@@ -383,25 +365,19 @@ function UploadForm({ catalog, onUploaded, onCancel }) {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
-          <select value={form.year} onChange={e => setForm({ ...form, year: e.target.value, semester: e.target.value === 'service' ? '' : 1, unitCode: '' })} className="input-field">
+          <select value={form.year} onChange={e => setForm({ ...form, year: parseInt(e.target.value, 10) })} className="input-field">
             {[1, 2, 3, 4, 5].map(year => <option key={year} value={year}>Year {year}</option>)}
-            <option value="service">Service Courses</option>
           </select>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
-          <select value={form.semester} disabled={form.year === 'service'} onChange={e => setForm({ ...form, semester: e.target.value, unitCode: '' })} className="input-field disabled:bg-gray-100">
+          <select value={form.semester} onChange={e => setForm({ ...form, semester: parseInt(e.target.value, 10) })} className="input-field">
             <option value={1}>Semester 1</option>
             <option value={2}>Semester 2</option>
           </select>
         </div>
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Unit folder</label>
-          <select required value={form.unitCode} onChange={e => setForm({ ...form, unitCode: e.target.value })} className="input-field">
-            <option value="">Select a unit</option>
-            {availableUnits.map(unit => <option key={unit.code} value={unit.code}>{unit.code}: {unit.name}</option>)}
-          </select>
-          <p className="text-xs text-gray-500 mt-1">Choose the year and semester first. The system will file this document under the selected unit folder.</p>
+          <p className="text-xs text-gray-500">Include the unit code in the title or filename, for example <strong>EEEN 481</strong>. The system will automatically place it in the correct unit folder.</p>
         </div>
         <div className="sm:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">File (PDF, Word, PPT, etc.)</label>

@@ -43,6 +43,10 @@ const resourceSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  originalFileName: {
+    type: String,
+    trim: true
+  },
   fileUrl: { type: String, required: true },
   filePublicId: { type: String, default: '' },
   fileType: { type: String, default: '' },

@@ -6,7 +6,7 @@ const Resource = require('../models/Resource');
 const { protect, adminOnly } = require('../middleware/auth');
 const { uploadFile } = require('../middleware/upload');
 const cloudinary = require('../config/cloudinary');
-const { COURSE_CATALOG, SERVICE_UNITS, findCourse } = require('../utils/courseCatalog');
+const { COURSE_CATALOG, SERVICE_UNITS, findCourseFromText } = require('../utils/courseCatalog');
 
 const router = express.Router();
 
@@ -15,7 +15,8 @@ const streamResourceFile = (upstream, resource, res) => {
   const contentLength = upstream.headers.get('content-length');
   if (contentLength) res.set('Content-Length', contentLength);
   res.set('Cache-Control', 'private, max-age=300');
-  const safeName = (resource.title || 'file').replace(/[^a-zA-Z0-9._-]/g, '_');
+  const safeName = (resource.originalFileName || resource.title || 'file')
+    .replace(/[\\/\r\n"]/g, '_');
   res.set('Content-Disposition', `inline; filename="${safeName}"`);
 
   if (!upstream.body) throw new Error('Storage returned an empty response');
@@ -33,12 +34,16 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: 'File is required' });
 
-    const year = req.body.year === 'service' ? 'service' : parseInt(req.body.year, 10);
-    const validYear = [1, 2, 3, 4, 5].includes(year) ? year : undefined;
+    const title = req.body.title || req.file.originalname;
+    const year = parseInt(req.body.year, 10);
     const semester = parseInt(req.body.semester, 10);
-    const course = findCourse(req.body.unitCode, year, semester);
+    if (![1, 2, 3, 4, 5].includes(year) || ![1, 2].includes(semester)) {
+      return res.status(400).json({ message: 'Select a valid year and semester.' });
+    }
+
+    const course = findCourseFromText(`${title} ${req.file.originalname}`, year, semester);
     if (!course) {
-      return res.status(400).json({ message: 'Select a valid year, semester, and unit before uploading.' });
+      return res.status(400).json({ message: 'The unit code was not found for the selected year and semester. Include a code such as EEEN 481 in the document title or filename.' });
     }
 
     const result = await new Promise((resolve, reject) => {
@@ -50,12 +55,13 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
     });
 
     const resource = await Resource.create({
-      title: req.body.title || req.file.originalname,
+      title,
+      originalFileName: req.file.originalname,
       description: req.body.description || '',
       category: req.body.category || 'other',
       department: req.body.department || 'General',
-      year: validYear,
-      semester: course.semester,
+      year,
+      semester: course.semester || undefined,
       unitCode: course.code,
       unitName: course.name,
       folder: course.folder,
