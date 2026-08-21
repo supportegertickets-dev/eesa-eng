@@ -104,7 +104,7 @@ export default function RegisterPage() {
               value={form.email}
               onChange={(e) => updateForm('email', e.target.value)}
               className="input-field"
-              placeholder="you@egerton.ac.ke"
+              placeholder="example@gmail.com"
             />
           </div>
 
@@ -116,10 +116,7 @@ export default function RegisterPage() {
               onChange={(e) => updateForm('username', e.target.value)}
               className="input-field"
               placeholder="e.g. johndoe"
-              minLength={3}
-              maxLength={30}
-              pattern="^[a-zA-Z0-9_]+$"
-              title="Letters, numbers and underscores only"
+              maxLength={50}
             />
           </div>
 

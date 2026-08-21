@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
+const { uploadImage } = require('../middleware/upload');
 const { sendEmail } = require('../utils/email');
 
 const router = express.Router();
@@ -25,8 +26,7 @@ const validate = (req, res, next) => {
 router.post('/register', [
   body('firstName').trim().notEmpty().withMessage('First name is required').escape(),
   body('lastName').trim().notEmpty().withMessage('Last name is required').escape(),
-  body('username').optional({ values: 'falsy' }).trim().isLength({ min: 3, max: 30 }).withMessage('Username must be 3-30 characters')
-    .matches(/^[a-zA-Z0-9_]+$/).withMessage('Username can only contain letters, numbers and underscores'),
+  body('username').optional({ values: 'falsy' }).trim().isLength({ max: 50 }).withMessage('Username must be 50 characters or fewer'),
   body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
   body('department').optional().isIn([
@@ -71,6 +71,8 @@ router.post('/register', [
       lastName: user.lastName,
       email: user.email,
       username: user.username,
+      regNumber: user.regNumber,
+      avatar: user.avatar,
       role: user.role,
       department: user.department,
       yearOfStudy: user.yearOfStudy,
@@ -115,6 +117,8 @@ router.post('/login', [
       lastName: user.lastName,
       email: user.email,
       username: user.username,
+      regNumber: user.regNumber,
+      avatar: user.avatar,
       role: user.role,
       department: user.department,
       yearOfStudy: user.yearOfStudy,
@@ -241,6 +245,51 @@ router.put('/profile', protect, [
     res.json(user);
   } catch (error) {
     res.status(500).json({ message: 'Server error updating profile' });
+  }
+});
+
+// POST /api/auth/profile/avatar - upload profile picture
+router.post('/profile/avatar', protect, uploadImage.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Profile picture is required' });
+
+    const result = await new Promise((resolve, reject) => {
+      const stream = require('../config/cloudinary').uploader.upload_stream(
+        { folder: 'eesa/profile-pictures', resource_type: 'image', access_mode: 'public' },
+        (error, uploaded) => { if (error) reject(error); else resolve(uploaded); }
+      );
+      stream.end(req.file.buffer);
+    });
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { avatar: result.secure_url },
+      { new: true }
+    );
+    res.json(user);
+  } catch (error) {
+    console.error('Profile picture upload error:', error);
+    res.status(500).json({ message: 'Server error uploading profile picture' });
+  }
+});
+
+// PUT /api/auth/change-password - change password while authenticated
+router.put('/change-password', protect, [
+  body('currentPassword').notEmpty().withMessage('Current password is required'),
+  body('newPassword').isLength({ min: 6 }).withMessage('New password must be at least 6 characters'),
+  validate
+], async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user || !(await user.matchPassword(req.body.currentPassword))) {
+      return res.status(400).json({ message: 'Current password is incorrect' });
+    }
+
+    user.password = req.body.newPassword;
+    await user.save();
+    res.json({ message: 'Password changed successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error changing password' });
   }
 });
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { updateProfile } from '@/lib/api';
+import { updateProfile, uploadProfilePicture, changePassword } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export default function ProfilePage() {
@@ -16,6 +16,9 @@ export default function ProfilePage() {
     yearOfStudy: user?.yearOfStudy || 1,
   });
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const departments = [
     'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
@@ -36,6 +39,42 @@ export default function ProfilePage() {
     }
   };
 
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const data = new FormData();
+      data.append('avatar', file);
+      const updated = await uploadProfilePicture(data);
+      setUser(prev => ({ ...prev, ...updated }));
+      toast.success('Profile picture updated!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to upload profile picture');
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = '';
+    }
+  };
+
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      toast.error('New passwords do not match');
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await changePassword({ currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword });
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      toast.success('Password changed successfully!');
+    } catch (error) {
+      toast.error(error.message || 'Failed to change password');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   return (
     <div>
       <h1 className="font-heading text-2xl font-bold text-gray-900 mb-8">My Profile</h1>
@@ -43,17 +82,25 @@ export default function ProfilePage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Profile Card */}
         <div className="card text-center">
-          <div className="w-24 h-24 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-3xl font-heading font-bold text-white">
-              {user?.firstName?.[0]}{user?.lastName?.[0]}
-            </span>
+          <div className="w-24 h-24 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden">
+            {user?.avatar ? (
+              <img src={user.avatar} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-3xl font-heading font-bold text-white">
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
+              </span>
+            )}
           </div>
+          <label className="inline-block cursor-pointer text-sm text-primary-600 hover:text-primary-700 mb-4">
+            {uploadingAvatar ? 'Uploading...' : 'Change profile picture'}
+            <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleAvatarChange} disabled={uploadingAvatar} className="sr-only" />
+          </label>
           <h2 className="font-heading text-xl font-semibold">{user?.firstName} {user?.lastName}</h2>
           <p className="text-accent-600 font-medium text-sm">{{ admin: 'Admin', chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', project_manager: 'Project Manager', patron: 'Patron', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer', member: 'Member' }[user?.role] || user?.role}</p>
           <p className="text-gray-500 text-sm mt-1">{user?.department}</p>
           <p className="text-gray-500 text-sm">{user?.academicStatus === 'alumni' ? 'Alumni' : `Year ${user?.yearOfStudy}`}</p>
           {user?.regNumber && (
-            <p className="text-gray-400 text-xs mt-2">{user.regNumber}</p>
+            <p className="text-gray-400 text-xs mt-2"><span className="font-medium">Registration No.:</span> {user.regNumber}</p>
           )}
           <p className="text-gray-400 text-xs mt-1">{user?.email}</p>
         </div>
@@ -138,6 +185,18 @@ export default function ProfilePage() {
 
             <button type="submit" disabled={saving} className="btn-primary disabled:opacity-50">
               {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </form>
+
+          <form onSubmit={handlePasswordChange} className="card mt-8">
+            <h2 className="font-heading text-lg font-semibold mb-6">Change Password</h2>
+            <div className="space-y-4">
+              <input type="password" required value={passwordForm.currentPassword} onChange={e => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })} className="input-field" placeholder="Current password" />
+              <input type="password" required minLength={6} value={passwordForm.newPassword} onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} className="input-field" placeholder="New password (minimum 6 characters)" />
+              <input type="password" required minLength={6} value={passwordForm.confirmPassword} onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} className="input-field" placeholder="Confirm new password" />
+            </div>
+            <button type="submit" disabled={changingPassword} className="btn-primary mt-5 disabled:opacity-50">
+              {changingPassword ? 'Changing...' : 'Change Password'}
             </button>
           </form>
         </div>
