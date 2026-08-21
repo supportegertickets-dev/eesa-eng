@@ -187,4 +187,10 @@ const findCourseFromText = (text = '', year, semester) => {
   });
 };
 
-module.exports = { COURSE_CATALOG, SERVICE_UNITS, catalogEntries, serviceEntries, findCourse, findCourseFromText };
+const extractUnitCode = (text = '') => {
+  const normalizedText = text.toUpperCase().replace(/[-_]+/g, ' ');
+  const match = normalizedText.match(/(?:^|[^A-Z0-9])([A-Z]{2,6}\s+\d{3,4})(?=$|[^A-Z0-9])/);
+  return match ? match[1].replace(/\s+/g, ' ').trim() : null;
+};
+
+module.exports = { COURSE_CATALOG, SERVICE_UNITS, catalogEntries, serviceEntries, findCourse, findCourseFromText, extractUnitCode };

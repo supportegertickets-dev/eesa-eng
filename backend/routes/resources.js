@@ -6,7 +6,7 @@ const Resource = require('../models/Resource');
 const { protect, adminOnly } = require('../middleware/auth');
 const { uploadFile } = require('../middleware/upload');
 const cloudinary = require('../config/cloudinary');
-const { COURSE_CATALOG, SERVICE_UNITS, findCourseFromText } = require('../utils/courseCatalog');
+const { COURSE_CATALOG, SERVICE_UNITS, extractUnitCode } = require('../utils/courseCatalog');
 
 const router = express.Router();
 
@@ -46,14 +46,15 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
       return res.status(400).json({ message: 'Select a valid year and semester.' });
     }
 
-    const course = findCourseFromText(`${title} ${req.file.originalname}`, year, semester);
-    if (!course) {
-      return res.status(400).json({ message: 'The unit code was not found for the selected year and semester. Include a code such as EEEN 481 in the document title or filename.' });
+    const unitCode = extractUnitCode(`${title} ${req.file.originalname}`);
+    if (!unitCode) {
+      return res.status(400).json({ message: 'The unit code was not found. Include a code such as EEEN 481 in the document title or filename.' });
     }
+    const unitFolder = `Year ${year}/Semester ${semester}/${unitCode}`;
 
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { folder: `eesa/resources/${cloudinaryFolder(course.folder)}`, resource_type: 'auto', access_mode: 'public' },
+        { folder: `eesa/resources/${cloudinaryFolder(unitFolder)}`, resource_type: 'auto', access_mode: 'public' },
         (error, result) => { if (error) reject(error); else resolve(result); }
       );
       stream.end(req.file.buffer);
@@ -66,10 +67,10 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
       category: req.body.category || 'other',
       department: req.body.department || 'General',
       year,
-      semester: course.semester || undefined,
-      unitCode: course.code,
-      unitName: course.name,
-      folder: course.folder,
+      semester,
+      unitCode,
+      unitName: unitCode,
+      folder: unitFolder,
       fileUrl: result.secure_url,
       filePublicId: result.public_id,
       fileType: req.file.mimetype,
