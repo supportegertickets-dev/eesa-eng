@@ -87,6 +87,13 @@ export default function LibraryPage() {
     rejected: 'bg-red-100 text-red-700',
   }[s] || 'bg-gray-100 text-gray-700');
 
+  const resourceFolders = resources.reduce((groups, resource) => {
+    const folder = resource.folder || 'Uncategorized';
+    if (!groups[folder]) groups[folder] = [];
+    groups[folder].push(resource);
+    return groups;
+  }, {});
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -137,10 +144,18 @@ export default function LibraryPage() {
           <p>No resources found</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {resources.map((r) => (
-            <div key={r._id} className={`card ${r.status === 'approved' ? 'cursor-pointer hover:ring-2 hover:ring-primary-300 transition-all' : ''}`}
-              onClick={() => r.status === 'approved' && setViewingResource(r)}>
+        <div className="space-y-6">
+          {Object.entries(resourceFolders).map(([folder, folderResources]) => (
+            <section key={folder}>
+              <div className="flex items-center gap-2 mb-3">
+                <HiBookOpen className="w-5 h-5 text-primary-500" />
+                <h2 className="font-heading font-semibold text-gray-900">{folder}</h2>
+                <span className="text-xs text-gray-500">{folderResources.length} document{folderResources.length === 1 ? '' : 's'}</span>
+              </div>
+              <div className="space-y-3">
+                {folderResources.map((r) => (
+                  <div key={r._id} className={`card ${r.status === 'approved' ? 'cursor-pointer hover:ring-2 hover:ring-primary-300 transition-all' : ''}`}
+                    onClick={() => r.status === 'approved' && setViewingResource(r)}>
               <div className="flex items-start justify-between">
                 <div className="flex gap-3 flex-1 min-w-0">
                   <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -189,7 +204,10 @@ export default function LibraryPage() {
                   )}
                 </div>
               </div>
-            </div>
+                  </div>
+                ))}
+              </div>
+            </section>
           ))}
         </div>
       )}
