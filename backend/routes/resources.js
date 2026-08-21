@@ -10,6 +10,11 @@ const { COURSE_CATALOG, SERVICE_UNITS, findCourseFromText } = require('../utils/
 
 const router = express.Router();
 
+const cloudinaryFolder = (folder) => folder
+  .replace(/&/g, 'and')
+  .replace(/[^a-zA-Z0-9/_-]+/g, '_')
+  .replace(/_+/g, '_');
+
 const streamResourceFile = (upstream, resource, res) => {
   res.set('Content-Type', resource.fileType || upstream.headers.get('content-type') || 'application/octet-stream');
   const contentLength = upstream.headers.get('content-length');
@@ -48,7 +53,7 @@ router.post('/', protect, uploadFile.single('file'), async (req, res) => {
 
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { folder: `eesa/resources/${course.folder}`, resource_type: 'auto', access_mode: 'public' },
+        { folder: `eesa/resources/${cloudinaryFolder(course.folder)}`, resource_type: 'auto', access_mode: 'public' },
         (error, result) => { if (error) reject(error); else resolve(result); }
       );
       stream.end(req.file.buffer);
