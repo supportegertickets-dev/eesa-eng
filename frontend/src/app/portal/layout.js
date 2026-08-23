@@ -52,6 +52,10 @@ export default function PortalLayout({ children }) {
     navItems.push({ href: '/portal/sponsors', icon: HiStar, label: 'Sponsors' });
   }
 
+  if (user.role === 'admin') {
+    navItems.push({ href: '/portal/admin', icon: HiCog, label: 'Admin Overview' });
+  }
+
   if (['admin', 'chairperson'].includes(user.role)) {
     navItems.push({ href: '/portal/manage', icon: HiCog, label: 'Manage' });
   }

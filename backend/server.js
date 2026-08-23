@@ -19,6 +19,7 @@ const resourceRoutes = require('./routes/resources');
 const sponsorRoutes = require('./routes/sponsors');
 const notificationRoutes = require('./routes/notifications');
 const galleryRoutes = require('./routes/gallery');
+const adminRoutes = require('./routes/admin');
 
 const app = express();
 
@@ -85,6 +86,7 @@ app.use('/api/resources', resourceRoutes);
 app.use('/api/sponsors', sponsorRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/gallery', galleryRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

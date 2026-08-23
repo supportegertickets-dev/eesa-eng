@@ -35,6 +35,14 @@ const adminOnly = (req, res, next) => {
   }
 };
 
+const adminRoleOnly = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    return res.status(403).json({ message: 'Access denied. Admin role required.' });
+  }
+};
+
 const leadershipOnly = (req, res, next) => {
   if (req.user && LEADERSHIP_ROLES.includes(req.user.role)) {
     next();
@@ -43,4 +51,4 @@ const leadershipOnly = (req, res, next) => {
   }
 };
 
-module.exports = { protect, adminOnly, leadershipOnly, LEADERSHIP_ROLES, POWER_ROLES };
+module.exports = { protect, adminOnly, adminRoleOnly, leadershipOnly, LEADERSHIP_ROLES, POWER_ROLES };

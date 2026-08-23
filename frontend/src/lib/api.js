@@ -127,6 +127,7 @@ export const joinProject = (id) => api.post(`/projects/${id}/join`);
 export const getUsers = (params = '') => api.get(`/users${params}`);
 export const getLeaders = () => api.get('/users/leaders');
 export const getUserStats = () => api.get('/users/stats');
+export const getAdminOverview = () => api.get('/admin/overview');
 export const updateUserRole = (id, role) => api.put(`/users/${id}/role`, { role });
 export const deactivateUser = (id) => api.delete(`/users/${id}`);
 
