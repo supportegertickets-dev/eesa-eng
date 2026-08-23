@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 import { getNotifications } from '@/lib/api';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { HiHome, HiUser, HiCalendar, HiUsers, HiNewspaper, HiCog, HiLogout, HiCash, HiBookOpen, HiBell, HiPhotograph, HiClipboardList, HiStar, HiDotsHorizontal, HiX } from 'react-icons/hi';
+import { HiHome, HiUser, HiCalendar, HiUsers, HiNewspaper, HiCog, HiLogout, HiCash, HiBookOpen, HiBell, HiPhotograph, HiClipboardList, HiStar, HiInformationCircle, HiDotsHorizontal, HiX } from 'react-icons/hi';
 
 export default function PortalLayout({ children }) {
   const { user, loading, logout } = useAuth();
@@ -42,6 +42,7 @@ export default function PortalLayout({ children }) {
     { href: '/portal/gallery', icon: HiPhotograph, label: 'Gallery' },
     { href: '/portal/events', icon: HiCalendar, label: 'My Events' },
     { href: '/portal/members', icon: HiUsers, label: 'Members' },
+    { href: '/portal/guide', icon: HiInformationCircle, label: 'Platform Guide' },
   ];
 
   const LEADERSHIP_ROLES = ['admin', 'chairperson', 'vice_chairperson', 'organizing_secretary', 'secretary_general', 'publicity_manager', 'project_manager', 'patron', '1st_cohort_rep', 'treasurer'];

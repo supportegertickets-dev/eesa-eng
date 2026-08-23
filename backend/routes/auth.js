@@ -33,7 +33,7 @@ router.post('/register', [
     'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering',
     'Agricultural Engineering', 'Industrial Technology', 'Other'
   ]),
-  body('regNumber').optional({ values: 'falsy' }).trim().escape(),
+  body('regNumber').optional({ values: 'falsy' }).trim(),
   body('yearOfStudy').optional().isInt({ min: 1, max: 5 }),
   validate
 ], async (req, res) => {
