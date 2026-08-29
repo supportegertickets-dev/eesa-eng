@@ -9,6 +9,11 @@ import { format } from 'date-fns';
 
 const CATEGORIES = ['notes', 'past-papers', 'textbooks', 'tutorials', 'lab-reports', 'other'];
 
+const isMobileDevice = () => {
+  if (typeof navigator === 'undefined') return false;
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+};
+
 export default function LibraryPage() {
   const { user } = useAuth();
   const [tab, setTab] = useState('browse');
@@ -55,16 +60,19 @@ export default function LibraryPage() {
     try {
       await trackDownload(resource._id);
     } catch {}
-    if (blobUrl) {
+
+    if (blobUrl && !isMobileDevice()) {
       const a = document.createElement('a');
       a.href = blobUrl;
       a.download = resource.originalFileName || resource.title || 'file';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-    } else {
-      window.open(getResourceFileUrl(resource._id), '_blank');
+      return;
     }
+
+    const fileUrl = getResourceFileUrl(resource._id);
+    window.open(fileUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleDelete = async (id) => {
@@ -220,6 +228,7 @@ export default function LibraryPage() {
 }
 
 function ResourceViewer({ resource, onClose, onDownload }) {
+  const isMobile = isMobileDevice();
   const isPdf = resource.fileType === 'application/pdf';
   const isImage = resource.fileType?.startsWith('image/');
   const isText = resource.fileType === 'text/plain';
@@ -232,8 +241,7 @@ function ResourceViewer({ resource, onClose, onDownload }) {
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   ].includes(resource.fileType);
 
-  // PDFs and Office docs use Google Docs Viewer (works on mobile)
-  const useGoogleViewer = isOfficeDoc;
+  const useGoogleViewer = isOfficeDoc && !isMobile;
 
   const [blobUrl, setBlobUrl] = useState(null);
   const [textContent, setTextContent] = useState(null);
@@ -296,8 +304,8 @@ function ResourceViewer({ resource, onClose, onDownload }) {
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => onDownload(resource, blobUrl)} className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm">
-            <HiDownload className="w-4 h-4" /> Download
+          <button onClick={() => window.open(getResourceFileUrl(resource._id), '_blank', 'noopener,noreferrer')} className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm">
+            <HiDownload className="w-4 h-4" /> {isMobile ? 'Open' : 'Download'}
           </button>
           <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-lg">
             <HiX className="w-5 h-5" />
@@ -306,7 +314,21 @@ function ResourceViewer({ resource, onClose, onDownload }) {
       </div>
 
       <div className="flex-1 overflow-auto" onClick={e => e.stopPropagation()}>
-        {loading ? (
+        {isMobile ? (
+          <div className="flex flex-col items-center justify-center h-full text-white text-center p-8">
+            <HiDocumentText className="w-16 h-16 mb-4 text-gray-400" />
+            <p className="text-lg font-medium mb-2">Open this file in your browser</p>
+            <p className="text-gray-400 text-sm mb-6">Mobile browsers do not reliably render uploaded files inside this app preview.</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button onClick={() => window.open(getResourceFileUrl(resource._id), '_blank', 'noopener,noreferrer')} className="btn-primary flex items-center gap-2">
+                <HiEye className="w-4 h-4" /> Open file
+              </button>
+              <button onClick={() => onDownload(resource, null)} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">
+                Download instead
+              </button>
+            </div>
+          </div>
+        ) : loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-10 h-10 animate-spin rounded-full border-4 border-white border-t-transparent" />
           </div>
