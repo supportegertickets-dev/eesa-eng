@@ -1,18 +1,14 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 const Payment = require('../models/Payment');
 const User = require('../models/User');
 const { protect, adminOnly } = require('../middleware/auth');
 const { uploadImage } = require('../middleware/upload');
 const cloudinary = require('../config/cloudinary');
 
-const router = express.Router();
+const { validate } = require('../middleware/validate');
 
-const validate = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-  next();
-};
+const router = express.Router();
 
 // ─── M-Pesa helpers ─────────────────────────────────────────────────
 const getMpesaToken = async () => {
@@ -35,8 +31,8 @@ router.post('/mpesa/stkpush', protect, [
   body('phone').trim().notEmpty().withMessage('Phone number is required'),
   body('amount').isNumeric().withMessage('Amount is required'),
   body('type').isIn(['registration', 'renewal']).withMessage('Invalid payment type'),
-  body('semester').optional().trim().escape(),
-  body('academicYear').optional().trim().escape(),
+  body('semester').optional().trim(),
+  body('academicYear').optional().trim(),
   validate
 ], async (req, res) => {
   try {
@@ -110,6 +106,14 @@ router.post('/mpesa/callback', async (req, res) => {
     const payment = await Payment.findOne({ mpesaCheckoutRequestID: CheckoutRequestID });
     if (!payment) return res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
+    // Safaricom retries callbacks until it receives an acknowledgement, so the
+    // same result can arrive several times. Acknowledge repeats without
+    // reapplying them, which previously could extend a membership twice or flip
+    // an already-verified payment back to rejected.
+    if (payment.status === 'verified') {
+      return res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
+    }
+
     if (ResultCode === 0) {
       // Successful payment
       const meta = CallbackMetadata?.Item || [];
@@ -157,14 +161,25 @@ router.get('/mpesa/status/:checkoutRequestId', protect, async (req, res) => {
 // POST /api/payments - submit payment
 router.post('/', protect, uploadImage.single('proofScreenshot'), [
   body('type').isIn(['registration', 'renewal']).withMessage('Invalid payment type'),
-  body('amount').isNumeric().withMessage('Amount is required'),
-  body('reference').trim().notEmpty().withMessage('Payment reference is required').escape(),
-  body('semester').optional().trim().escape(),
-  body('academicYear').optional().trim().escape(),
+  body('amount').isFloat({ min: 1, max: 1000000 }).withMessage('Enter a valid amount between KES 1 and 1,000,000').toFloat(),
+  body('reference').trim().notEmpty().withMessage('Payment reference is required')
+    .isLength({ max: 60 }).withMessage('Payment reference is too long'),
+  body('semester').optional().trim(),
+  body('academicYear').optional().trim(),
   validate
 ], async (req, res) => {
   try {
     const { type, amount, reference, semester, academicYear, notes } = req.body;
+
+    // An M-Pesa reference identifies one transaction. Rejecting repeats stops a
+    // member submitting the same receipt twice, by accident or otherwise.
+    const duplicate = await Payment.findOne({
+      reference: reference.trim().toUpperCase(),
+      status: { $ne: 'rejected' }
+    }).select('_id').lean();
+    if (duplicate) {
+      return res.status(409).json({ message: 'That payment reference has already been submitted.' });
+    }
 
     let proofScreenshot = '';
     if (req.file) {
@@ -182,7 +197,7 @@ router.post('/', protect, uploadImage.single('proofScreenshot'), [
       user: req.user._id,
       type,
       amount,
-      reference,
+      reference: reference.trim().toUpperCase(),
       semester,
       academicYear,
       notes,
@@ -237,7 +252,7 @@ router.get('/', protect, adminOnly, async (req, res) => {
 // PUT /api/payments/:id/verify - admin: verify/reject
 router.put('/:id/verify', protect, adminOnly, [
   body('status').isIn(['verified', 'rejected']).withMessage('Invalid status'),
-  body('rejectionReason').optional().trim().escape(),
+  body('rejectionReason').optional().trim(),
   validate
 ], async (req, res) => {
   try {

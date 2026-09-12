@@ -1,18 +1,15 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 const Project = require('../models/Project');
 const { protect, adminOnly, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
-const { sendEmailToMembers } = require('../utils/email');
+const { sendEmailToMembers, renderLayout, html } = require('../utils/email');
+
+const { validate } = require('../middleware/validate');
 
 const router = express.Router();
 
-const validate = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-  next();
-};
+/** First configured frontend origin, used to build links in outgoing email. */
+const portalUrl = () => (process.env.FRONTEND_URL || '').split(',')[0].trim() || 'http://localhost:3000';
 
 // GET /api/projects
 router.get('/', async (req, res) => {
@@ -64,7 +61,7 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/projects - Admin/Chairperson only: create project
 router.post('/', protect, adminOnly, [
-  body('title').trim().notEmpty().withMessage('Title is required').escape(),
+  body('title').trim().notEmpty().withMessage('Title is required'),
   body('description').trim().notEmpty().withMessage('Description is required'),
   body('category').optional().isIn(['research', 'community', 'competition', 'innovation', 'other']),
   body('status').optional().isIn(['planning', 'in-progress', 'completed', 'on-hold']),
@@ -80,12 +77,14 @@ router.post('/', protect, adminOnly, [
 
     if (POWER_ROLES.includes(req.user.role)) {
       const subject = `New EESA project: ${project.title}`;
-      const htmlContent = `
-        <h2>New project added by ${req.user.firstName} ${req.user.lastName}</h2>
-        <p><strong>${project.title}</strong></p>
-        <p>${project.description || ''}</p>
-        <p>Visit the EESA portal to learn more and join the project.</p>
-      `;
+      const htmlContent = renderLayout({
+        heading: project.title,
+        bodyHtml: html`
+          <p style="color:#555;">New project started by ${req.user.firstName} ${req.user.lastName}</p>
+          <p style="color:#333;">${project.description || ''}</p>`,
+        ctaLabel: 'View the project',
+        ctaUrl: `${portalUrl()}/projects`
+      });
       sendEmailToMembers(subject, htmlContent).catch(err => console.error('Notification email failed:', err));
     }
 

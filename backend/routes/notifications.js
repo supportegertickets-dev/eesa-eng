@@ -1,15 +1,11 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 const Notification = require('../models/Notification');
 const { protect, adminOnly, leadershipOnly } = require('../middleware/auth');
 
-const router = express.Router();
+const { validate } = require('../middleware/validate');
 
-const validate = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-  next();
-};
+const router = express.Router();
 
 // GET /api/notifications - get notifications for current user
 router.get('/', protect, async (req, res) => {
@@ -49,8 +45,8 @@ router.get('/', protect, async (req, res) => {
 
 // POST /api/notifications - admin: create notification
 router.post('/', protect, leadershipOnly, [
-  body('title').trim().notEmpty().withMessage('Title is required').escape(),
-  body('message').trim().notEmpty().withMessage('Message is required').escape(),
+  body('title').trim().notEmpty().withMessage('Title is required'),
+  body('message').trim().notEmpty().withMessage('Message is required'),
   body('type').optional().isIn(['general', 'event', 'payment', 'election', 'resource', 'announcement']),
   body('target').optional().isIn(['all', 'members', 'leaders', 'specific']),
   validate

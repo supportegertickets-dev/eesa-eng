@@ -1,18 +1,15 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 const News = require('../models/News');
 const { protect, adminOnly, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
-const { sendEmailToMembers } = require('../utils/email');
+const { sendEmailToMembers, renderLayout, html } = require('../utils/email');
+
+const { validate } = require('../middleware/validate');
 
 const router = express.Router();
 
-const validate = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-  next();
-};
+/** First configured frontend origin, used to build links in outgoing email. */
+const portalUrl = () => (process.env.FRONTEND_URL || '').split(',')[0].trim() || 'http://localhost:3000';
 
 // GET /api/news - Public: published news
 router.get('/', async (req, res) => {
@@ -60,9 +57,9 @@ router.get('/:id', async (req, res) => {
 
 // POST /api/news - Admin/Chairperson only: create news
 router.post('/', protect, adminOnly, [
-  body('title').trim().notEmpty().withMessage('Title is required').escape(),
+  body('title').trim().notEmpty().withMessage('Title is required'),
   body('content').trim().notEmpty().withMessage('Content is required'),
-  body('excerpt').optional().trim().escape(),
+  body('excerpt').optional().trim(),
   body('category').optional().isIn(['announcement', 'achievement', 'update', 'article', 'other']),
   body('isPublished').optional().isBoolean(),
   validate
@@ -82,12 +79,14 @@ router.post('/', protect, adminOnly, [
 
     if (article.isPublished && POWER_ROLES.includes(req.user.role)) {
       const subject = `New EESA news: ${article.title}`;
-      const htmlContent = `
-        <h2>New news article added by ${req.user.firstName} ${req.user.lastName}</h2>
-        <p><strong>${article.title}</strong></p>
-        <p>${article.excerpt || article.content.slice(0, 250) || ''}</p>
-        <p>Visit the EESA portal to read the full article.</p>
-      `;
+      const htmlContent = renderLayout({
+        heading: article.title,
+        bodyHtml: html`
+          <p style="color:#555;">Posted by ${req.user.firstName} ${req.user.lastName}</p>
+          <p style="color:#333;">${article.excerpt || article.content.slice(0, 250) || ''}</p>`,
+        ctaLabel: 'Read the article',
+        ctaUrl: `${portalUrl()}/news/${article._id}`
+      });
       sendEmailToMembers(subject, htmlContent).catch(err => console.error('Notification email failed:', err));
     }
 

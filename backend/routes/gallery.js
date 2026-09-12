@@ -1,18 +1,17 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 const Gallery = require('../models/Gallery');
 const { protect, adminOnly, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
 const { uploadImage } = require('../middleware/upload');
-const { sendEmailToMembers } = require('../utils/email');
+const { sendEmailToMembers, renderLayout, html } = require('../utils/email');
 const cloudinary = require('../config/cloudinary');
+
+const { validate } = require('../middleware/validate');
 
 const router = express.Router();
 
-const validate = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-  next();
-};
+/** First configured frontend origin, used to build links in outgoing email. */
+const portalUrl = () => (process.env.FRONTEND_URL || '').split(',')[0].trim() || 'http://localhost:3000';
 
 // GET /api/gallery - public
 router.get('/', async (req, res) => {
@@ -40,9 +39,9 @@ router.get('/', async (req, res) => {
 
 // POST /api/gallery - admin/leader: upload image
 router.post('/', protect, leadershipOnly, uploadImage.single('image'), [
-  body('title').trim().notEmpty().withMessage('Title is required').escape(),
+  body('title').trim().notEmpty().withMessage('Title is required'),
   body('category').optional().isIn(['events', 'projects', 'campus', 'workshops', 'competitions', 'social', 'other']),
-  body('description').optional().trim().escape(),
+  body('description').optional().trim(),
   validate
 ], async (req, res) => {
   try {
@@ -67,12 +66,14 @@ router.post('/', protect, leadershipOnly, uploadImage.single('image'), [
 
     if (POWER_ROLES.includes(req.user.role)) {
       const subject = `New EESA gallery upload: ${image.title}`;
-      const htmlContent = `
-        <h2>New gallery image uploaded by ${req.user.firstName} ${req.user.lastName}</h2>
-        <p><strong>${image.title}</strong></p>
-        <p>${image.description || ''}</p>
-        <p>Visit the EESA portal gallery to view the new image.</p>
-      `;
+      const htmlContent = renderLayout({
+        heading: image.title,
+        bodyHtml: html`
+          <p style="color:#555;">Uploaded by ${req.user.firstName} ${req.user.lastName}</p>
+          <p style="color:#333;">${image.description || ''}</p>`,
+        ctaLabel: 'Open the gallery',
+        ctaUrl: `${portalUrl()}/gallery`
+      });
       sendEmailToMembers(subject, htmlContent).catch(err => console.error('Notification email failed:', err));
     }
 

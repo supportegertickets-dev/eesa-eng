@@ -1,12 +1,17 @@
 const express = require('express');
 const { Readable } = require('stream');
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const Resource = require('../models/Resource');
+const User = require('../models/User');
 const { protect, adminOnly } = require('../middleware/auth');
 const { uploadFile } = require('../middleware/upload');
 const cloudinary = require('../config/cloudinary');
 const { COURSE_CATALOG, SERVICE_UNITS, extractUnitCode } = require('../utils/courseCatalog');
+const { buildSearchRegex } = require('../utils/sanitize');
+const { POWER_ROLES } = require('../utils/roles');
+
+const { validate } = require('../middleware/validate');
 
 const router = express.Router();
 
@@ -26,12 +31,6 @@ const streamResourceFile = (upstream, resource, res) => {
 
   if (!upstream.body) throw new Error('Storage returned an empty response');
   return Readable.fromWeb(upstream.body).pipe(res);
-};
-
-const validate = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-  next();
 };
 
 // POST /api/resources - upload resource (members)
@@ -112,7 +111,10 @@ router.get('/', protect, async (req, res) => {
     }
     if (req.query.unitCode) filter.unitCode = req.query.unitCode.toUpperCase();
     if (req.query.search) {
-      filter.title = { $regex: req.query.search, $options: 'i' };
+      // Escaped so a title containing regex metacharacters is matched literally
+      // and no search term can trigger catastrophic backtracking.
+      const search = buildSearchRegex(req.query.search);
+      if (search) filter.$or = [{ title: search }, { unitCode: search }, { description: search }];
     }
 
     const [resources, total] = await Promise.all([
@@ -156,7 +158,7 @@ router.get('/pending', protect, adminOnly, async (req, res) => {
 // PUT /api/resources/:id/review - admin: approve/reject
 router.put('/:id/review', protect, adminOnly, [
   body('status').isIn(['approved', 'rejected']).withMessage('Invalid status'),
-  body('rejectionReason').optional().trim().escape(),
+  body('rejectionReason').optional().trim(),
   validate
 ], async (req, res) => {
   try {
@@ -181,20 +183,81 @@ router.put('/:id/review', protect, adminOnly, [
   }
 });
 
-// GET /api/resources/:id/file - proxy file content (auth via query token)
+/**
+ * GET /api/resources/:id/ticket
+ *
+ * Mint a short-lived token that authorises exactly one resource.
+ *
+ * The file endpoint is opened directly by the browser (iframe preview, download
+ * anchor), where an Authorization header cannot be attached, so the credential
+ * has to travel in the URL. Sending the full 7-day session token there leaked it
+ * into browser history, referrer headers and server logs. This ticket instead
+ * lasts five minutes and grants access to one resource only, so a leaked URL is
+ * near-worthless.
+ */
+router.get('/:id/ticket', protect, async (req, res) => {
+  try {
+    const resource = await Resource.findById(req.params.id).select('status uploadedBy').lean();
+    if (!resource) return res.status(404).json({ message: 'Resource not found' });
+
+    const isOwner = String(resource.uploadedBy) === String(req.user._id);
+    const isReviewer = POWER_ROLES.includes(req.user.role);
+    if (resource.status !== 'approved' && !isOwner && !isReviewer) {
+      return res.status(403).json({ message: 'This resource is not available.' });
+    }
+
+    const token = jwt.sign(
+      { id: req.user._id, rid: String(resource._id), scope: 'resource-file' },
+      process.env.JWT_SECRET,
+      { expiresIn: '5m' }
+    );
+
+    res.json({ token, expiresIn: 300 });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error preparing the download' });
+  }
+});
+
+// GET /api/resources/:id/file - stream file content, authorised by a ticket
 router.get('/:id/file', async (req, res) => {
   try {
+    // The token arrives as a query parameter because this URL is opened directly
+    // by the browser (iframe preview and download), where headers cannot be set.
+    // It is therefore short-lived and scoped to this one resource.
     const token = req.query.token;
     if (!token) return res.status(401).json({ message: 'Not authorized' });
 
+    let decoded;
     try {
-      jwt.verify(token, process.env.JWT_SECRET);
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch {
-      return res.status(401).json({ message: 'Invalid token' });
+      return res.status(401).json({ message: 'This download link has expired. Reopen the file from the library.' });
+    }
+
+    // A ticket is bound to one resource. A plain session token is still accepted
+    // so existing tabs keep working, but it must not be scoped to another file.
+    if (decoded.scope === 'resource-file' && decoded.rid !== String(req.params.id)) {
+      return res.status(403).json({ message: 'This link is not valid for that file.' });
+    }
+
+    // Verifying the signature is not enough: the account must still exist and be
+    // active, otherwise a deactivated member keeps library access until their
+    // token expires.
+    const requester = await User.findById(decoded.id).select('role isActive').lean();
+    if (!requester || !requester.isActive) {
+      return res.status(403).json({ message: 'Not authorized' });
     }
 
     const resource = await Resource.findById(req.params.id);
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
+
+    // Pending and rejected uploads are visible only to their owner and to
+    // reviewers. Previously any signed-in member could read them by id.
+    const isOwner = String(resource.uploadedBy) === String(decoded.id);
+    const isReviewer = POWER_ROLES.includes(requester.role);
+    if (resource.status !== 'approved' && !isOwner && !isReviewer) {
+      return res.status(403).json({ message: 'This resource is not available.' });
+    }
 
     if (!resource.fileUrl) {
       return res.status(404).json({ message: 'File not found' });
@@ -288,13 +351,26 @@ router.put('/:id/download', protect, async (req, res) => {
 });
 
 // DELETE /api/resources/:id
-router.delete('/:id', protect, adminOnly, async (req, res) => {
+// Reviewers may delete anything; an uploader may withdraw their own upload,
+// which previously required an administrator.
+router.delete('/:id', protect, async (req, res) => {
   try {
     const resource = await Resource.findById(req.params.id);
     if (!resource) return res.status(404).json({ message: 'Resource not found' });
 
+    const isOwner = String(resource.uploadedBy) === String(req.user._id);
+    if (!isOwner && !POWER_ROLES.includes(req.user.role)) {
+      return res.status(403).json({ message: 'You can only delete resources you uploaded.' });
+    }
+
     if (resource.filePublicId) {
-      await cloudinary.uploader.destroy(resource.filePublicId, { resource_type: 'raw' }).catch(() => {});
+      // The upload used resource_type 'auto', so the stored type may be image,
+      // video or raw. Assuming 'raw' left images orphaned in Cloudinary.
+      const url = resource.fileUrl || '';
+      const resType = url.includes('/image/upload/') ? 'image'
+        : url.includes('/video/upload/') ? 'video'
+        : 'raw';
+      await cloudinary.uploader.destroy(resource.filePublicId, { resource_type: resType }).catch(() => {});
     }
 
     await Resource.findByIdAndDelete(req.params.id);

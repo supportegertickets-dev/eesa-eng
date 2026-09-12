@@ -1,32 +1,26 @@
 const express = require('express');
-const { body, validationResult } = require('express-validator');
+const { body } = require('express-validator');
 const Contact = require('../models/Contact');
 const { protect, adminOnly } = require('../middleware/auth');
-const rateLimit = require('express-rate-limit');
+const { createLimiter } = require('../utils/rateLimit');
+
+const { validate } = require('../middleware/validate');
 
 const router = express.Router();
 
-const contactLimiter = rateLimit({
+const contactLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
   max: 5,
-  message: { message: 'Too many submissions. Please try again later.' }
+  message: 'Too many submissions. Please try again in a few minutes.'
 });
-
-const validate = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
-  }
-  next();
-};
 
 // POST /api/contact - Public: submit contact form
 router.post('/', contactLimiter, [
-  body('name').trim().notEmpty().withMessage('Name is required').escape(),
+  body('name').trim().notEmpty().withMessage('Name is required'),
   body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
-  body('subject').trim().notEmpty().withMessage('Subject is required').escape(),
+  body('subject').trim().notEmpty().withMessage('Subject is required'),
   body('message').trim().notEmpty().withMessage('Message is required')
-    .isLength({ max: 3000 }).withMessage('Message too long').escape(),
+    .isLength({ max: 3000 }).withMessage('Message too long'),
   validate
 ], async (req, res) => {
   try {
