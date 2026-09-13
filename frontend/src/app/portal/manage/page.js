@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { createEvent, createArticle, createProject } from '@/lib/api';
 import toast from 'react-hot-toast';
-import { HiCalendar, HiNewspaper, HiLightBulb } from 'react-icons/hi';
+import { HiCalendar, HiNewspaper, HiLightBulb, HiUserGroup } from 'react-icons/hi';
+import AccountsPanel from '@/components/admin/AccountsPanel';
 
 export default function ManagePage() {
   const { user } = useAuth();
@@ -13,29 +14,32 @@ export default function ManagePage() {
   if (!['admin', 'chairperson'].includes(user?.role)) {
     return (
       <div className="text-center py-20">
-        <p className="text-gray-500 text-lg">Access denied. Admin and Chairperson only.</p>
+        <p className="text-subtle text-lg">Access denied. Admin and Chairperson only.</p>
       </div>
     );
   }
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-bold text-gray-900 mb-8">Content Management</h1>
+      <h1 className="font-heading text-2xl font-bold text-strong mb-8">Content Management</h1>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-8 border-b">
+      <div className="flex gap-2 mb-8 border-b overflow-x-auto" role="tablist">
         {[
           { id: 'event', label: 'New Event', icon: HiCalendar },
           { id: 'news', label: 'New Article', icon: HiNewspaper },
           { id: 'project', label: 'New Project', icon: HiLightBulb },
+          { id: 'accounts', label: 'Member Accounts', icon: HiUserGroup },
         ].map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-2 px-4 py-3 font-medium text-sm border-b-2 transition-colors -mb-px ${
+            className={`flex items-center gap-2 px-4 py-3 whitespace-nowrap font-medium text-sm border-b-2 transition-colors -mb-px ${
               activeTab === tab.id
-                ? 'border-primary-500 text-primary-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'border-primary-500 text-primary-600 dark:text-primary-300'
+                : 'border-transparent text-subtle hover:text-body'
             }`}
           >
             <tab.icon className="w-4 h-4" />
@@ -47,6 +51,7 @@ export default function ManagePage() {
       {activeTab === 'event' && <EventForm />}
       {activeTab === 'news' && <NewsForm />}
       {activeTab === 'project' && <ProjectForm />}
+      {activeTab === 'accounts' && <AccountsPanel />}
     </div>
   );
 }
@@ -76,26 +81,26 @@ function EventForm() {
       <h2 className="font-heading text-lg font-semibold mb-6">Create Event</h2>
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <label className="block text-sm font-medium text-body mb-1">Title</label>
           <input type="text" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-field" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-sm font-medium text-body mb-1">Description</label>
           <textarea rows={4} required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input-field resize-none" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+            <label className="block text-sm font-medium text-body mb-1">Date & Time</label>
             <input type="datetime-local" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="input-field" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+            <label className="block text-sm font-medium text-body mb-1">Location</label>
             <input type="text" required value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="input-field" />
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <label className="block text-sm font-medium text-body mb-1">Category</label>
             <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input-field">
               {['workshop', 'seminar', 'competition', 'social', 'trip', 'meeting', 'other'].map(c => (
                 <option key={c} value={c} className="capitalize">{c}</option>
@@ -103,7 +108,7 @@ function EventForm() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Max Attendees (0 = unlimited)</label>
+            <label className="block text-sm font-medium text-body mb-1">Max Attendees (0 = unlimited)</label>
             <input type="number" min="0" value={form.maxAttendees} onChange={(e) => setForm({ ...form, maxAttendees: parseInt(e.target.value) || 0 })} className="input-field" />
           </div>
         </div>
@@ -140,20 +145,20 @@ function NewsForm() {
       <h2 className="font-heading text-lg font-semibold mb-6">Create Article</h2>
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <label className="block text-sm font-medium text-body mb-1">Title</label>
           <input type="text" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-field" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Excerpt</label>
+          <label className="block text-sm font-medium text-body mb-1">Excerpt</label>
           <input type="text" value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} className="input-field" placeholder="Brief summary" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Content</label>
+          <label className="block text-sm font-medium text-body mb-1">Content</label>
           <textarea rows={8} required value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="input-field resize-none" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <label className="block text-sm font-medium text-body mb-1">Category</label>
             <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input-field">
               {['announcement', 'achievement', 'update', 'article', 'other'].map(c => (
                 <option key={c} value={c} className="capitalize">{c}</option>
@@ -162,8 +167,8 @@ function NewsForm() {
           </div>
           <div className="flex items-center pt-6">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.isPublished} onChange={(e) => setForm({ ...form, isPublished: e.target.checked })} className="w-4 h-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500" />
-              <span className="text-sm font-medium text-gray-700">Publish immediately</span>
+              <input type="checkbox" checked={form.isPublished} onChange={(e) => setForm({ ...form, isPublished: e.target.checked })} className="w-4 h-4 rounded border-line-strong text-primary-500 dark:text-primary-300 focus:ring-primary-500" />
+              <span className="text-sm font-medium text-body">Publish immediately</span>
             </label>
           </div>
         </div>
@@ -204,16 +209,16 @@ function ProjectForm() {
       <h2 className="font-heading text-lg font-semibold mb-6">Create Project</h2>
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <label className="block text-sm font-medium text-body mb-1">Title</label>
           <input type="text" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-field" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-sm font-medium text-body mb-1">Description</label>
           <textarea rows={4} required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input-field resize-none" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+            <label className="block text-sm font-medium text-body mb-1">Category</label>
             <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input-field">
               {['research', 'community', 'competition', 'innovation', 'other'].map(c => (
                 <option key={c} value={c} className="capitalize">{c}</option>
@@ -221,7 +226,7 @@ function ProjectForm() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Technologies</label>
+            <label className="block text-sm font-medium text-body mb-1">Technologies</label>
             <input type="text" value={form.technologies} onChange={(e) => setForm({ ...form, technologies: e.target.value })} className="input-field" placeholder="React, Node.js, Python..." />
           </div>
         </div>

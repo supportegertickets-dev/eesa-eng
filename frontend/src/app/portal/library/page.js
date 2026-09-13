@@ -71,8 +71,18 @@ export default function LibraryPage() {
       return;
     }
 
-    const fileUrl = getResourceFileUrl(resource._id);
-    window.open(fileUrl, '_blank', 'noopener,noreferrer');
+    // The download URL now needs a short-lived ticket from the API. Popup
+    // blockers reject a window.open() that happens after an await, so the tab is
+    // opened synchronously and pointed at the URL once it arrives.
+    const tab = window.open('', '_blank', 'noopener,noreferrer');
+    try {
+      const fileUrl = await getResourceFileUrl(resource._id);
+      if (tab) tab.location.href = fileUrl;
+      else window.location.href = fileUrl;
+    } catch (err) {
+      tab?.close();
+      toast.error(err.message || 'Could not open that file.');
+    }
   };
 
   const handleDelete = async (id) => {
@@ -90,10 +100,10 @@ export default function LibraryPage() {
   };
 
   const statusBadge = (s) => ({
-    pending: 'bg-yellow-100 text-yellow-700',
-    approved: 'bg-green-100 text-green-700',
-    rejected: 'bg-red-100 text-red-700',
-  }[s] || 'bg-gray-100 text-gray-700');
+    pending: 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300',
+    approved: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
+    rejected: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',
+  }[s] || 'bg-muted text-body');
 
   const resourceFolders = resources.reduce((groups, resource) => {
     const folder = resource.folder || 'Uncategorized';
@@ -106,8 +116,8 @@ export default function LibraryPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-gray-900">Library</h1>
-          <p className="text-gray-600 text-sm mt-1">Study materials shared by members</p>
+          <h1 className="font-heading text-2xl font-bold text-strong">Library</h1>
+          <p className="text-muted-fg text-sm mt-1">Study materials shared by members</p>
         </div>
         <button onClick={() => setShowUpload(!showUpload)} className="btn-primary flex items-center gap-2">
           <HiPlus className="w-4 h-4" /> Upload
@@ -117,7 +127,7 @@ export default function LibraryPage() {
       {/* Tabs */}
       <div className="flex gap-2 mb-4 flex-wrap">
         {[{ key: 'browse', label: 'Browse' }, { key: 'mine', label: 'My Uploads' }, ...(isAdmin ? [{ key: 'pending', label: 'Pending Review' }] : [])].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-700'}`}>
+          <button key={t.key} onClick={() => setTab(t.key)} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === t.key ? 'bg-primary-500 text-white' : 'bg-muted text-body'}`}>
             {t.label}
           </button>
         ))}
@@ -127,7 +137,7 @@ export default function LibraryPage() {
       {tab === 'browse' && (
         <form onSubmit={handleSearch} className="flex gap-2 mb-4 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
-            <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <HiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-faint" />
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search resources..." className="input-field pl-9" />
           </div>
           <select value={category} onChange={e => { setCategory(e.target.value); }} className="input-field w-auto">
@@ -147,7 +157,7 @@ export default function LibraryPage() {
       {loading ? (
         <div className="flex justify-center py-12"><div className="w-8 h-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>
       ) : resources.length === 0 ? (
-        <div className="card text-center py-12 text-gray-500">
+        <div className="card text-center py-12 text-subtle">
           <HiBookOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p>No resources found</p>
         </div>
@@ -156,9 +166,9 @@ export default function LibraryPage() {
           {Object.entries(resourceFolders).map(([folder, folderResources]) => (
             <section key={folder}>
               <div className="flex items-center gap-2 mb-3">
-                <HiBookOpen className="w-5 h-5 text-primary-500" />
-                <h2 className="font-heading font-semibold text-gray-900">{folder}</h2>
-                <span className="text-xs text-gray-500">{folderResources.length} document{folderResources.length === 1 ? '' : 's'}</span>
+                <HiBookOpen className="w-5 h-5 text-primary-500 dark:text-primary-300" />
+                <h2 className="font-heading font-semibold text-strong">{folder}</h2>
+                <span className="text-xs text-subtle">{folderResources.length} document{folderResources.length === 1 ? '' : 's'}</span>
               </div>
               <div className="space-y-3">
                 {folderResources.map((r) => (
@@ -166,47 +176,47 @@ export default function LibraryPage() {
                     onClick={() => r.status === 'approved' && setViewingResource(r)}>
               <div className="flex items-start justify-between">
                 <div className="flex gap-3 flex-1 min-w-0">
-                  <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <HiDocumentText className="w-5 h-5 text-primary-500" />
+                  <div className="w-10 h-10 bg-primary-100 dark:bg-primary-500/15 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <HiDocumentText className="w-5 h-5 text-primary-500 dark:text-primary-300" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-gray-900 truncate">{r.title}</p>
+                      <p className="font-semibold text-strong truncate">{r.title}</p>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge(r.status)}`}>{r.status}</span>
-                      <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full capitalize">{r.category?.replace('-', ' ')}</span>
+                      <span className="text-xs bg-muted text-muted-fg px-2 py-0.5 rounded-full capitalize">{r.category?.replace('-', ' ')}</span>
                     </div>
-                    {r.description && <p className="text-sm text-gray-600 mt-0.5 line-clamp-2">{r.description}</p>}
-                    <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                    {r.description && <p className="text-sm text-muted-fg mt-0.5 line-clamp-2">{r.description}</p>}
+                    <div className="flex items-center gap-3 text-xs text-faint mt-1">
                       {r.uploadedBy && <span>By {r.uploadedBy.firstName} {r.uploadedBy.lastName}</span>}
                       {r.department && <span>• {r.department}</span>}
                       {r.folder && <span>• {r.folder}</span>}
                       <span>• {r.downloads || 0} downloads</span>
                       <span>• {format(new Date(r.createdAt), 'MMM d, yyyy')}</span>
                     </div>
-                    {r.rejectionReason && <p className="text-xs text-red-500 mt-1">Reason: {r.rejectionReason}</p>}
+                    {r.rejectionReason && <p className="text-xs text-red-500 dark:text-red-300 mt-1">Reason: {r.rejectionReason}</p>}
                   </div>
                 </div>
                 <div className="flex items-center gap-1 ml-2" onClick={e => e.stopPropagation()}>
                   {r.status === 'approved' && (
-                    <button onClick={() => setViewingResource(r)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="View">
+                    <button onClick={() => setViewingResource(r)} className="p-2 text-blue-500 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg" title="View">
                       <HiEye className="w-5 h-5" />
                     </button>
                   )}
                   {tab === 'pending' && isAdmin && r.status === 'pending' && (
                     <>
-                      <button onClick={() => handleReview(r._id, 'approved')} className="p-2 text-green-600 hover:bg-green-50 rounded-lg" title="Approve">
+                      <button onClick={() => handleReview(r._id, 'approved')} className="p-2 text-green-600 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg" title="Approve">
                         <HiCheckCircle className="w-5 h-5" />
                       </button>
                       <button onClick={() => {
                         const reason = prompt('Rejection reason:');
                         if (reason) handleReview(r._id, 'rejected', reason);
-                      }} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Reject">
+                      }} className="p-2 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg" title="Reject">
                         <HiXCircle className="w-5 h-5" />
                       </button>
                     </>
                   )}
                   {(r.uploadedBy?._id === user?._id || isAdmin) && (
-                    <button onClick={() => handleDelete(r._id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete">
+                    <button onClick={() => handleDelete(r._id)} className="p-2 text-faint hover:text-red-600 dark:hover:text-red-200 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg" title="Delete">
                       <HiTrash className="w-4 h-4" />
                     </button>
                   )}
@@ -248,9 +258,8 @@ function ResourceViewer({ resource, onClose, onDownload }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const googleViewerUrl = useGoogleViewer
-    ? `https://docs.google.com/gview?url=${encodeURIComponent(getResourceFileUrl(resource._id))}&embedded=true`
-    : null;
+  // Resolved in the effect below, since obtaining the file URL is now async.
+  const [googleViewerUrl, setGoogleViewerUrl] = useState(null);
 
   useEffect(() => {
     const handleEsc = (e) => { if (e.key === 'Escape') onClose(); };
@@ -264,14 +273,20 @@ function ResourceViewer({ resource, onClose, onDownload }) {
 
   useEffect(() => {
     // Office previews use Google Viewer; PDFs are loaded locally for a faster preview.
-    if (useGoogleViewer) {
-      setLoading(false);
-      return;
-    }
     let revoke = null;
+    let cancelled = false;
+
     const fetchFile = async () => {
       try {
-        const proxyUrl = getResourceFileUrl(resource._id);
+        const proxyUrl = await getResourceFileUrl(resource._id);
+        if (cancelled) return;
+
+        if (useGoogleViewer) {
+          setGoogleViewerUrl(`https://docs.google.com/gview?url=${encodeURIComponent(proxyUrl)}&embedded=true`);
+          setLoading(false);
+          return;
+        }
+
         const resp = await fetch(proxyUrl);
         if (!resp.ok) throw new Error('Failed to load file');
         if (isText) {
@@ -284,14 +299,18 @@ function ResourceViewer({ resource, onClose, onDownload }) {
           setBlobUrl(url);
         }
       } catch (err) {
-        setError(err.message);
+        if (!cancelled) setError(err.message);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
+
     fetchFile();
-    return () => { if (revoke) URL.revokeObjectURL(revoke); };
-  }, [resource._id, useGoogleViewer]);
+    return () => {
+      cancelled = true;
+      if (revoke) URL.revokeObjectURL(revoke);
+    };
+  }, [resource._id, useGoogleViewer, isText]);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/70" onClick={onClose}>
@@ -304,7 +323,7 @@ function ResourceViewer({ resource, onClose, onDownload }) {
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => window.open(getResourceFileUrl(resource._id), '_blank', 'noopener,noreferrer')} className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm">
+          <button onClick={() => onDownload(resource, null)} className="flex items-center gap-1 px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-sm">
             <HiDownload className="w-4 h-4" /> {isMobile ? 'Open' : 'Download'}
           </button>
           <button onClick={onClose} className="p-1.5 hover:bg-white/20 rounded-lg">
@@ -316,11 +335,11 @@ function ResourceViewer({ resource, onClose, onDownload }) {
       <div className="flex-1 overflow-auto" onClick={e => e.stopPropagation()}>
         {isMobile ? (
           <div className="flex flex-col items-center justify-center h-full text-white text-center p-8">
-            <HiDocumentText className="w-16 h-16 mb-4 text-gray-400" />
+            <HiDocumentText className="w-16 h-16 mb-4 text-faint" />
             <p className="text-lg font-medium mb-2">Open this file in your browser</p>
-            <p className="text-gray-400 text-sm mb-6">Mobile browsers do not reliably render uploaded files inside this app preview.</p>
+            <p className="text-faint text-sm mb-6">Mobile browsers do not reliably render uploaded files inside this app preview.</p>
             <div className="flex flex-wrap justify-center gap-3">
-              <button onClick={() => window.open(getResourceFileUrl(resource._id), '_blank', 'noopener,noreferrer')} className="btn-primary flex items-center gap-2">
+              <button onClick={() => onDownload(resource, null)} className="btn-primary flex items-center gap-2">
                 <HiEye className="w-4 h-4" /> Open file
               </button>
               <button onClick={() => onDownload(resource, null)} className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm">
@@ -335,7 +354,7 @@ function ResourceViewer({ resource, onClose, onDownload }) {
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-full text-white text-center p-8">
             <p className="text-lg font-medium mb-2">Failed to load file</p>
-            <p className="text-gray-400 text-sm mb-6">{error}</p>
+            <p className="text-faint text-sm mb-6">{error}</p>
             <button onClick={() => onDownload(resource, null)} className="btn-primary flex items-center gap-2">
               <HiDownload className="w-4 h-4" /> Download instead
             </button>
@@ -352,9 +371,9 @@ function ResourceViewer({ resource, onClose, onDownload }) {
           <pre className="p-6 text-sm text-gray-100 whitespace-pre-wrap font-mono leading-relaxed max-w-4xl mx-auto">{textContent}</pre>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-white text-center p-8">
-            <HiDocumentText className="w-16 h-16 mb-4 text-gray-400" />
+            <HiDocumentText className="w-16 h-16 mb-4 text-faint" />
             <p className="text-lg font-medium mb-2">Preview not available for this file type</p>
-            <p className="text-gray-400 text-sm mb-6">{resource.fileType || 'Unknown type'}</p>
+            <p className="text-faint text-sm mb-6">{resource.fileType || 'Unknown type'}</p>
             <button onClick={() => onDownload(resource, blobUrl)} className="btn-primary flex items-center gap-2">
               <HiDownload className="w-4 h-4" /> Download to view
             </button>
@@ -386,41 +405,41 @@ function UploadForm({ onUploaded, onCancel }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="card mb-6 border-2 border-primary-200">
+    <form onSubmit={handleSubmit} className="card mb-6 border-2 border-primary-200 dark:border-primary-500/30">
       <h3 className="font-semibold text-lg mb-4">Upload Resource</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <label className="block text-sm font-medium text-body mb-1">Title</label>
           <input required value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="input-field" />
         </div>
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-sm font-medium text-body mb-1">Description</label>
           <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="input-field" rows={2} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <label className="block text-sm font-medium text-body mb-1">Category</label>
           <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="input-field">
             {CATEGORIES.map(c => <option key={c} value={c}>{c.replace('-', ' ')}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Year</label>
+          <label className="block text-sm font-medium text-body mb-1">Year</label>
           <select value={form.year} onChange={e => setForm({ ...form, year: parseInt(e.target.value, 10) })} className="input-field">
             {[1, 2, 3, 4, 5].map(year => <option key={year} value={year}>Year {year}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+          <label className="block text-sm font-medium text-body mb-1">Semester</label>
           <select value={form.semester} onChange={e => setForm({ ...form, semester: parseInt(e.target.value, 10) })} className="input-field">
             <option value={1}>Semester 1</option>
             <option value={2}>Semester 2</option>
           </select>
         </div>
         <div className="sm:col-span-2">
-          <p className="text-xs text-gray-500">Include the unit code in the title or filename, for example <strong>EEEN 481</strong>. The system will automatically place it in the correct unit folder.</p>
+          <p className="text-xs text-subtle">Include the unit code in the title or filename, for example <strong>EEEN 481</strong>. The system will automatically place it in the correct unit folder.</p>
         </div>
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">File (PDF, Word, PPT, etc.)</label>
+          <label className="block text-sm font-medium text-body mb-1">File (PDF, Word, PPT, etc.)</label>
           <input type="file" required onChange={e => setFile(e.target.files[0])} className="text-sm" />
         </div>
       </div>
@@ -429,7 +448,7 @@ function UploadForm({ onUploaded, onCancel }) {
           {submitting && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
           {submitting ? `Uploading ${uploadProgress}%` : 'Upload'}
         </button>
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-muted-fg hover:text-strong">Cancel</button>
       </div>
     </form>
   );

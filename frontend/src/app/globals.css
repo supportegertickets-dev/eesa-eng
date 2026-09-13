@@ -2,34 +2,254 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@500;600;700;800&display=swap');
+/*
+ * Theme tokens.
+ *
+ * Values are space-separated RGB channels so Tailwind can apply opacity
+ * modifiers via `rgb(var(--token) / <alpha>)`.
+ *
+ * Fonts are loaded by next/font in the root layout. The previous
+ * `@import url(fonts.googleapis.com)` sat after the @tailwind directives, which
+ * is invalid: CSS requires @import to precede all other rules, so the browser
+ * discarded it and the site silently fell back to system fonts.
+ */
 
 @layer base {
+  :root {
+    color-scheme: light;
+
+    --color-canvas: 249 250 251;
+    --color-surface: 255 255 255;
+    --color-surface-raised: 255 255 255;
+    --color-muted: 243 244 246;
+    --color-muted-strong: 229 231 235;
+
+    --color-text-strong: 17 24 39;
+    --color-text-body: 55 65 81;
+    --color-text-muted: 75 85 99;
+    --color-text-subtle: 107 114 128;
+    --color-text-faint: 156 163 175;
+
+    --color-line: 229 231 235;
+    --color-line-strong: 209 213 219;
+
+    --color-success: 21 128 61;
+    --color-success-soft: 220 252 231;
+    --color-warning: 161 98 7;
+    --color-warning-soft: 254 249 195;
+    --color-danger: 185 28 28;
+    --color-danger-soft: 254 226 226;
+    --color-info: 29 78 216;
+    --color-info-soft: 219 234 254;
+
+    --shadow-color: 15 23 42;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    /* A slightly blue-tinted near-black reads as less harsh than pure #000 and
+       keeps the maroon brand colour from looking muddy against it. */
+    --color-canvas: 15 18 23;
+    --color-surface: 24 28 35;
+    --color-surface-raised: 32 37 45;
+    --color-muted: 38 44 53;
+    --color-muted-strong: 51 58 69;
+
+    --color-text-strong: 243 245 248;
+    --color-text-body: 214 219 226;
+    --color-text-muted: 168 177 189;
+    --color-text-subtle: 139 148 161;
+    --color-text-faint: 111 120 133;
+
+    --color-line: 45 52 62;
+    --color-line-strong: 62 70 82;
+
+    /* Status colours are lightened for dark surfaces; the "soft" fills become
+       low-opacity tints rather than pastels, which would glare. */
+    --color-success: 74 222 128;
+    --color-success-soft: 20 51 35;
+    --color-warning: 250 204 21;
+    --color-warning-soft: 56 45 12;
+    --color-danger: 248 113 113;
+    --color-danger-soft: 60 24 24;
+    --color-info: 96 165 250;
+    --color-info-soft: 23 39 66;
+
+    --shadow-color: 0 0 0;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
-    @apply text-gray-800 antialiased;
+    @apply bg-canvas text-body antialiased;
+    /* Colour transitions on theme change, but not on every hover of every
+       child, which would make menus feel sluggish. */
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /*
+   * Headings set the display face only. Setting a colour here would override
+   * the inherited colour of headings that sit on a coloured ground — the hero's
+   * white headline on maroon turned dark navy — and those elements have no
+   * colour class of their own to win the cascade back.
+   */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+
+  /*
+   * Visible focus for keyboard users only. The default outline was suppressed
+   * by `outline-none` on inputs, leaving keyboard navigation with no indicator
+   * at all on several forms.
+   */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2 ring-offset-canvas;
+  }
+
+  /* Respect a reduced-motion preference across every animation on the site. */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Keep the page from sliding sideways when a modal locks scrolling. */
+  body.overflow-hidden {
+    overflow: hidden;
   }
 }
 
 @layer components {
+  /* ---------------------------------------------------------------- *
+   * Buttons
+   * ---------------------------------------------------------------- */
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-medium text-sm
+           transition-colors disabled:opacity-60 disabled:cursor-not-allowed
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-canvas;
+  }
+
   .btn-primary {
-    @apply px-6 py-2.5 bg-primary-500 text-white rounded-lg font-medium hover:bg-primary-600 transition-colors shadow-sm;
+    @apply btn bg-primary-500 text-white hover:bg-primary-600 active:bg-primary-700
+           focus-visible:ring-primary-500 shadow-card;
   }
+
   .btn-accent {
-    @apply px-6 py-2.5 bg-accent-500 text-white rounded-lg font-medium hover:bg-accent-600 transition-colors shadow-sm;
+    /* Gold is a light colour: dark text on it meets contrast where white does not. */
+    @apply btn bg-accent-500 text-primary-900 hover:bg-accent-600 hover:text-white
+           focus-visible:ring-accent-500 shadow-card;
   }
+
   .btn-outline {
-    @apply px-6 py-2.5 border-2 border-primary-500 text-primary-500 rounded-lg font-medium hover:bg-primary-500 hover:text-white transition-colors;
+    @apply btn border border-primary-500 text-primary-500 hover:bg-primary-500 hover:text-white
+           focus-visible:ring-primary-500 dark:text-primary-300 dark:border-primary-400
+           dark:hover:bg-primary-500 dark:hover:text-white;
   }
+
+  .btn-ghost {
+    @apply btn text-body hover:bg-muted focus-visible:ring-primary-500;
+  }
+
+  .btn-danger {
+    @apply btn bg-danger text-white hover:opacity-90 focus-visible:ring-danger;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Forms
+   * ---------------------------------------------------------------- */
+
   .input-field {
-    @apply w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none transition-all;
+    @apply w-full px-4 py-2.5 rounded-lg bg-surface text-body border border-line-strong
+           placeholder:text-faint transition-colors
+           focus:border-primary-500 focus:ring-2 focus:ring-primary-500/30 focus:outline-none
+           disabled:opacity-60 disabled:cursor-not-allowed;
   }
+
+  .input-field[aria-invalid='true'] {
+    @apply border-danger focus:border-danger focus:ring-danger/30;
+  }
+
+  .form-label {
+    @apply block text-sm font-medium text-body mb-1.5;
+  }
+
+  .form-error {
+    @apply mt-1.5 text-sm text-danger;
+  }
+
+  .form-hint {
+    @apply mt-1.5 text-xs text-subtle;
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Surfaces
+   * ---------------------------------------------------------------- */
+
   .card {
-    @apply bg-white rounded-xl shadow-md border border-gray-100 p-6;
+    @apply bg-surface rounded-xl border border-line shadow-card p-6;
   }
+
+  .card-interactive {
+    @apply card transition-shadow hover:shadow-raised;
+  }
+
+  /* ---------------------------------------------------------------- *
+   * Badges
+   * ---------------------------------------------------------------- */
+
+  .badge {
+    @apply inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .badge-neutral { @apply badge bg-muted text-muted-fg; }
+  .badge-success { @apply badge bg-success-soft text-success; }
+  .badge-warning { @apply badge bg-warning-soft text-warning; }
+  .badge-danger  { @apply badge bg-danger-soft text-danger; }
+  .badge-info    { @apply badge bg-info-soft text-info; }
+  .badge-brand   { @apply badge bg-primary-500/10 text-primary-500 dark:text-primary-300; }
+
+  /* ---------------------------------------------------------------- *
+   * Typography
+   * ---------------------------------------------------------------- */
+
   .section-title {
-    @apply font-heading text-3xl sm:text-4xl font-bold text-gray-900;
+    @apply font-heading text-2xl sm:text-3xl lg:text-4xl font-bold text-strong tracking-tight;
   }
+
   .section-subtitle {
-    @apply text-gray-600 text-lg max-w-2xl;
+    @apply text-muted-fg text-base sm:text-lg max-w-2xl;
+  }
+
+  .page-title {
+    @apply font-heading text-2xl sm:text-3xl font-bold text-strong;
+  }
+
+  /* Skip link: first tab stop on every page, visible only when focused. */
+  .skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100]
+           focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary-500 focus:text-white;
+  }
+
+  /* Loading placeholder with a sweep, used instead of a bare spinner so the
+     page keeps its shape while data arrives. */
+  .skeleton {
+    @apply relative overflow-hidden bg-muted rounded;
+  }
+
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background-image: linear-gradient(90deg, transparent, rgb(var(--color-surface) / 0.6), transparent);
   }
 }

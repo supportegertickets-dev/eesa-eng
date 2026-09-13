@@ -54,7 +54,7 @@ export default function PortalEventsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="font-heading text-2xl font-bold text-gray-900">Events</h1>
+        <h1 className="font-heading text-2xl font-bold text-strong">Events</h1>
         {isAdmin && (
           <button onClick={() => setShowCreate(!showCreate)} className="btn-primary flex items-center gap-2">
             <HiPlus className="w-4 h-4" /> New Event
@@ -73,12 +73,12 @@ export default function PortalEventsPage() {
 
             return (
               <div key={event._id} className="card flex flex-col sm:flex-row sm:items-center gap-4">
-                <div className="w-14 h-14 bg-primary-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <HiCalendar className="w-7 h-7 text-primary-500" />
+                <div className="w-14 h-14 bg-primary-100 dark:bg-primary-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <HiCalendar className="w-7 h-7 text-primary-500 dark:text-primary-300" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-900">{event.title}</h3>
-                  <div className="flex flex-wrap gap-4 mt-1 text-sm text-gray-500">
+                  <h3 className="font-semibold text-strong">{event.title}</h3>
+                  <div className="flex flex-wrap gap-4 mt-1 text-sm text-subtle">
                     <span className="flex items-center gap-1">
                       <HiCalendar className="w-4 h-4" />
                       {format(new Date(event.date), 'MMM dd, yyyy • h:mm a')}
@@ -90,11 +90,11 @@ export default function PortalEventsPage() {
                   </div>
                   <div className="flex gap-2 mt-2">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                      event.status === 'upcoming' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                      event.status === 'upcoming' ? 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300' : 'bg-muted text-muted-fg'
                     }`}>
                       {event.status}
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 capitalize">
+                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 capitalize">
                       {event.category}
                     </span>
                   </div>
@@ -105,15 +105,15 @@ export default function PortalEventsPage() {
                       onClick={() => handleRSVP(event._id)}
                       className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                         isAttending
-                          ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                          : 'bg-primary-100 text-primary-700 hover:bg-primary-200'
+                          ? 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-500/25'
+                          : 'bg-primary-100 dark:bg-primary-500/15 text-primary-700 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-500/25'
                       }`}
                     >
                       {isAttending ? 'Cancel RSVP' : 'RSVP'}
                     </button>
                   )}
                   {isAdmin && (
-                    <button onClick={() => handleDelete(event._id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Delete event">
+                    <button onClick={() => handleDelete(event._id)} className="p-2 text-red-500 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg" title="Delete event">
                       <HiTrash className="w-5 h-5" />
                     </button>
                   )}
@@ -124,7 +124,7 @@ export default function PortalEventsPage() {
         </div>
       ) : (
         <div className="text-center py-20">
-          <p className="text-gray-500">No events available</p>
+          <p className="text-subtle">No events available</p>
         </div>
       )}
     </div>
@@ -147,27 +147,27 @@ function EventQuickForm({ onCreated, onCancel }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="card mb-6 border-2 border-primary-200">
+    <form onSubmit={handleSubmit} className="card mb-6 border-2 border-primary-200 dark:border-primary-500/30">
       <h3 className="font-semibold text-lg mb-4">Create Event</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <label className="block text-sm font-medium text-body mb-1">Title</label>
           <input required value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="input-field" />
         </div>
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-sm font-medium text-body mb-1">Description</label>
           <textarea required value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="input-field" rows={2} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+          <label className="block text-sm font-medium text-body mb-1">Date & Time</label>
           <input type="datetime-local" required value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="input-field" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+          <label className="block text-sm font-medium text-body mb-1">Location</label>
           <input required value={form.location} onChange={e => setForm({...form, location: e.target.value})} className="input-field" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <label className="block text-sm font-medium text-body mb-1">Category</label>
           <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="input-field">
             <option value="workshop">Workshop</option>
             <option value="seminar">Seminar</option>
@@ -184,7 +184,7 @@ function EventQuickForm({ onCreated, onCancel }) {
           {submitting && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
           Create
         </button>
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-muted-fg hover:text-strong">Cancel</button>
       </div>
     </form>
   );

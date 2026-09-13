@@ -19,9 +19,9 @@ const metricCards = [
 ];
 
 const colorClasses = {
-  blue: 'bg-blue-50 text-blue-600', amber: 'bg-amber-50 text-amber-600', emerald: 'bg-emerald-50 text-emerald-600',
+  blue: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-300', amber: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-300', emerald: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
   rose: 'bg-rose-50 text-rose-600', violet: 'bg-violet-50 text-violet-600', cyan: 'bg-cyan-50 text-cyan-600',
-  orange: 'bg-orange-50 text-orange-600', slate: 'bg-slate-100 text-slate-600'
+  orange: 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-300', slate: 'bg-slate-100 text-slate-600'
 };
 
 const formatDate = (value) => new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
@@ -49,46 +49,46 @@ export default function AdminPage() {
     else setLoading(false);
   }, [user?.role]);
 
-  if (user?.role !== 'admin') return <div className="card text-center py-20"><p className="text-gray-500 text-lg">Access denied. Admin role required.</p></div>;
+  if (user?.role !== 'admin') return <div className="card text-center py-20"><p className="text-subtle text-lg">Access denied. Admin role required.</p></div>;
   if (loading) return <LoadingSpinner size="lg" />;
 
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
         <div>
-          <p className="text-primary-600 text-sm font-semibold uppercase tracking-wide">Administration</p>
-          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-gray-900 mt-1">Platform overview</h1>
-          <p className="text-gray-600 mt-1">Monitor membership, content, payments, and activity from one place.</p>
+          <p className="text-primary-600 dark:text-primary-300 text-sm font-semibold uppercase tracking-wide">Administration</p>
+          <h1 className="font-heading text-2xl sm:text-3xl font-bold text-strong mt-1">Platform overview</h1>
+          <p className="text-muted-fg mt-1">Monitor membership, content, payments, and activity from one place.</p>
         </div>
         <button onClick={loadOverview} className="btn-outline inline-flex items-center gap-2 self-start sm:self-auto" title="Refresh overview">
           <HiRefresh className="w-4 h-4" /> Refresh
         </button>
       </div>
 
-      {error ? <div className="card border-red-200 bg-red-50 text-red-700 mb-6">{error}</div> : (
+      {error ? <div className="card border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 mb-6">{error}</div> : (
         <>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {metricCards.map(({ key, label, icon: Icon, color, href }) => (
-              <Link key={key} href={href} className="card hover:border-primary-300 transition-colors">
+              <Link key={key} href={href} className="card hover:border-primary-300 dark:hover:border-primary-500/30 transition-colors">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${colorClasses[color]}`}><Icon className="w-5 h-5" /></div>
-                <p className="text-2xl font-heading font-bold text-gray-900 mt-4">{data?.metrics?.[key] || 0}</p>
-                <p className="text-xs text-gray-500 mt-1">{label}</p>
+                <p className="text-2xl font-heading font-bold text-strong mt-4">{data?.metrics?.[key] || 0}</p>
+                <p className="text-xs text-subtle mt-1">{label}</p>
               </Link>
             ))}
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <ActivityPanel title="Recent members" icon={HiUserGroup} href="/portal/members">
-              {(data?.recent?.users || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div><p className="font-medium text-gray-900">{item.firstName} {item.lastName}</p><p className="text-xs text-gray-500">{item.department || 'Department not set'} • {item.role}</p></div><time className="text-xs text-gray-400">{formatDate(item.createdAt)}</time></div>)}
+              {(data?.recent?.users || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div><p className="font-medium text-strong">{item.firstName} {item.lastName}</p><p className="text-xs text-subtle">{item.department || 'Department not set'} • {item.role}</p></div><time className="text-xs text-faint">{formatDate(item.createdAt)}</time></div>)}
             </ActivityPanel>
             <ActivityPanel title="Payment activity" icon={HiCash} href="/portal/payments">
-              {(data?.recent?.payments || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div><p className="font-medium text-gray-900">{item.user?.firstName} {item.user?.lastName}</p><p className="text-xs text-gray-500">{item.type} • KSh {item.amount?.toLocaleString()}</p></div><span className={`text-xs font-medium capitalize ${item.status === 'verified' ? 'text-emerald-600' : item.status === 'rejected' ? 'text-rose-600' : 'text-amber-600'}`}>{item.status}</span></div>)}
+              {(data?.recent?.payments || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div><p className="font-medium text-strong">{item.user?.firstName} {item.user?.lastName}</p><p className="text-xs text-subtle">{item.type} • KSh {item.amount?.toLocaleString()}</p></div><span className={`text-xs font-medium capitalize ${item.status === 'verified' ? 'text-emerald-600 dark:text-emerald-300' : item.status === 'rejected' ? 'text-rose-600' : 'text-amber-600 dark:text-amber-300'}`}>{item.status}</span></div>)}
             </ActivityPanel>
             <ActivityPanel title="Resource activity" icon={HiBookOpen} href="/portal/library">
-              {(data?.recent?.resources || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div className="min-w-0"><p className="font-medium text-gray-900 truncate">{item.title}</p><p className="text-xs text-gray-500">{item.unitCode || 'Unit not set'} • {item.uploadedBy?.firstName} {item.uploadedBy?.lastName}</p></div><span className="text-xs capitalize text-gray-500">{item.status}</span></div>)}
+              {(data?.recent?.resources || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div className="min-w-0"><p className="font-medium text-strong truncate">{item.title}</p><p className="text-xs text-subtle">{item.unitCode || 'Unit not set'} • {item.uploadedBy?.firstName} {item.uploadedBy?.lastName}</p></div><span className="text-xs capitalize text-subtle">{item.status}</span></div>)}
             </ActivityPanel>
             <ActivityPanel title="Contact messages" icon={HiMail} href="/contact">
-              {(data?.recent?.contacts || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div className="min-w-0"><p className="font-medium text-gray-900 truncate">{item.subject}</p><p className="text-xs text-gray-500">{item.name} • {item.email}</p></div><span className={`text-xs font-medium ${item.isRead ? 'text-gray-400' : 'text-rose-600'}`}>{item.isRead ? 'Read' : 'Unread'}</span></div>)}
+              {(data?.recent?.contacts || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div className="min-w-0"><p className="font-medium text-strong truncate">{item.subject}</p><p className="text-xs text-subtle">{item.name} • {item.email}</p></div><span className={`text-xs font-medium ${item.isRead ? 'text-faint' : 'text-rose-600'}`}>{item.isRead ? 'Read' : 'Unread'}</span></div>)}
             </ActivityPanel>
           </div>
         </>
@@ -98,5 +98,5 @@ export default function AdminPage() {
 }
 
 function ActivityPanel({ title, icon: Icon, href, children }) {
-  return <section className="card"><div className="flex items-center justify-between mb-2"><h2 className="font-heading text-lg font-semibold text-gray-900 flex items-center gap-2"><Icon className="w-5 h-5 text-primary-500" />{title}</h2><Link href={href} className="text-primary-600 text-sm inline-flex items-center gap-1">View <HiArrowRight className="w-4 h-4" /></Link></div>{children}</section>;
+  return <section className="card"><div className="flex items-center justify-between mb-2"><h2 className="font-heading text-lg font-semibold text-strong flex items-center gap-2"><Icon className="w-5 h-5 text-primary-500 dark:text-primary-300" />{title}</h2><Link href={href} className="text-primary-600 dark:text-primary-300 text-sm inline-flex items-center gap-1">View <HiArrowRight className="w-4 h-4" /></Link></div>{children}</section>;
 }

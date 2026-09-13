@@ -52,19 +52,19 @@ export default function PaymentsPage() {
 
   const statusBadge = (s) => {
     const map = {
-      pending: 'bg-yellow-100 text-yellow-700',
-      verified: 'bg-green-100 text-green-700',
-      rejected: 'bg-red-100 text-red-700',
+      pending: 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300',
+      verified: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
+      rejected: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',
     };
-    return map[s] || 'bg-gray-100 text-gray-700';
+    return map[s] || 'bg-muted text-body';
   };
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-gray-900">Payments</h1>
-          <p className="text-gray-600 text-sm mt-1">Registration & renewal fees</p>
+          <h1 className="font-heading text-2xl font-bold text-strong">Payments</h1>
+          <p className="text-muted-fg text-sm mt-1">Registration & renewal fees</p>
         </div>
         <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
           <HiPlus className="w-4 h-4" /> Submit Payment
@@ -73,28 +73,28 @@ export default function PaymentsPage() {
 
       {isAdmin && (
         <div className="flex gap-2 mb-4">
-          <button onClick={() => setTab('my')} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'my' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-700'}`}>My Payments</button>
-          <button onClick={() => setTab('all')} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'all' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-700'}`}>All Payments</button>
+          <button onClick={() => setTab('my')} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'my' ? 'bg-primary-500 text-white' : 'bg-muted text-body'}`}>My Payments</button>
+          <button onClick={() => setTab('all')} className={`px-4 py-2 rounded-lg text-sm font-medium ${tab === 'all' ? 'bg-primary-500 text-white' : 'bg-muted text-body'}`}>All Payments</button>
         </div>
       )}
 
       {tab === 'all' && stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <div className="card text-center">
-            <p className="text-2xl font-bold text-gray-900">{stats.total || 0}</p>
-            <p className="text-xs text-gray-500">Total</p>
+            <p className="text-2xl font-bold text-strong">{stats.total || 0}</p>
+            <p className="text-xs text-subtle">Total</p>
           </div>
           <div className="card text-center">
-            <p className="text-2xl font-bold text-yellow-600">{stats.pending || 0}</p>
-            <p className="text-xs text-gray-500">Pending</p>
+            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-300">{stats.pending || 0}</p>
+            <p className="text-xs text-subtle">Pending</p>
           </div>
           <div className="card text-center">
-            <p className="text-2xl font-bold text-green-600">{stats.verified || 0}</p>
-            <p className="text-xs text-gray-500">Verified</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-300">{stats.verified || 0}</p>
+            <p className="text-xs text-subtle">Verified</p>
           </div>
           <div className="card text-center">
-            <p className="text-2xl font-bold text-red-600">{stats.rejected || 0}</p>
-            <p className="text-xs text-gray-500">Rejected</p>
+            <p className="text-2xl font-bold text-red-600 dark:text-red-300">{stats.rejected || 0}</p>
+            <p className="text-xs text-subtle">Rejected</p>
           </div>
         </div>
       )}
@@ -104,7 +104,7 @@ export default function PaymentsPage() {
       {loading ? (
         <div className="flex justify-center py-12"><div className="w-8 h-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>
       ) : payments.length === 0 ? (
-        <div className="card text-center py-12 text-gray-500">
+        <div className="card text-center py-12 text-subtle">
           <HiCash className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p>No payments found</p>
         </div>
@@ -115,36 +115,36 @@ export default function PaymentsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="font-semibold text-gray-900 capitalize">{p.type} Fee</p>
+                    <p className="font-semibold text-strong capitalize">{p.type} Fee</p>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge(p.status)}`}>{p.status}</span>
                   </div>
-                  {tab === 'all' && p.user && <p className="text-sm text-gray-600">{p.user.firstName} {p.user.lastName} — {p.user.email}</p>}
-                  <p className="text-sm text-gray-500">KES {p.amount} • {p.reference} {p.paymentMethod === 'mpesa' && <span className="inline-block bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded ml-1">M-Pesa</span>}</p>
-                  {p.semester && <p className="text-xs text-gray-400">{p.semester} — {p.academicYear}</p>}
-                  <p className="text-xs text-gray-400">{format(new Date(p.createdAt), 'MMM d, yyyy h:mm a')}</p>
-                  {p.rejectionReason && <p className="text-xs text-red-500 mt-1">Reason: {p.rejectionReason}</p>}
+                  {tab === 'all' && p.user && <p className="text-sm text-muted-fg">{p.user.firstName} {p.user.lastName} — {p.user.email}</p>}
+                  <p className="text-sm text-subtle">KES {p.amount} • {p.reference} {p.paymentMethod === 'mpesa' && <span className="inline-block bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300 text-xs px-1.5 py-0.5 rounded ml-1">M-Pesa</span>}</p>
+                  {p.semester && <p className="text-xs text-faint">{p.semester} — {p.academicYear}</p>}
+                  <p className="text-xs text-faint">{format(new Date(p.createdAt), 'MMM d, yyyy h:mm a')}</p>
+                  {p.rejectionReason && <p className="text-xs text-red-500 dark:text-red-300 mt-1">Reason: {p.rejectionReason}</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   {p.proofScreenshot && (
-                    <a href={p.proofScreenshot} target="_blank" rel="noopener noreferrer" className="text-primary-500 hover:text-primary-600">
+                    <a href={p.proofScreenshot} target="_blank" rel="noopener noreferrer" className="text-primary-500 dark:text-primary-300 hover:text-primary-600 dark:hover:text-primary-200">
                       <HiEye className="w-5 h-5" />
                     </a>
                   )}
                   {tab === 'all' && isAdmin && p.status === 'pending' && (
                     <>
-                      <button onClick={() => handleVerify(p._id, 'verified')} className="p-2 text-green-600 hover:bg-green-50 rounded-lg" title="Verify">
+                      <button onClick={() => handleVerify(p._id, 'verified')} className="p-2 text-green-600 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg" title="Verify">
                         <HiCheckCircle className="w-5 h-5" />
                       </button>
                       <button onClick={() => {
                         const reason = prompt('Rejection reason:');
                         if (reason) handleVerify(p._id, 'rejected', reason);
-                      }} className="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="Reject">
+                      }} className="p-2 text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg" title="Reject">
                         <HiXCircle className="w-5 h-5" />
                       </button>
                     </>
                   )}
                   {tab === 'all' && isAdmin && (
-                    <button onClick={() => handleDelete(p._id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" title="Delete">
+                    <button onClick={() => handleDelete(p._id)} className="p-2 text-red-500 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg" title="Delete">
                       <HiTrash className="w-5 h-5" />
                     </button>
                   )}
@@ -227,17 +227,17 @@ function PaymentForm({ onSubmitted, onCancel }) {
   };
 
   return (
-    <div className="card mb-6 border-2 border-primary-200">
+    <div className="card mb-6 border-2 border-primary-200 dark:border-primary-500/30">
       <h3 className="font-semibold text-lg mb-4">Submit Payment</h3>
 
       {/* Method tabs */}
       <div className="flex gap-2 mb-5">
         <button type="button" onClick={() => setMethod('mpesa')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${method === 'mpesa' ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${method === 'mpesa' ? 'bg-green-600 text-white' : 'bg-muted text-body hover:bg-muted-strong'}`}>
           M-Pesa (STK Push)
         </button>
         <button type="button" onClick={() => setMethod('manual')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${method === 'manual' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${method === 'manual' ? 'bg-primary-500 text-white' : 'bg-muted text-body hover:bg-muted-strong'}`}>
           Manual Upload
         </button>
       </div>
@@ -247,43 +247,43 @@ function PaymentForm({ onSubmitted, onCancel }) {
           {mpesaStatus === 'sent' ? (
             <div className="text-center py-8">
               <div className="w-12 h-12 mx-auto mb-4 animate-spin rounded-full border-4 border-green-500 border-t-transparent" />
-              <p className="font-semibold text-gray-800">STK Push sent to your phone</p>
-              <p className="text-sm text-gray-500 mt-1">Enter your M-Pesa PIN to complete the payment</p>
+              <p className="font-semibold text-strong">STK Push sent to your phone</p>
+              <p className="text-sm text-subtle mt-1">Enter your M-Pesa PIN to complete the payment</p>
             </div>
           ) : mpesaStatus === 'success' ? (
             <div className="text-center py-8">
-              <HiCheckCircle className="w-12 h-12 mx-auto text-green-500 mb-3" />
-              <p className="font-semibold text-green-700">Payment Confirmed!</p>
+              <HiCheckCircle className="w-12 h-12 mx-auto text-green-500 dark:text-green-300 mb-3" />
+              <p className="font-semibold text-green-700 dark:text-green-300">Payment Confirmed!</p>
             </div>
           ) : mpesaStatus === 'failed' ? (
             <div className="text-center py-8">
-              <HiXCircle className="w-12 h-12 mx-auto text-red-500 mb-3" />
-              <p className="font-semibold text-red-700">Payment Failed</p>
-              <button type="button" onClick={() => setMpesaStatus(null)} className="text-sm text-primary-500 mt-2 underline">Try again</button>
+              <HiXCircle className="w-12 h-12 mx-auto text-red-500 dark:text-red-300 mb-3" />
+              <p className="font-semibold text-red-700 dark:text-red-300">Payment Failed</p>
+              <button type="button" onClick={() => setMpesaStatus(null)} className="text-sm text-primary-500 dark:text-primary-300 mt-2 underline">Try again</button>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <label className="block text-sm font-medium text-body mb-1">Type</label>
                 <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="input-field">
                   <option value="registration">Registration</option>
                   <option value="renewal">Renewal</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Amount (KES)</label>
+                <label className="block text-sm font-medium text-body mb-1">Amount (KES)</label>
                 <input type="number" required value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="input-field" placeholder="e.g., 500" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">M-Pesa Phone Number</label>
+                <label className="block text-sm font-medium text-body mb-1">M-Pesa Phone Number</label>
                 <input required value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="input-field" placeholder="e.g., 0712345678 or 254712345678" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+                <label className="block text-sm font-medium text-body mb-1">Semester</label>
                 <input value={form.semester} onChange={e => setForm({...form, semester: e.target.value})} className="input-field" placeholder="e.g., Sept-Dec 2024" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+                <label className="block text-sm font-medium text-body mb-1">Academic Year</label>
                 <input value={form.academicYear} onChange={e => setForm({...form, academicYear: e.target.value})} className="input-field" placeholder="e.g., 2024/2025" />
               </div>
             </div>
@@ -294,7 +294,7 @@ function PaymentForm({ onSubmitted, onCancel }) {
                 {submitting && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
                 Pay with M-Pesa
               </button>
-              <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+              <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-muted-fg hover:text-strong">Cancel</button>
             </div>
           )}
         </form>
@@ -302,34 +302,34 @@ function PaymentForm({ onSubmitted, onCancel }) {
         <form onSubmit={handleManual}>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+              <label className="block text-sm font-medium text-body mb-1">Type</label>
               <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="input-field">
                 <option value="registration">Registration</option>
                 <option value="renewal">Renewal</option>
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Amount (KES)</label>
+              <label className="block text-sm font-medium text-body mb-1">Amount (KES)</label>
               <input type="number" required value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="input-field" placeholder="e.g., 500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">M-Pesa/Reference Code</label>
+              <label className="block text-sm font-medium text-body mb-1">M-Pesa/Reference Code</label>
               <input required value={form.reference} onChange={e => setForm({...form, reference: e.target.value})} className="input-field" placeholder="e.g., SJK3D7HF2R" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Semester</label>
+              <label className="block text-sm font-medium text-body mb-1">Semester</label>
               <input value={form.semester} onChange={e => setForm({...form, semester: e.target.value})} className="input-field" placeholder="e.g., Sept-Dec 2024" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+              <label className="block text-sm font-medium text-body mb-1">Academic Year</label>
               <input value={form.academicYear} onChange={e => setForm({...form, academicYear: e.target.value})} className="input-field" placeholder="e.g., 2024/2025" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Proof Screenshot</label>
+              <label className="block text-sm font-medium text-body mb-1">Proof Screenshot</label>
               <input type="file" accept="image/*" onChange={e => setProof(e.target.files[0])} className="text-sm" />
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+              <label className="block text-sm font-medium text-body mb-1">Notes (optional)</label>
               <textarea value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} className="input-field" rows={2} />
             </div>
           </div>
@@ -338,7 +338,7 @@ function PaymentForm({ onSubmitted, onCancel }) {
               {submitting && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
               Submit
             </button>
-            <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+            <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-muted-fg hover:text-strong">Cancel</button>
           </div>
         </form>
       )}

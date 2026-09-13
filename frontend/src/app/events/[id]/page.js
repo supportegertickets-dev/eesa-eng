@@ -53,7 +53,7 @@ export default function EventDetailPage({ params }) {
   const isAttending = user && event.attendees?.some(a => a._id === user._id);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <section className="bg-gradient-to-r from-primary-500 to-primary-700 text-white py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <Link href="/events" className="inline-flex items-center text-gray-200 hover:text-white mb-6 transition-colors">
@@ -80,7 +80,7 @@ export default function EventDetailPage({ params }) {
               )}
               <div className="card">
                 <h2 className="font-heading text-xl font-semibold mb-4">About This Event</h2>
-                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{event.description}</p>
+                <p className="text-body whitespace-pre-wrap leading-relaxed">{event.description}</p>
               </div>
             </div>
 
@@ -89,29 +89,29 @@ export default function EventDetailPage({ params }) {
                 <h3 className="font-heading font-semibold mb-4">Event Details</h3>
                 <div className="space-y-4">
                   <div className="flex items-start gap-3">
-                    <HiCalendar className="w-5 h-5 text-primary-500 mt-0.5" />
+                    <HiCalendar className="w-5 h-5 text-primary-500 dark:text-primary-300 mt-0.5" />
                     <div>
                       <p className="font-medium text-sm">Date & Time</p>
-                      <p className="text-gray-600 text-sm">
+                      <p className="text-muted-fg text-sm">
                         {format(new Date(event.date), 'EEEE, MMMM dd, yyyy')}
                       </p>
-                      <p className="text-gray-600 text-sm">
+                      <p className="text-muted-fg text-sm">
                         {format(new Date(event.date), 'h:mm a')}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <HiLocationMarker className="w-5 h-5 text-primary-500 mt-0.5" />
+                    <HiLocationMarker className="w-5 h-5 text-primary-500 dark:text-primary-300 mt-0.5" />
                     <div>
                       <p className="font-medium text-sm">Location</p>
-                      <p className="text-gray-600 text-sm">{event.location}</p>
+                      <p className="text-muted-fg text-sm">{event.location}</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <HiUsers className="w-5 h-5 text-primary-500 mt-0.5" />
+                    <HiUsers className="w-5 h-5 text-primary-500 dark:text-primary-300 mt-0.5" />
                     <div>
                       <p className="font-medium text-sm">Attendees</p>
-                      <p className="text-gray-600 text-sm">
+                      <p className="text-muted-fg text-sm">
                         {event.attendees?.length || 0}
                         {event.maxAttendees > 0 ? ` / ${event.maxAttendees}` : ''} attending
                       </p>
@@ -123,7 +123,7 @@ export default function EventDetailPage({ params }) {
               {event.organizer && (
                 <div className="card">
                   <h3 className="font-heading font-semibold mb-2">Organizer</h3>
-                  <p className="text-gray-600 text-sm">
+                  <p className="text-muted-fg text-sm">
                     {event.organizer.firstName} {event.organizer.lastName}
                   </p>
                 </div>

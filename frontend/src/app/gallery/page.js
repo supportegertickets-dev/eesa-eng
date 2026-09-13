@@ -25,7 +25,7 @@ export default function PublicGalleryPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       {/* Hero */}
       <div className="bg-primary-500 text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -37,9 +37,9 @@ export default function PublicGalleryPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Category filter */}
         <div className="flex gap-2 mb-8 flex-wrap justify-center">
-          <button onClick={() => setCategory('')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${!category ? 'bg-primary-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 shadow-sm'}`}>All</button>
+          <button onClick={() => setCategory('')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${!category ? 'bg-primary-500 text-white' : 'bg-surface text-body hover:bg-muted shadow-sm'}`}>All</button>
           {CATEGORIES.map(c => (
-            <button key={c} onClick={() => setCategory(c)} className={`px-4 py-2 rounded-full text-sm font-medium capitalize transition-colors ${category === c ? 'bg-primary-500 text-white' : 'bg-white text-gray-700 hover:bg-gray-100 shadow-sm'}`}>
+            <button key={c} onClick={() => setCategory(c)} className={`px-4 py-2 rounded-full text-sm font-medium capitalize transition-colors ${category === c ? 'bg-primary-500 text-white' : 'bg-surface text-body hover:bg-muted shadow-sm'}`}>
               {c}
             </button>
           ))}
@@ -48,27 +48,27 @@ export default function PublicGalleryPage() {
         {loading ? (
           <div className="flex justify-center py-20"><div className="w-10 h-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>
         ) : images.length === 0 ? (
-          <div className="text-center py-20 text-gray-500">
+          <div className="text-center py-20 text-subtle">
             <HiPhotograph className="w-16 h-16 mx-auto mb-4 text-gray-300" />
             <p className="text-lg">No photos yet</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {images.map((img) => (
-              <div key={img._id} className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedImg(img)}>
-                <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+              <div key={img._id} className="group bg-surface rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedImg(img)}>
+                <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                   <img src={img.imageUrl} alt={img.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                 </div>
                 <div className="p-4">
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-semibold text-gray-900 line-clamp-1">{img.title}</h3>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-600 font-medium capitalize whitespace-nowrap">{img.category}</span>
+                    <h3 className="font-semibold text-strong line-clamp-1">{img.title}</h3>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-300 font-medium capitalize whitespace-nowrap">{img.category}</span>
                   </div>
                   {img.description && (
-                    <p className="text-sm text-gray-500 mt-1.5 line-clamp-2">{img.description}</p>
+                    <p className="text-sm text-subtle mt-1.5 line-clamp-2">{img.description}</p>
                   )}
                   {img.createdAt && (
-                    <p className="text-xs text-gray-400 mt-2">{new Date(img.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                    <p className="text-xs text-faint mt-2">{new Date(img.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                   )}
                 </div>
               </div>

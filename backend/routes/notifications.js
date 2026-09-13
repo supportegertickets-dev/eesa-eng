@@ -1,32 +1,31 @@
 const express = require('express');
 const { body } = require('express-validator');
 const Notification = require('../models/Notification');
-const { protect, adminOnly, leadershipOnly } = require('../middleware/auth');
+const { protect, adminOnly, leadershipOnly, LEADERSHIP_ROLES } = require('../middleware/auth');
 
 const { validate } = require('../middleware/validate');
 
 const router = express.Router();
 
+/**
+ * Notifications a given user is entitled to see. Shared by the list and the
+ * bulk mark-as-read so the two can never disagree about the audience.
+ */
+const audienceFilter = (user) => {
+  const clauses = [
+    { target: 'all' },
+    { target: 'members' },
+    { target: 'specific', targetUsers: user._id }
+  ];
+  if (LEADERSHIP_ROLES.includes(user.role)) clauses.push({ target: 'leaders' });
+  return { $or: clauses };
+};
+
+
 // GET /api/notifications - get notifications for current user
 router.get('/', protect, async (req, res) => {
   try {
-    const filter = {
-      $or: [
-        { target: 'all' },
-        { target: 'members' },
-        { target: 'leaders', },
-        { target: 'specific', targetUsers: req.user._id }
-      ]
-    };
-
-    // Filter by role
-    if (req.user.role === 'member') {
-      filter.$or = [
-        { target: 'all' },
-        { target: 'members' },
-        { target: 'specific', targetUsers: req.user._id }
-      ];
-    }
+    const filter = audienceFilter(req.user);
 
     const notifications = await Notification.find(filter)
       .populate('createdBy', 'firstName lastName')
@@ -87,14 +86,10 @@ router.put('/:id/read', protect, async (req, res) => {
 // PUT /api/notifications/read-all
 router.put('/read-all', protect, async (req, res) => {
   try {
-    const filter = {
-      readBy: { $ne: req.user._id },
-      $or: [
-        { target: 'all' },
-        { target: 'members' },
-        { target: 'specific', targetUsers: req.user._id }
-      ]
-    };
+    // Must match the audience used for listing. It previously omitted the
+    // 'leaders' target, so "mark all as read" never cleared leadership
+    // notifications and the unread badge stayed lit for office holders.
+    const filter = { ...audienceFilter(req.user), readBy: { $ne: req.user._id } };
 
     await Notification.updateMany(filter, {
       $addToSet: { readBy: req.user._id }

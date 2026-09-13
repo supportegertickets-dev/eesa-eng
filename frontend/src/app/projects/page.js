@@ -43,13 +43,13 @@ export default function ProjectsPage() {
         </div>
       </section>
 
-      <section className="py-12 bg-white border-b">
+      <section className="py-12 bg-surface border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-wrap gap-2 justify-center">
             <button
               onClick={() => { setFilter(''); setPage(1); }}
               className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                !filter ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                !filter ? 'bg-primary-500 text-white' : 'bg-muted text-muted-fg hover:bg-muted-strong'
               }`}
             >
               All Projects
@@ -59,7 +59,7 @@ export default function ProjectsPage() {
                 key={cat}
                 onClick={() => { setFilter(cat); setPage(1); }}
                 className={`px-4 py-2 rounded-full text-sm font-medium capitalize transition-colors ${
-                  filter === cat ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  filter === cat ? 'bg-primary-500 text-white' : 'bg-muted text-muted-fg hover:bg-muted-strong'
                 }`}
               >
                 {cat}
@@ -69,7 +69,7 @@ export default function ProjectsPage() {
         </div>
       </section>
 
-      <section className="py-16 bg-gray-50">
+      <section className="py-16 bg-canvas">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {loading ? (
             <LoadingSpinner size="lg" />
@@ -89,7 +89,7 @@ export default function ProjectsPage() {
                   >
                     Previous
                   </button>
-                  <span className="text-gray-600">Page {page} of {totalPages}</span>
+                  <span className="text-muted-fg">Page {page} of {totalPages}</span>
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
@@ -102,7 +102,7 @@ export default function ProjectsPage() {
             </>
           ) : (
             <div className="text-center py-20">
-              <p className="text-gray-500 text-lg">No projects yet. Stay tuned!</p>
+              <p className="text-subtle text-lg">No projects yet. Stay tuned!</p>
             </div>
           )}
         </div>

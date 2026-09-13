@@ -40,7 +40,7 @@ export default function NewsPage() {
         </div>
       </section>
 
-      <section className="py-16 bg-gray-50">
+      <section className="py-16 bg-canvas">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {loading ? (
             <LoadingSpinner size="lg" />
@@ -59,23 +59,23 @@ export default function NewsPage() {
                       </div>
                     )}
                     <div className="flex items-center gap-2 mb-3">
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800 capitalize">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-500/15 text-primary-800 dark:text-primary-300 capitalize">
                         {article.category}
                       </span>
                       {article.publishedAt && (
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-subtle">
                           {format(new Date(article.publishedAt), 'MMM dd, yyyy')}
                         </span>
                       )}
                     </div>
-                    <h3 className="font-heading font-semibold text-lg text-gray-900 mb-2 group-hover:text-primary-500 transition-colors">
+                    <h3 className="font-heading font-semibold text-lg text-strong mb-2 group-hover:text-primary-500 dark:group-hover:text-primary-200 transition-colors">
                       {article.title}
                     </h3>
-                    <p className="text-gray-600 text-sm line-clamp-3">
+                    <p className="text-muted-fg text-sm line-clamp-3">
                       {article.excerpt || article.content?.substring(0, 200)}
                     </p>
                     {article.author && (
-                      <p className="text-xs text-gray-400 mt-4">
+                      <p className="text-xs text-faint mt-4">
                         By {article.author.firstName} {article.author.lastName}
                       </p>
                     )}
@@ -91,7 +91,7 @@ export default function NewsPage() {
                   >
                     Previous
                   </button>
-                  <span className="text-gray-600">Page {page} of {totalPages}</span>
+                  <span className="text-muted-fg">Page {page} of {totalPages}</span>
                   <button
                     onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
@@ -104,7 +104,7 @@ export default function NewsPage() {
             </>
           ) : (
             <div className="text-center py-20">
-              <p className="text-gray-500 text-lg">No news articles yet. Stay tuned!</p>
+              <p className="text-subtle text-lg">No news articles yet. Stay tuned!</p>
             </div>
           )}
         </div>

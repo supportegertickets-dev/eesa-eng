@@ -35,7 +35,7 @@ export default function NewsDetailPage({ params }) {
   if (!article) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-canvas">
       <section className="bg-gradient-to-r from-primary-500 to-primary-700 text-white py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <Link href="/news" className="inline-flex items-center text-gray-200 hover:text-white mb-6 transition-colors">
@@ -62,13 +62,13 @@ export default function NewsDetailPage({ params }) {
             {article.image && (
               <img src={article.image} alt={article.title} className="w-full rounded-lg mb-8 shadow-md" />
             )}
-            <div className="prose max-w-none text-gray-700 whitespace-pre-wrap leading-relaxed">
+            <div className="prose max-w-none text-body whitespace-pre-wrap leading-relaxed">
               {article.content}
             </div>
             {article.tags && article.tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-8 pt-6 border-t">
                 {article.tags.map((tag, i) => (
-                  <span key={i} className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
+                  <span key={i} className="px-3 py-1 bg-muted text-muted-fg rounded-full text-sm">
                     #{tag}
                   </span>
                 ))}

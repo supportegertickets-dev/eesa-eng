@@ -42,8 +42,8 @@ export default function PortalGalleryPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-gray-900">Gallery</h1>
-          <p className="text-gray-600 text-sm mt-1">EESA photos and memories</p>
+          <h1 className="font-heading text-2xl font-bold text-strong">Gallery</h1>
+          <p className="text-muted-fg text-sm mt-1">EESA photos and memories</p>
         </div>
         {isAdmin && (
           <button onClick={() => setShowUpload(!showUpload)} className="btn-primary flex items-center gap-2">
@@ -54,9 +54,9 @@ export default function PortalGalleryPage() {
 
       {/* Category filter */}
       <div className="flex gap-2 mb-6 flex-wrap">
-        <button onClick={() => setCategory('')} className={`px-3 py-1.5 rounded-full text-sm font-medium ${!category ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>All</button>
+        <button onClick={() => setCategory('')} className={`px-3 py-1.5 rounded-full text-sm font-medium ${!category ? 'bg-primary-500 text-white' : 'bg-muted text-body hover:bg-muted-strong'}`}>All</button>
         {CATEGORIES.map(c => (
-          <button key={c} onClick={() => setCategory(c)} className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize ${category === c ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
+          <button key={c} onClick={() => setCategory(c)} className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize ${category === c ? 'bg-primary-500 text-white' : 'bg-muted text-body hover:bg-muted-strong'}`}>
             {c}
           </button>
         ))}
@@ -67,15 +67,15 @@ export default function PortalGalleryPage() {
       {loading ? (
         <div className="flex justify-center py-12"><div className="w-8 h-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>
       ) : images.length === 0 ? (
-        <div className="card text-center py-12 text-gray-500">
+        <div className="card text-center py-12 text-subtle">
           <HiPhotograph className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p>No images in the gallery</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {images.map((img) => (
-            <div key={img._id} className="group bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedImg(img)}>
-              <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+            <div key={img._id} className="group bg-surface rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedImg(img)}>
+              <div className="relative aspect-[4/3] overflow-hidden bg-muted">
                 <img src={img.imageUrl} alt={img.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                 {isAdmin && (
                   <button
@@ -88,14 +88,14 @@ export default function PortalGalleryPage() {
               </div>
               <div className="p-4">
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-gray-900 line-clamp-1">{img.title}</h3>
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-primary-50 text-primary-600 font-medium capitalize whitespace-nowrap">{img.category}</span>
+                  <h3 className="font-semibold text-strong line-clamp-1">{img.title}</h3>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-300 font-medium capitalize whitespace-nowrap">{img.category}</span>
                 </div>
                 {img.description && (
-                  <p className="text-sm text-gray-500 mt-1.5 line-clamp-2">{img.description}</p>
+                  <p className="text-sm text-subtle mt-1.5 line-clamp-2">{img.description}</p>
                 )}
                 {img.createdAt && (
-                  <p className="text-xs text-gray-400 mt-2">{new Date(img.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+                  <p className="text-xs text-faint mt-2">{new Date(img.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
                 )}
               </div>
             </div>
@@ -143,25 +143,25 @@ function UploadGalleryForm({ onUploaded, onCancel }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="card mb-6 border-2 border-primary-200">
+    <form onSubmit={handleSubmit} className="card mb-6 border-2 border-primary-200 dark:border-primary-500/30">
       <h3 className="font-semibold text-lg mb-4">Upload Image</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <label className="block text-sm font-medium text-body mb-1">Title</label>
           <input required value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="input-field" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <label className="block text-sm font-medium text-body mb-1">Category</label>
           <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="input-field">
             {CATEGORIES.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
           </select>
         </div>
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-sm font-medium text-body mb-1">Description</label>
           <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="input-field" rows={2} />
         </div>
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Image</label>
+          <label className="block text-sm font-medium text-body mb-1">Image</label>
           <input type="file" required accept="image/*" onChange={e => setImage(e.target.files[0])} className="text-sm" />
         </div>
       </div>
@@ -170,7 +170,7 @@ function UploadGalleryForm({ onUploaded, onCancel }) {
           {submitting && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
           Upload
         </button>
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-muted-fg hover:text-strong">Cancel</button>
       </div>
     </form>
   );

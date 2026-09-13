@@ -60,7 +60,8 @@ EESA2/
 - Gallery (photo albums)
 - Sponsors management
 - Notifications
-- Member directory
+- Member directory with search
+- Light, dark and system themes
 
 ### Roles
 | Role       | Permissions                                                |
@@ -140,13 +141,15 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api
 ```
 
 ### 4. Seed the admin user
+Set the administrator's email in `backend/.env`, then run the seed:
+```env
+SEED_ADMIN_EMAIL=you@example.com
+SEED_ADMIN_PASSWORD=          # optional; leave empty to generate one
+```
 ```bash
-cd ..
 npm run seed
 ```
-This creates the default admin:
-- **Email:** `admin@example.com` *(edit `backend/seed.js` to change)*
-- **Password:** `Admin@2024`
+If `SEED_ADMIN_PASSWORD` is empty, a strong password is generated and printed once. Sign in and change it from your profile. Running the seed again never resets an existing account's password.
 
 ### 5. Start both servers
 
@@ -167,6 +170,33 @@ Frontend runs on `http://localhost:3000`
 Open `http://localhost:3000` in your browser.
 
 ---
+
+## Testing
+
+The backend has an API test suite covering authentication, authorisation and input safety. It runs against an in-memory MongoDB, so it never touches your real database.
+
+```bash
+cd backend
+npm test
+```
+
+## Upgrading an existing deployment
+
+Earlier versions HTML-escaped text as it was saved, so names such as O'Brien were stored as `O&#x27;Brien`. After deploying this version, repair existing records once:
+
+```bash
+cd backend
+npm run migrate:unescape -- --dry-run   # preview the changes
+npm run migrate:unescape                # apply them
+```
+
+The script is idempotent, so running it twice is safe. Other changes to be aware of:
+
+- Passwords now need at least 8 characters, including a letter and a number. Existing passwords keep working until they are next changed.
+- Changing a password signs the member out of every other device.
+- The member directory API now requires a signed-in member.
+- Only the `admin` role can change roles; the chairperson can still deactivate and restore ordinary members.
+- `JWT_SECRET` must be at least 32 characters when `NODE_ENV=production`.
 
 ## Deployment
 
@@ -192,7 +222,7 @@ Open `http://localhost:3000` in your browser.
 | Variable | Where | Example |
 |----------|-------|---------|
 | `MONGODB_URI` | Render | `mongodb+srv://...` |
-| `JWT_SECRET` | Render | Long random string |
+| `JWT_SECRET` | Render | At least 32 random characters |
 | `FRONTEND_URL` | Render | `https://eesa-en.vercel.app` |
 | `NODE_ENV` | Render | `production` |
 | `CLOUDINARY_CLOUD_NAME` | Render | Your Cloudinary cloud name |
@@ -206,5 +236,7 @@ Open `http://localhost:3000` in your browser.
 | `SMTP_FROM` | Render | Your sender email |
 | `MPESA_*` | Render | Your Daraja API credentials |
 | `NEXT_PUBLIC_API_URL` | Vercel | `https://your-backend.onrender.com/api` |
+| `NEXT_PUBLIC_SITE_URL` | Vercel | `https://eesa-en.vercel.app` |
+| `SEED_ADMIN_EMAIL` | Local, when seeding | Administrator's email |
 
 ---

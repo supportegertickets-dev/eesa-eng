@@ -148,16 +148,16 @@ export default function GuidePage() {
           return (
             <section key={section.title} className="card">
               <div className="flex items-start gap-4">
-                <div className="w-11 h-11 rounded-xl bg-primary-100 flex items-center justify-center flex-shrink-0">
-                  <Icon className="w-6 h-6 text-primary-600" />
+                <div className="w-11 h-11 rounded-xl bg-primary-100 dark:bg-primary-500/15 flex items-center justify-center flex-shrink-0">
+                  <Icon className="w-6 h-6 text-primary-600 dark:text-primary-300" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="font-heading text-lg sm:text-xl font-semibold text-gray-900">{section.title}</h2>
-                  <p className="text-gray-600 text-sm mt-1">{section.description}</p>
-                  <ol className="mt-4 space-y-2 list-decimal list-inside text-sm text-gray-700">
+                  <h2 className="font-heading text-lg sm:text-xl font-semibold text-strong">{section.title}</h2>
+                  <p className="text-muted-fg text-sm mt-1">{section.description}</p>
+                  <ol className="mt-4 space-y-2 list-decimal list-inside text-sm text-body">
                     {section.steps.map((step) => <li key={step} className="leading-relaxed">{step}</li>)}
                   </ol>
-                  <Link href={section.link[0]} className="inline-flex items-center gap-1.5 mt-5 text-sm font-medium text-primary-600 hover:text-primary-700">
+                  <Link href={section.link[0]} className="inline-flex items-center gap-1.5 mt-5 text-sm font-medium text-primary-600 dark:text-primary-300 hover:text-primary-700 dark:hover:text-primary-200">
                     {section.link[1]} <HiArrowRight className="w-4 h-4" />
                   </Link>
                 </div>

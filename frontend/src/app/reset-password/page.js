@@ -44,7 +44,7 @@ function ResetPasswordForm() {
   if (!token) {
     return (
       <div className="card text-center">
-        <p className="text-red-600 mb-4">Invalid or missing reset token.</p>
+        <p className="text-red-600 dark:text-red-300 mb-4">Invalid or missing reset token.</p>
         <Link href="/forgot-password" className="btn-primary">Request New Link</Link>
       </div>
     );
@@ -53,11 +53,11 @@ function ResetPasswordForm() {
   if (success) {
     return (
       <div className="card text-center">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <HiLockClosed className="w-8 h-8 text-green-600" />
+        <div className="w-16 h-16 bg-green-100 dark:bg-green-500/15 rounded-full flex items-center justify-center mx-auto mb-4">
+          <HiLockClosed className="w-8 h-8 text-green-600 dark:text-green-300" />
         </div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Password Reset!</h2>
-        <p className="text-gray-600 mb-6">Your password has been changed successfully.</p>
+        <h2 className="text-lg font-semibold text-strong mb-2">Password Reset!</h2>
+        <p className="text-muted-fg mb-6">Your password has been changed successfully.</p>
         <Link href="/login" className="btn-primary">Sign In</Link>
       </div>
     );
@@ -66,24 +66,24 @@ function ResetPasswordForm() {
   return (
     <form onSubmit={handleSubmit} className="card">
       <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+        <label className="block text-sm font-medium text-body mb-1">New Password</label>
         <div className="relative">
           <input
             type={showPassword ? 'text' : 'password'}
             required
-            minLength={6}
+            minLength={8}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="input-field pr-10"
-            placeholder="Min 6 characters"
+            placeholder="At least 8 characters, including a letter and a number"
           />
-          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-muted-fg">
             {showPassword ? <HiEyeOff className="w-5 h-5" /> : <HiEye className="w-5 h-5" />}
           </button>
         </div>
       </div>
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+        <label className="block text-sm font-medium text-body mb-1">Confirm Password</label>
         <div className="relative">
           <input
             type={showConfirm ? 'text' : 'password'}
@@ -93,7 +93,7 @@ function ResetPasswordForm() {
             className="input-field pr-10"
             placeholder="Repeat password"
           />
-          <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-faint hover:text-muted-fg">
             {showConfirm ? <HiEyeOff className="w-5 h-5" /> : <HiEye className="w-5 h-5" />}
           </button>
         </div>
@@ -116,14 +116,14 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 py-12 px-4">
+    <div className="min-h-[80vh] flex items-center justify-center bg-canvas py-12 px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-primary-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <HiLockClosed className="w-8 h-8 text-white" />
           </div>
-          <h1 className="font-heading text-3xl font-bold text-gray-900">Set New Password</h1>
-          <p className="text-gray-600 mt-2">Enter your new password below</p>
+          <h1 className="font-heading text-3xl font-bold text-strong">Set New Password</h1>
+          <p className="text-muted-fg mt-2">Enter your new password below</p>
         </div>
         <Suspense fallback={<LoadingSpinner />}>
           <ResetPasswordForm />

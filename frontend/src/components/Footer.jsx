@@ -1,93 +1,120 @@
 import Link from 'next/link';
 import { HiMail, HiPhone, HiLocationMarker } from 'react-icons/hi';
-import { FaFacebook, FaWhatsapp, FaLinkedin, FaInstagram } from 'react-icons/fa';
+import { FaWhatsapp, FaLinkedin, FaInstagram } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
 
+const QUICK_LINKS = [
+  { href: '/about', label: 'About us' },
+  { href: '/events', label: 'Events' },
+  { href: '/projects', label: 'Projects' },
+  { href: '/news', label: 'News' },
+  { href: '/contact', label: 'Contact' },
+];
+
+const DEPARTMENTS = [
+  'Civil Engineering',
+  'Mechanical Engineering',
+  'Electrical Engineering',
+  'Agricultural Engineering',
+  'Industrial Technology',
+];
+
+const SOCIALS = [
+  { href: 'https://chat.whatsapp.com/ERuFPO3DPkF9r1QJwP8iak', label: 'WhatsApp group', icon: FaWhatsapp, hover: 'hover:text-green-400' },
+  { href: 'https://x.com/EESA_Egertonuni', label: 'EESA on X', icon: FaXTwitter, hover: 'hover:text-accent-400' },
+  { href: 'https://www.linkedin.com', label: 'EESA on LinkedIn', icon: FaLinkedin, hover: 'hover:text-accent-400' },
+  { href: 'https://www.instagram.com', label: 'EESA on Instagram', icon: FaInstagram, hover: 'hover:text-accent-400' },
+];
+
+const CONTACT_EMAIL = 'egertonengineeringstudentsasso@gmail.com';
+
+/**
+ * Site footer.
+ *
+ * Deliberately dark in both themes, so its colours are fixed rather than
+ * themed: a footer that flips to light would break the page's visual anchor,
+ * and the semantic tokens exist for surfaces that should flip.
+ */
 export default function Footer() {
   return (
-    <footer className="bg-gray-900 text-gray-300">
+    <footer className="bg-[#12151b] text-slate-300 border-t border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* Brand */}
-          <div className="col-span-1 md:col-span-1">
-            <div className="flex items-center space-x-2 mb-4">
-              <img src="/logo.png" alt="EESA Logo" className="w-10 h-10 rounded-full object-cover" />
-              <span className="font-heading font-bold text-xl text-white">EESA</span>
-            </div>
-            <p className="text-sm text-gray-400 mb-4">
-              Egerton Engineering Student Association — empowering future engineers through 
-              collaboration, innovation, and community.
-            </p>
-            <div className="flex space-x-3">
-              <a href="https://chat.whatsapp.com/ERuFPO3DPkF9r1QJwP8iak" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-green-500 transition-colors" aria-label="WhatsApp">
-                <FaWhatsapp className="w-5 h-5" />
-              </a>
-              <a href="https://x.com/EESA_Egertonuni" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-accent-500 transition-colors" aria-label="X">
-                <FaXTwitter className="w-5 h-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-accent-500 transition-colors" aria-label="LinkedIn">
-                <FaLinkedin className="w-5 h-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-accent-500 transition-colors" aria-label="Instagram">
-                <FaInstagram className="w-5 h-5" />
-              </a>
-            </div>
-          </div>
-
-          {/* Quick Links */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
           <div>
-            <h3 className="text-white font-semibold mb-4">Quick Links</h3>
-            <ul className="space-y-2">
-              {[
-                { href: '/about', label: 'About Us' },
-                { href: '/events', label: 'Events' },
-                { href: '/projects', label: 'Projects' },
-                { href: '/news', label: 'News' },
-                { href: '/contact', label: 'Contact' },
-              ].map((link) => (
-                <li key={link.href}>
-                  <Link href={link.href} className="text-sm hover:text-accent-500 transition-colors">
-                    {link.label}
-                  </Link>
+            <Link href="/" className="flex items-center gap-2 mb-4 w-fit">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="" className="w-10 h-10 rounded-full object-cover" width={40} height={40} />
+              <span className="font-heading font-bold text-xl text-white">EESA</span>
+            </Link>
+            <p className="text-sm text-slate-400 mb-5 leading-relaxed">
+              Egerton Engineering Student Association. Empowering future engineers through
+              collaboration, innovation and community.
+            </p>
+
+            <ul className="flex gap-3">
+              {SOCIALS.map(({ href, label, icon: Icon, hover }) => (
+                <li key={label}>
+                  <a
+                    href={href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={label}
+                    className={`inline-flex p-2 rounded-lg bg-white/5 text-slate-400 transition-colors ${hover}`}
+                  >
+                    <Icon className="w-4 h-4" aria-hidden="true" />
+                  </a>
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* Departments */}
+          <nav aria-labelledby="footer-links">
+            <h2 id="footer-links" className="text-white font-semibold mb-4 text-sm uppercase tracking-wide">
+              Quick links
+            </h2>
+            <ul className="space-y-2.5">
+              {QUICK_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="text-sm text-slate-400 hover:text-accent-400 transition-colors">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
           <div>
-            <h3 className="text-white font-semibold mb-4">Departments</h3>
-            <ul className="space-y-2 text-sm">
-              <li>Civil Engineering</li>
-              <li>Mechanical Engineering</li>
-              <li>Electrical Engineering</li>
-              <li>Agricultural Engineering</li>
-              <li>Industrial Technology</li>
+            <h2 className="text-white font-semibold mb-4 text-sm uppercase tracking-wide">Departments</h2>
+            <ul className="space-y-2.5 text-sm text-slate-400">
+              {DEPARTMENTS.map((department) => <li key={department}>{department}</li>)}
             </ul>
           </div>
 
-          {/* Contact */}
           <div>
-            <h3 className="text-white font-semibold mb-4">Contact Us</h3>
-            <ul className="space-y-3">
-              <li className="flex items-start space-x-2">
-                <HiLocationMarker className="w-5 h-5 text-accent-500 flex-shrink-0 mt-0.5" />
-                <span className="text-sm">Egerton University, Njoro, Kenya</span>
+            <h2 className="text-white font-semibold mb-4 text-sm uppercase tracking-wide">Contact us</h2>
+            <ul className="space-y-3 text-sm text-slate-400">
+              <li className="flex items-start gap-2.5">
+                <HiLocationMarker className="w-5 h-5 text-accent-500 shrink-0 mt-0.5" aria-hidden="true" />
+                <span>Egerton University, Njoro, Kenya</span>
               </li>
-              <li className="flex items-center space-x-2">
-                <HiMail className="w-5 h-5 text-accent-500 flex-shrink-0" />
-                <a href="mailto:egertonengineeringstudentsasso@gmail.com" className="text-sm hover:text-accent-500 transition-colors">egertonengineeringstudentsasso@gmail.com</a>
+              <li className="flex items-start gap-2.5">
+                <HiMail className="w-5 h-5 text-accent-500 shrink-0 mt-0.5" aria-hidden="true" />
+                {/* break-all keeps this long address from overflowing on a phone. */}
+                <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-accent-400 transition-colors break-all">
+                  {CONTACT_EMAIL}
+                </a>
               </li>
-              <li className="flex items-center space-x-2">
-                <HiPhone className="w-5 h-5 text-accent-500 flex-shrink-0" />
-                <span className="text-sm">+254 700 000 000</span>
+              <li className="flex items-center gap-2.5">
+                <HiPhone className="w-5 h-5 text-accent-500 shrink-0" aria-hidden="true" />
+                <a href="tel:+254700000000" className="hover:text-accent-400 transition-colors">+254 700 000 000</a>
               </li>
             </ul>
           </div>
         </div>
 
-        <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm text-gray-500">
+        <div className="border-t border-white/10 mt-10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-slate-500">
           <p>&copy; {new Date().getFullYear()} Egerton Engineering Student Association. All rights reserved.</p>
+          <p>Njoro, Nakuru County, Kenya</p>
         </div>
       </div>
     </footer>

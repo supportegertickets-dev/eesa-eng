@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { updateProfile, uploadProfilePicture, changePassword } from '@/lib/api';
+import api, { updateProfile, uploadProfilePicture, changePassword } from '@/lib/api';
 import toast from 'react-hot-toast';
 
 export default function ProfilePage() {
@@ -65,7 +65,10 @@ export default function ProfilePage() {
     }
     setChangingPassword(true);
     try {
-      await changePassword({ currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword });
+      const result = await changePassword({ currentPassword: passwordForm.currentPassword, newPassword: passwordForm.newPassword });
+      // The change invalidates every existing token, this tab's included, so
+      // keep the replacement or the next request signs the member out.
+      if (result?.token) api.setToken(result.token);
       setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       toast.success('Password changed successfully!');
     } catch (error) {
@@ -77,7 +80,7 @@ export default function ProfilePage() {
 
   return (
     <div>
-      <h1 className="font-heading text-2xl font-bold text-gray-900 mb-8">My Profile</h1>
+      <h1 className="font-heading text-2xl font-bold text-strong mb-8">My Profile</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Profile Card */}
@@ -91,18 +94,18 @@ export default function ProfilePage() {
               </span>
             )}
           </div>
-          <label className="inline-block cursor-pointer text-sm text-primary-600 hover:text-primary-700 mb-4">
+          <label className="inline-block cursor-pointer text-sm text-primary-600 dark:text-primary-300 hover:text-primary-700 dark:hover:text-primary-200 mb-4">
             {uploadingAvatar ? 'Uploading...' : 'Change profile picture'}
             <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={handleAvatarChange} disabled={uploadingAvatar} className="sr-only" />
           </label>
           <h2 className="font-heading text-xl font-semibold">{user?.firstName} {user?.lastName}</h2>
           <p className="text-accent-600 font-medium text-sm">{{ admin: 'Admin', chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', project_manager: 'Project Manager', patron: 'Patron', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer', member: 'Member' }[user?.role] || user?.role}</p>
-          <p className="text-gray-500 text-sm mt-1">{user?.department}</p>
-          <p className="text-gray-500 text-sm">{user?.academicStatus === 'alumni' ? 'Alumni' : `Year ${user?.yearOfStudy}`}</p>
+          <p className="text-subtle text-sm mt-1">{user?.department}</p>
+          <p className="text-subtle text-sm">{user?.academicStatus === 'alumni' ? 'Alumni' : `Year ${user?.yearOfStudy}`}</p>
           {user?.regNumber && (
-            <p className="text-gray-400 text-xs mt-2"><span className="font-medium">Registration No.:</span> {user.regNumber}</p>
+            <p className="text-faint text-xs mt-2"><span className="font-medium">Registration No.:</span> {user.regNumber}</p>
           )}
-          <p className="text-gray-400 text-xs mt-1">{user?.email}</p>
+          <p className="text-faint text-xs mt-1">{user?.email}</p>
         </div>
 
         {/* Edit Form */}
@@ -112,7 +115,7 @@ export default function ProfilePage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                <label className="block text-sm font-medium text-body mb-1">First Name</label>
                 <input
                   type="text"
                   value={form.firstName}
@@ -121,7 +124,7 @@ export default function ProfilePage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                <label className="block text-sm font-medium text-body mb-1">Last Name</label>
                 <input
                   type="text"
                   value={form.lastName}
@@ -133,7 +136,7 @@ export default function ProfilePage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <label className="block text-sm font-medium text-body mb-1">Department</label>
                 <select
                   value={form.department}
                   onChange={(e) => setForm({ ...form, department: e.target.value })}
@@ -145,7 +148,7 @@ export default function ProfilePage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Year of Study</label>
+                <label className="block text-sm font-medium text-body mb-1">Year of Study</label>
                 <select
                   value={form.yearOfStudy}
                   onChange={(e) => setForm({ ...form, yearOfStudy: parseInt(e.target.value) })}
@@ -160,7 +163,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <label className="block text-sm font-medium text-body mb-1">Phone</label>
               <input
                 type="text"
                 value={form.phone}
@@ -171,7 +174,7 @@ export default function ProfilePage() {
             </div>
 
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bio</label>
+              <label className="block text-sm font-medium text-body mb-1">Bio</label>
               <textarea
                 rows={4}
                 value={form.bio}
@@ -180,7 +183,7 @@ export default function ProfilePage() {
                 placeholder="Tell us about yourself..."
                 maxLength={500}
               />
-              <p className="text-xs text-gray-400 mt-1">{form.bio.length}/500</p>
+              <p className="text-xs text-faint mt-1">{form.bio.length}/500</p>
             </div>
 
             <button type="submit" disabled={saving} className="btn-primary disabled:opacity-50">
@@ -192,8 +195,8 @@ export default function ProfilePage() {
             <h2 className="font-heading text-lg font-semibold mb-6">Change Password</h2>
             <div className="space-y-4">
               <input type="password" required value={passwordForm.currentPassword} onChange={e => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })} className="input-field" placeholder="Current password" />
-              <input type="password" required minLength={6} value={passwordForm.newPassword} onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} className="input-field" placeholder="New password (minimum 6 characters)" />
-              <input type="password" required minLength={6} value={passwordForm.confirmPassword} onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} className="input-field" placeholder="Confirm new password" />
+              <input type="password" required minLength={8} value={passwordForm.newPassword} onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} className="input-field" placeholder="New password (at least 8 characters, including a letter and a number)" />
+              <input type="password" required minLength={8} value={passwordForm.confirmPassword} onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} className="input-field" placeholder="Confirm new password" />
             </div>
             <button type="submit" disabled={changingPassword} className="btn-primary mt-5 disabled:opacity-50">
               {changingPassword ? 'Changing...' : 'Change Password'}

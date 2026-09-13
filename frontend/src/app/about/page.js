@@ -36,15 +36,15 @@ export default function AboutPage() {
       </section>
 
       {/* Mission & Vision */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-surface">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            <div className="card bg-primary-50 border-primary-200">
+            <div className="card bg-primary-50 dark:bg-primary-500/10 border-primary-200 dark:border-primary-500/30">
               <div className="w-12 h-12 bg-primary-500 rounded-xl flex items-center justify-center mb-4">
                 <HiGlobe className="w-6 h-6 text-white" />
               </div>
-              <h2 className="font-heading text-2xl font-bold text-gray-900 mb-4">Our Mission</h2>
-              <p className="text-gray-700 leading-relaxed">
+              <h2 className="font-heading text-2xl font-bold text-strong mb-4">Our Mission</h2>
+              <p className="text-body leading-relaxed">
                 To provide a dynamic platform for engineering students at Egerton University to 
                 develop their technical skills, foster innovation, build professional networks, 
                 and engage in community service that demonstrates the transformative power of engineering.
@@ -54,8 +54,8 @@ export default function AboutPage() {
               <div className="w-12 h-12 bg-accent-500 rounded-xl flex items-center justify-center mb-4">
                 <HiLightBulb className="w-6 h-6 text-white" />
               </div>
-              <h2 className="font-heading text-2xl font-bold text-gray-900 mb-4">Our Vision</h2>
-              <p className="text-gray-700 leading-relaxed">
+              <h2 className="font-heading text-2xl font-bold text-strong mb-4">Our Vision</h2>
+              <p className="text-body leading-relaxed">
                 To be the leading student engineering association in East Africa, recognized for 
                 producing innovative engineers who are technically competent, socially responsible, 
                 and ready to tackle the engineering challenges of tomorrow.
@@ -66,7 +66,7 @@ export default function AboutPage() {
       </section>
 
       {/* Core Values */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-canvas">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="section-title mb-4">Our Core Values</h2>
@@ -90,11 +90,11 @@ export default function AboutPage() {
               },
             ].map((value, i) => (
               <div key={i} className="card text-center">
-                <div className="w-14 h-14 bg-primary-100 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <value.icon className="w-7 h-7 text-primary-500" />
+                <div className="w-14 h-14 bg-primary-100 dark:bg-primary-500/15 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <value.icon className="w-7 h-7 text-primary-500 dark:text-primary-300" />
                 </div>
                 <h3 className="font-heading font-semibold text-lg mb-2">{value.title}</h3>
-                <p className="text-gray-600 text-sm">{value.description}</p>
+                <p className="text-muted-fg text-sm">{value.description}</p>
               </div>
             ))}
           </div>
@@ -102,7 +102,7 @@ export default function AboutPage() {
       </section>
 
       {/* Leadership */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-surface">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="section-title mb-4">Leadership Team</h2>
@@ -113,19 +113,19 @@ export default function AboutPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
             {leadership.length > 0 ? leadership.map((leader, i) => (
               <div key={i} className="card text-center">
-                <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden">
+                <div className="w-20 h-20 bg-primary-100 dark:bg-primary-500/15 rounded-full flex items-center justify-center mx-auto mb-4 overflow-hidden">
                   {leader.avatar ? (
                     <img src={leader.avatar} alt={`${leader.firstName} ${leader.lastName}`} className="w-full h-full object-cover" />
                   ) : (
-                    <HiUser className="w-10 h-10 text-primary-500" />
+                    <HiUser className="w-10 h-10 text-primary-500 dark:text-primary-300" />
                   )}
                 </div>
                 <h3 className="font-heading font-semibold text-lg">{leader.firstName} {leader.lastName}</h3>
                 <p className="text-accent-600 font-medium text-sm">{ROLE_LABELS[leader.role] || leader.role}</p>
-                <p className="text-gray-500 text-xs mt-1">{leader.department}</p>
+                <p className="text-subtle text-xs mt-1">{leader.department}</p>
               </div>
             )) : (
-              <div className="col-span-full text-center text-gray-500 py-8">
+              <div className="col-span-full text-center text-subtle py-8">
                 <HiUserGroup className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                 <p>Leadership team will be updated soon</p>
               </div>
@@ -135,7 +135,7 @@ export default function AboutPage() {
       </section>
 
       {/* Departments */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-canvas">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="section-title mb-4">Engineering Departments</h2>
@@ -148,9 +148,9 @@ export default function AboutPage() {
               { name: 'Agricultural Engineering', desc: 'Applying engineering principles to improve agricultural productivity.' },
               { name: 'Industrial Technology', desc: 'Integrating technology and innovation to optimize industrial processes and production systems.' },
             ].map((dept, i) => (
-              <div key={i} className="card hover:border-primary-300 transition-colors">
-                <h3 className="font-heading font-semibold text-lg text-gray-900 mb-2">{dept.name}</h3>
-                <p className="text-gray-600 text-sm">{dept.desc}</p>
+              <div key={i} className="card hover:border-primary-300 dark:hover:border-primary-500/30 transition-colors">
+                <h3 className="font-heading font-semibold text-lg text-strong mb-2">{dept.name}</h3>
+                <p className="text-muted-fg text-sm">{dept.desc}</p>
               </div>
             ))}
           </div>

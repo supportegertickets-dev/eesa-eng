@@ -86,9 +86,9 @@ export default function ElectionsPage() {
   };
 
   const statusColor = (s) =>
-    s === 'active' ? 'bg-green-100 text-green-700' :
-    s === 'completed' ? 'bg-gray-100 text-gray-700' :
-    'bg-yellow-100 text-yellow-700';
+    s === 'active' ? 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300' :
+    s === 'completed' ? 'bg-muted text-body' :
+    'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300';
 
   if (loading) return <div className="flex justify-center py-12"><div className="w-8 h-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>;
 
@@ -96,8 +96,8 @@ export default function ElectionsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-heading text-2xl font-bold text-gray-900">Elections</h1>
-          <p className="text-gray-600 text-sm mt-1">Vote, run for office, and view results</p>
+          <h1 className="font-heading text-2xl font-bold text-strong">Elections</h1>
+          <p className="text-muted-fg text-sm mt-1">Vote, run for office, and view results</p>
         </div>
         {isAdmin && (
           <button onClick={() => setShowCreate(!showCreate)} className="btn-primary flex items-center gap-2">
@@ -109,7 +109,7 @@ export default function ElectionsPage() {
       {showCreate && <CreateElectionForm onCreated={() => { setShowCreate(false); loadElections(); }} onCancel={() => setShowCreate(false)} />}
 
       {elections.length === 0 ? (
-        <div className="card text-center py-12 text-gray-500">
+        <div className="card text-center py-12 text-subtle">
           <HiClipboardList className="w-12 h-12 mx-auto mb-3 text-gray-300" />
           <p>No elections at the moment</p>
         </div>
@@ -123,11 +123,11 @@ export default function ElectionsPage() {
               }}>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-lg text-gray-900">{election.title}</h3>
+                    <h3 className="font-semibold text-lg text-strong">{election.title}</h3>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColor(election.status)}`}>{election.status}</span>
                   </div>
-                  {election.description && <p className="text-gray-600 text-sm">{election.description}</p>}
-                  <p className="text-xs text-gray-400 mt-1">
+                  {election.description && <p className="text-muted-fg text-sm">{election.description}</p>}
+                  <p className="text-xs text-faint mt-1">
                     {election.startDate && format(new Date(election.startDate), 'MMM d, yyyy')} — {election.endDate && format(new Date(election.endDate), 'MMM d, yyyy')}
                   </p>
                 </div>
@@ -138,31 +138,31 @@ export default function ElectionsPage() {
                         value={election.status}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => { e.stopPropagation(); handleStatusChange(election._id, e.target.value); }}
-                        className="text-xs border rounded px-2 py-1 text-gray-600 bg-white"
+                        className="text-xs border rounded px-2 py-1 text-muted-fg bg-surface"
                       >
                         <option value="upcoming">Upcoming</option>
                         <option value="active">Active</option>
                         <option value="completed">Completed</option>
                       </select>
-                      <button onClick={(e) => { e.stopPropagation(); handleDeleteElection(election._id); }} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Delete election">
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteElection(election._id); }} className="p-1.5 text-red-500 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg" title="Delete election">
                         <HiTrash className="w-4 h-4" />
                       </button>
                     </>
                   )}
-                  {expandedId === election._id ? <HiChevronUp className="w-5 h-5 text-gray-400" /> : <HiChevronDown className="w-5 h-5 text-gray-400" />}
+                  {expandedId === election._id ? <HiChevronUp className="w-5 h-5 text-faint" /> : <HiChevronDown className="w-5 h-5 text-faint" />}
                 </div>
               </div>
 
               {expandedId === election._id && (
                 <div className="mt-4 pt-4 border-t">
                   {/* Positions */}
-                  <p className="text-sm font-medium text-gray-700 mb-2">Positions: {election.positions?.join(', ')}</p>
+                  <p className="text-sm font-medium text-body mb-2">Positions: {election.positions?.join(', ')}</p>
 
                   {/* Candidates */}
                   {election.candidates?.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-3">
                       {election.candidates.map((c) => (
-                        <div key={c._id} className="border rounded-xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-shadow relative group">
+                        <div key={c._id} className="border rounded-xl overflow-hidden bg-surface shadow-sm hover:shadow-md transition-shadow relative group">
                           {/* Admin controls */}
                           {isAdmin && (
                             <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition">
@@ -179,7 +179,7 @@ export default function ElectionsPage() {
                             {c.photo ? (
                               <img src={c.photo} alt={`${c.user?.firstName} ${c.user?.lastName}`} className="w-full h-full object-cover" />
                             ) : (
-                              <div className="flex flex-col items-center text-gray-400">
+                              <div className="flex flex-col items-center text-faint">
                                 <HiUser className="w-16 h-16" />
                                 <span className="text-xs mt-1">No Photo</span>
                               </div>
@@ -187,11 +187,11 @@ export default function ElectionsPage() {
                           </div>
                           {/* Candidate Info */}
                           <div className="p-4 text-center">
-                            <p className="font-bold text-gray-900 text-lg">{c.user?.firstName} {c.user?.lastName}</p>
-                            <p className="text-primary-600 font-semibold text-sm mt-0.5">{c.position}</p>
-                            {c.user?.department && <p className="text-xs text-gray-400 mt-0.5">{c.user.department}</p>}
+                            <p className="font-bold text-strong text-lg">{c.user?.firstName} {c.user?.lastName}</p>
+                            <p className="text-primary-600 dark:text-primary-300 font-semibold text-sm mt-0.5">{c.position}</p>
+                            {c.user?.department && <p className="text-xs text-faint mt-0.5">{c.user.department}</p>}
                             {c.manifesto && (
-                              <p className="text-sm text-gray-600 mt-2 line-clamp-3 italic">&ldquo;{c.manifesto}&rdquo;</p>
+                              <p className="text-sm text-muted-fg mt-2 line-clamp-3 italic">&ldquo;{c.manifesto}&rdquo;</p>
                             )}
                           
                             {election.status === 'active' && (
@@ -208,14 +208,14 @@ export default function ElectionsPage() {
                             )}
 
                             {election.status === 'completed' && (
-                              <p className="text-lg font-bold text-primary-600 mt-2">{c.votes?.length || 0} votes</p>
+                              <p className="text-lg font-bold text-primary-600 dark:text-primary-300 mt-2">{c.votes?.length || 0} votes</p>
                             )}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-gray-500 text-sm">No candidates registered yet</p>
+                    <p className="text-subtle text-sm">No candidates registered yet</p>
                   )}
 
                   {/* Admin: Register Candidate */}
@@ -259,27 +259,27 @@ function CreateElectionForm({ onCreated, onCancel }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="card mb-6 border-2 border-primary-200">
+    <form onSubmit={handleSubmit} className="card mb-6 border-2 border-primary-200 dark:border-primary-500/30">
       <h3 className="font-semibold text-lg mb-4">Create Election</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+          <label className="block text-sm font-medium text-body mb-1">Title</label>
           <input required value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="input-field" />
         </div>
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <label className="block text-sm font-medium text-body mb-1">Description</label>
           <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="input-field" rows={2} />
         </div>
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Positions (comma-separated)</label>
+          <label className="block text-sm font-medium text-body mb-1">Positions (comma-separated)</label>
           <input required placeholder="President, Vice President, Secretary" value={form.positions} onChange={e => setForm({...form, positions: e.target.value})} className="input-field" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+          <label className="block text-sm font-medium text-body mb-1">Start Date</label>
           <input type="datetime-local" required value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="input-field" />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+          <label className="block text-sm font-medium text-body mb-1">End Date</label>
           <input type="datetime-local" required value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} className="input-field" />
         </div>
       </div>
@@ -288,7 +288,7 @@ function CreateElectionForm({ onCreated, onCancel }) {
           {submitting && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
           Create
         </button>
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-muted-fg hover:text-strong">Cancel</button>
       </div>
     </form>
   );
@@ -353,26 +353,26 @@ function RegisterCandidateForm({ electionId, positions, existingCandidateUserIds
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-gray-50 rounded-xl p-5 border-2 border-primary-200">
+    <form onSubmit={handleSubmit} className="bg-canvas rounded-xl p-5 border-2 border-primary-200 dark:border-primary-500/30">
       <h4 className="font-semibold text-lg mb-4">Register Candidate</h4>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Member Selection */}
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Select Member *</label>
+          <label className="block text-sm font-medium text-body mb-1">Select Member *</label>
           {selectedUser ? (
-            <div className="flex items-center gap-3 p-3 bg-white border-2 border-primary-300 rounded-lg">
-              <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+            <div className="flex items-center gap-3 p-3 bg-surface border-2 border-primary-300 dark:border-primary-500/30 rounded-lg">
+              <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-500/15 flex items-center justify-center overflow-hidden flex-shrink-0">
                 {selectedUser.avatar ? (
                   <img src={selectedUser.avatar} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <HiUser className="w-5 h-5 text-primary-500" />
+                  <HiUser className="w-5 h-5 text-primary-500 dark:text-primary-300" />
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900">{selectedUser.firstName} {selectedUser.lastName}</p>
-                <p className="text-xs text-gray-500">{selectedUser.department} {selectedUser.yearOfStudy ? `• Year ${selectedUser.yearOfStudy}` : ''}</p>
+                <p className="font-semibold text-strong">{selectedUser.firstName} {selectedUser.lastName}</p>
+                <p className="text-xs text-subtle">{selectedUser.department} {selectedUser.yearOfStudy ? `• Year ${selectedUser.yearOfStudy}` : ''}</p>
               </div>
-              <button type="button" onClick={() => setSelectedUser(null)} className="p-1 text-gray-400 hover:text-red-500">
+              <button type="button" onClick={() => setSelectedUser(null)} className="p-1 text-faint hover:text-red-500 dark:hover:text-red-200">
                 <HiX className="w-5 h-5" />
               </button>
             </div>
@@ -384,29 +384,29 @@ function RegisterCandidateForm({ electionId, positions, existingCandidateUserIds
                 placeholder="Search members by name or department..."
                 className="input-field mb-2"
               />
-              <div className="max-h-48 overflow-y-auto border rounded-lg bg-white">
+              <div className="max-h-48 overflow-y-auto border rounded-lg bg-surface">
                 {loadingMembers ? (
                   <div className="flex justify-center py-4"><div className="w-5 h-5 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" /></div>
                 ) : filteredMembers.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">No members found</p>
+                  <p className="text-sm text-subtle text-center py-4">No members found</p>
                 ) : (
                   filteredMembers.map(m => (
                     <button
                       key={m._id}
                       type="button"
                       onClick={() => { setSelectedUser(m); setSearchQuery(''); }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary-50 text-left border-b last:border-b-0 transition-colors"
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary-50 dark:hover:bg-primary-500/10 text-left border-b last:border-b-0 transition-colors"
                     >
-                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
                         {m.avatar ? (
                           <img src={m.avatar} alt="" className="w-full h-full object-cover" />
                         ) : (
-                          <HiUser className="w-4 h-4 text-gray-400" />
+                          <HiUser className="w-4 h-4 text-faint" />
                         )}
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{m.firstName} {m.lastName}</p>
-                        <p className="text-xs text-gray-500">{m.department}</p>
+                        <p className="text-sm font-medium text-strong">{m.firstName} {m.lastName}</p>
+                        <p className="text-xs text-subtle">{m.department}</p>
                       </div>
                     </button>
                   ))
@@ -418,7 +418,7 @@ function RegisterCandidateForm({ electionId, positions, existingCandidateUserIds
 
         {/* Position */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Position *</label>
+          <label className="block text-sm font-medium text-body mb-1">Position *</label>
           <select value={position} onChange={e => setPosition(e.target.value)} className="input-field">
             {positions.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
@@ -426,7 +426,7 @@ function RegisterCandidateForm({ electionId, positions, existingCandidateUserIds
 
         {/* Photo Upload */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Candidate Photo *</label>
+          <label className="block text-sm font-medium text-body mb-1">Candidate Photo *</label>
           <div className="flex items-center gap-3">
             {photoPreview ? (
               <div className="relative">
@@ -434,7 +434,7 @@ function RegisterCandidateForm({ electionId, positions, existingCandidateUserIds
                 <button type="button" onClick={() => { setPhoto(null); setPhotoPreview(null); if (fileRef.current) fileRef.current.value = ''; }} className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs">×</button>
               </div>
             ) : null}
-            <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-2 text-sm border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-400 hover:bg-primary-50 transition-colors flex items-center gap-2">
+            <button type="button" onClick={() => fileRef.current?.click()} className="px-3 py-2 text-sm border-2 border-dashed border-line-strong rounded-lg hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 transition-colors flex items-center gap-2">
               <HiPhotograph className="w-4 h-4" /> {photo ? 'Change' : 'Upload Photo'}
             </button>
             <input type="file" accept="image/*" ref={fileRef} onChange={handlePhotoChange} className="hidden" />
@@ -443,7 +443,7 @@ function RegisterCandidateForm({ electionId, positions, existingCandidateUserIds
 
         {/* Manifesto */}
         <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Manifesto</label>
+          <label className="block text-sm font-medium text-body mb-1">Manifesto</label>
           <textarea value={manifesto} onChange={e => setManifesto(e.target.value)} className="input-field" rows={3} placeholder="Candidate's manifesto or campaign message..." />
         </div>
       </div>
@@ -453,7 +453,7 @@ function RegisterCandidateForm({ electionId, positions, existingCandidateUserIds
           {submitting && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
           Register Candidate
         </button>
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-muted-fg hover:text-strong">Cancel</button>
       </div>
     </form>
   );
