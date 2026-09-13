@@ -46,7 +46,7 @@ EESA2/
 ### Public Website
 - Home page with hero, stats, upcoming events, and projects
 - About page with mission, values, leadership, and departments
-- Events listing and detail pages with RSVP
+- Events listing and detail pages with cover images, photo galleries and RSVP
 - Project showcase
 - News and articles
 - Contact form
@@ -54,7 +54,7 @@ EESA2/
 ### Member Portal
 - Dashboard with stats and upcoming events
 - Profile management
-- Elections (voting, candidate registration)
+- Elections: self-nomination with admin approval, secret ballot, automatic scheduling, results published when voting closes
 - Payments (M-Pesa STK Push, manual receipt upload)
 - Library (resource sharing, reviews)
 - Gallery (photo albums)
@@ -179,6 +179,17 @@ The backend has an API test suite covering authentication, authorisation and inp
 cd backend
 npm test
 ```
+
+## How elections work
+
+1. An admin or the chairperson creates an election with its positions, an optional nomination deadline, and voting open and close times.
+2. While nominations are open, any active member can apply for one position with a manifesto and an optional photo. Admins can also add candidates directly.
+3. An admin approves or rejects each application. Rejections need a reason, and the applicant is notified and can resubmit while nominations are open.
+4. Voting opens and closes automatically at the scheduled times. Admins can also open or close voting early.
+5. Every active member can vote once per position. Votes are stored separately from candidates and are never included in API responses, so no one can see who voted for whom.
+6. Results, including turnout, percentages, winners and ties, are hidden from everyone until voting closes.
+
+Elections created before this version keep their candidates and vote counts.
 
 ## Upgrading an existing deployment
 

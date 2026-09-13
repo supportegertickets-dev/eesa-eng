@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { createEvent, createArticle, createProject } from '@/lib/api';
+import { createArticle, createProject } from '@/lib/api';
+import EventForm from '@/components/events/EventForm';
 import toast from 'react-hot-toast';
 import { HiCalendar, HiNewspaper, HiLightBulb, HiUserGroup } from 'react-icons/hi';
 import AccountsPanel from '@/components/admin/AccountsPanel';
@@ -48,75 +49,11 @@ export default function ManagePage() {
         ))}
       </div>
 
-      {activeTab === 'event' && <EventForm />}
+      {activeTab === 'event' && <div className="max-w-3xl"><EventForm /></div>}
       {activeTab === 'news' && <NewsForm />}
       {activeTab === 'project' && <ProjectForm />}
       {activeTab === 'accounts' && <AccountsPanel />}
     </div>
-  );
-}
-
-function EventForm() {
-  const [form, setForm] = useState({
-    title: '', description: '', date: '', location: '', category: 'other', maxAttendees: 0,
-  });
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      await createEvent(form);
-      toast.success('Event created!');
-      setForm({ title: '', description: '', date: '', location: '', category: 'other', maxAttendees: 0 });
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="card max-w-2xl">
-      <h2 className="font-heading text-lg font-semibold mb-6">Create Event</h2>
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-body mb-1">Title</label>
-          <input type="text" required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="input-field" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-body mb-1">Description</label>
-          <textarea rows={4} required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="input-field resize-none" />
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-body mb-1">Date & Time</label>
-            <input type="datetime-local" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="input-field" />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-body mb-1">Location</label>
-            <input type="text" required value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="input-field" />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-body mb-1">Category</label>
-            <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="input-field">
-              {['workshop', 'seminar', 'competition', 'social', 'trip', 'meeting', 'other'].map(c => (
-                <option key={c} value={c} className="capitalize">{c}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-body mb-1">Max Attendees (0 = unlimited)</label>
-            <input type="number" min="0" value={form.maxAttendees} onChange={(e) => setForm({ ...form, maxAttendees: parseInt(e.target.value) || 0 })} className="input-field" />
-          </div>
-        </div>
-      </div>
-      <button type="submit" disabled={submitting} className="btn-primary mt-6 disabled:opacity-50">
-        {submitting ? 'Creating...' : 'Create Event'}
-      </button>
-    </form>
   );
 }
 

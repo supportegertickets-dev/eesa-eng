@@ -204,10 +204,10 @@ class ApiClient {
    * Upload with progress. fetch cannot report upload progress, so this uses
    * XMLHttpRequest, which can.
    */
-  upload(endpoint, body, onProgress) {
+  upload(endpoint, body, onProgress, method = 'POST') {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', `${this.baseURL}${endpoint}`);
+      xhr.open(method, `${this.baseURL}${endpoint}`);
       xhr.timeout = 120000; // Large documents on a slow connection.
 
       const token = this.getToken();
@@ -270,8 +270,14 @@ export const getRoleCatalog = () => api.get('/auth/roles');
  * ------------------------------------------------------------------ */
 export const getEvents = (params = '') => api.get(`/events${params}`);
 export const getEvent = (id) => api.get(`/events/${id}`);
-export const createEvent = (data) => api.post('/events', data);
-export const updateEvent = (id, data) => api.put(`/events/${id}`, data);
+// Create and update accept FormData (with a cover `image` and `photos`) or a
+// plain object. FormData goes through the progress-reporting upload path.
+export const createEvent = (data, onProgress) =>
+  (data instanceof FormData ? api.upload('/events', data, onProgress) : api.post('/events', data));
+export const updateEvent = (id, data, onProgress) =>
+  (data instanceof FormData ? api.upload(`/events/${id}`, data, onProgress, 'PUT') : api.put(`/events/${id}`, data));
+export const addEventPhotos = (id, formData, onProgress) => api.upload(`/events/${id}/photos`, formData, onProgress);
+export const deleteEventPhoto = (id, photoId) => api.delete(`/events/${id}/photos/${photoId}`);
 export const deleteEvent = (id) => api.delete(`/events/${id}`);
 export const rsvpEvent = (id) => api.post(`/events/${id}/rsvp`);
 
@@ -322,6 +328,11 @@ export const getElection = (id) => api.get(`/elections/${id}`);
 export const createElection = (data) => api.post('/elections', data);
 export const updateElection = (id, data) => api.put(`/elections/${id}`, data);
 export const deleteElection = (id) => api.delete(`/elections/${id}`);
+export const openElectionVoting = (id) => api.post(`/elections/${id}/open`);
+export const closeElectionVoting = (id) => api.post(`/elections/${id}/close`);
+export const applyForElection = (id, formData, onProgress) => api.upload(`/elections/${id}/apply`, formData, onProgress);
+export const reviewCandidate = (electionId, candidateId, data) =>
+  api.put(`/elections/${electionId}/candidates/${candidateId}/review`, data);
 export const registerCandidate = (electionId, formData) => api.post(`/elections/${electionId}/candidates`, formData);
 export const updateCandidate = (electionId, candidateId, formData) => api.put(`/elections/${electionId}/candidates/${candidateId}`, formData);
 export const removeCandidate = (electionId, candidateId) => api.delete(`/elections/${electionId}/candidates/${candidateId}`);

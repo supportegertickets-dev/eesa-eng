@@ -35,8 +35,8 @@ const errorHandler = (err, req, res, next) => {
     code = err.code;
     message = err.code === 'LIMIT_FILE_SIZE'
       ? 'That file is too large. Documents may be up to 20MB and images up to 5MB.'
-      : err.code === 'LIMIT_UNEXPECTED_FILE'
-        ? 'Unexpected file field in the upload.'
+      : err.code === 'LIMIT_UNEXPECTED_FILE' || err.code === 'LIMIT_FILE_COUNT'
+        ? 'Too many files, or a file was sent in an unexpected field.'
         : 'File upload failed.';
   } else if (err.message === 'File type not supported' || err.message === 'Only image files are allowed') {
     status = 400;

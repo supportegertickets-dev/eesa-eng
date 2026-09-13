@@ -1,71 +1,89 @@
 import Link from 'next/link';
-import { format } from 'date-fns';
-import { HiCalendar, HiLocationMarker, HiUsers } from 'react-icons/hi';
+import { format, isValid } from 'date-fns';
+import { HiCalendar, HiLocationMarker, HiUsers, HiPhotograph, HiArrowRight } from 'react-icons/hi';
+import { cloudinaryImage } from '@/lib/images';
+import { CATEGORY_GRADIENTS } from '@/lib/events';
 
 export default function EventCard({ event }) {
-  const categoryColors = {
-    workshop: 'bg-blue-100 dark:bg-blue-500/15 text-blue-800 dark:text-blue-300',
-    seminar: 'bg-purple-100 dark:bg-purple-500/15 text-purple-800 dark:text-purple-300',
-    competition: 'bg-red-100 dark:bg-red-500/15 text-red-800 dark:text-red-300',
-    social: 'bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-300',
-    trip: 'bg-orange-100 dark:bg-orange-500/15 text-orange-800 dark:text-orange-300',
-    meeting: 'bg-muted text-strong',
-    other: 'bg-muted text-strong',
-  };
+  const date = new Date(event.date);
+  const hasDate = isValid(date);
+  const photoCount = event.photos?.length || 0;
+  const attending = event.attendees?.length || 0;
+  const href = `/events/${event._id}`;
 
   return (
-    <div className="bg-surface rounded-xl shadow-md hover:shadow-lg transition-shadow overflow-hidden border border-line">
-      {event.image && (
-        <div className="h-48 bg-muted-strong overflow-hidden">
-          <img src={event.image} alt={event.title} className="w-full h-full object-cover" />
-        </div>
-      )}
-      <div className="p-6">
-        <div className="flex items-center gap-2 mb-3">
-          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${categoryColors[event.category] || categoryColors.other}`}>
-            {event.category}
-          </span>
-          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${
-            event.status === 'upcoming' ? 'bg-green-100 dark:bg-green-500/15 text-green-800 dark:text-green-300' :
-            event.status === 'ongoing' ? 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-800 dark:text-yellow-300' :
-            'bg-muted text-strong'
-          }`}>
-            {event.status}
-          </span>
-        </div>
+    <article className="group card p-0 overflow-hidden flex flex-col hover:shadow-raised transition-shadow">
+      {/* The image repeats the title link, so it is hidden from assistive tech and the tab order. */}
+      <Link href={href} tabIndex={-1} aria-hidden="true" className="relative block aspect-video overflow-hidden bg-muted">
+        {event.image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={cloudinaryImage(event.image, { width: 800, height: 450 })}
+            alt=""
+            loading="lazy"
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className={`w-full h-full bg-gradient-to-br ${CATEGORY_GRADIENTS[event.category] || CATEGORY_GRADIENTS.other} flex items-center justify-center`}>
+            <HiCalendar className="w-14 h-14 text-white/40" />
+          </div>
+        )}
 
-        <h3 className="font-heading font-semibold text-lg text-strong mb-2">
-          {event.title}
+        {hasDate && (
+          <span className="absolute top-3 left-3 flex flex-col items-center rounded-lg bg-white/95 text-gray-900 px-2.5 py-1 shadow-card leading-none">
+            <span className="text-[11px] font-semibold uppercase text-primary-500">{format(date, 'MMM')}</span>
+            <span className="text-lg font-bold">{format(date, 'd')}</span>
+          </span>
+        )}
+
+        {photoCount > 0 && (
+          <span className="absolute top-3 right-3 badge bg-black/60 text-white">
+            <HiPhotograph className="w-3.5 h-3.5" /> {photoCount}
+          </span>
+        )}
+
+        <span className="absolute bottom-3 left-3 flex gap-1.5">
+          <span className="badge bg-black/60 text-white capitalize">{event.category}</span>
+          {event.status !== 'upcoming' && (
+            <span className="badge bg-black/60 text-white capitalize">{event.status}</span>
+          )}
+        </span>
+      </Link>
+
+      <div className="p-5 flex-1 flex flex-col">
+        <h3 className="font-heading font-semibold text-lg text-strong leading-snug">
+          <Link href={href} className="hover:text-primary-500 dark:hover:text-primary-300 transition-colors">
+            {event.title}
+          </Link>
         </h3>
 
-        <p className="text-muted-fg text-sm mb-4 line-clamp-2">
-          {event.description}
-        </p>
+        <p className="text-muted-fg text-sm mt-2 line-clamp-2">{event.description}</p>
 
-        <div className="space-y-2 text-sm text-subtle mb-4">
-          <div className="flex items-center gap-2">
-            <HiCalendar className="w-4 h-4 text-primary-500 dark:text-primary-300" />
-            <span>{format(new Date(event.date), 'MMM dd, yyyy • h:mm a')}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <HiLocationMarker className="w-4 h-4 text-primary-500 dark:text-primary-300" />
-            <span>{event.location}</span>
-          </div>
-          {event.attendees && (
-            <div className="flex items-center gap-2">
-              <HiUsers className="w-4 h-4 text-primary-500 dark:text-primary-300" />
-              <span>{event.attendees.length} attending</span>
-            </div>
+        <ul className="space-y-1.5 text-sm text-subtle mt-4">
+          {hasDate && (
+            <li className="flex items-center gap-2">
+              <HiCalendar className="w-4 h-4 shrink-0 text-primary-500 dark:text-primary-300" aria-hidden="true" />
+              {format(date, 'EEE d MMM yyyy, h:mm a')}
+            </li>
           )}
-        </div>
+          <li className="flex items-center gap-2">
+            <HiLocationMarker className="w-4 h-4 shrink-0 text-primary-500 dark:text-primary-300" aria-hidden="true" />
+            <span className="truncate">{event.location}</span>
+          </li>
+          <li className="flex items-center gap-2">
+            <HiUsers className="w-4 h-4 shrink-0 text-primary-500 dark:text-primary-300" aria-hidden="true" />
+            {attending} attending{event.maxAttendees > 0 ? ` of ${event.maxAttendees}` : ''}
+          </li>
+        </ul>
 
         <Link
-          href={`/events/${event._id}`}
-          className="inline-flex items-center text-primary-500 dark:text-primary-300 font-medium text-sm hover:text-primary-700 dark:hover:text-primary-200 transition-colors"
+          href={href}
+          className="mt-auto pt-4 inline-flex items-center gap-1 text-sm font-medium text-primary-500 dark:text-primary-300 hover:gap-2 transition-all w-fit"
         >
-          View Details →
+          View details <HiArrowRight className="w-4 h-4" aria-hidden="true" />
+          <span className="sr-only"> for {event.title}</span>
         </Link>
       </div>
-    </div>
+    </article>
   );
 }

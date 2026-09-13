@@ -35,14 +35,16 @@ const BRAND = { maroon: '#800020', gold: '#DAA520' };
 /**
  * Wrap body markup in the shared EESA shell so every message looks the same.
  * `bodyHtml` is trusted markup; escape any user values with `html` first.
+ * `imageUrl`, when given, is shown as a banner above the heading.
  */
-const renderLayout = ({ heading, bodyHtml, ctaLabel, ctaUrl, footerNote }) => `
+const renderLayout = ({ heading, bodyHtml, ctaLabel, ctaUrl, footerNote, imageUrl }) => `
   <div style="font-family:Arial,Helvetica,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:#f6f6f6;">
     <div style="text-align:center;padding:24px;background:${BRAND.maroon};border-radius:10px 10px 0 0;">
       <h1 style="color:${BRAND.gold};margin:0;font-size:28px;letter-spacing:1px;">EESA</h1>
       <p style="color:#fff;margin:6px 0 0;font-size:13px;">Egerton Engineering Student Association</p>
     </div>
     <div style="padding:30px;background:#fff;border:1px solid #e9e9e9;border-top:0;">
+      ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="" width="540" style="width:100%;max-width:540px;height:auto;border-radius:8px;margin:0 0 20px;display:block;">` : ''}
       ${heading ? `<h2 style="color:#222;margin-top:0;font-size:20px;">${escapeHtml(heading)}</h2>` : ''}
       ${bodyHtml}
       ${ctaUrl && ctaLabel ? `

@@ -1,191 +1,266 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { getEvents, rsvpEvent, createEvent, deleteEvent } from '@/lib/api';
-import { useAuth } from '@/lib/AuthContext';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
+import { format, isValid } from 'date-fns';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns';
-import { HiCalendar, HiLocationMarker, HiPlus, HiTrash } from 'react-icons/hi';
+import { HiCalendar, HiLocationMarker, HiPencil, HiPhotograph, HiPlus, HiTrash, HiUsers } from 'react-icons/hi';
+import { deleteEvent, getEvents, rsvpEvent } from '@/lib/api';
+import { useAuth } from '@/lib/AuthContext';
+import { cloudinaryImage } from '@/lib/images';
+import { CATEGORY_GRADIENTS, STATUS_BADGES, isPastEvent } from '@/lib/events';
+import EventForm from '@/components/events/EventForm';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import EmptyState from '@/components/ui/EmptyState';
+import ErrorState from '@/components/ui/ErrorState';
+import { SkeletonList } from '@/components/ui/Skeleton';
 
-export default function PortalEventsPage() {
-  const { user } = useAuth();
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const isAdmin = ['admin', 'chairperson'].includes(user?.role);
+const VIEWS = [
+  { id: 'upcoming', label: 'Upcoming' },
+  { id: 'past', label: 'Past' },
+];
 
-  useEffect(() => {
-    loadEvents();
-  }, []);
-
-  const loadEvents = async () => {
-    try {
-      const data = await getEvents('?limit=50');
-      setEvents(data.events || []);
-    } catch (error) {
-      console.error('Error loading events:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRSVP = async (eventId) => {
-    try {
-      const result = await rsvpEvent(eventId);
-      toast.success(result.message);
-      loadEvents();
-    } catch (error) {
-      toast.error(error.message);
-    }
-  };
-
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this event?')) return;
-    try {
-      await deleteEvent(id);
-      toast.success('Event deleted');
-      loadEvents();
-    } catch (err) { toast.error(err.message); }
-  };
-
-  if (loading) return <LoadingSpinner size="lg" />;
-
+function EventThumb({ event }) {
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="font-heading text-2xl font-bold text-strong">Events</h1>
-        {isAdmin && (
-          <button onClick={() => setShowCreate(!showCreate)} className="btn-primary flex items-center gap-2">
-            <HiPlus className="w-4 h-4" /> New Event
-          </button>
-        )}
-      </div>
-
-      {showCreate && <EventQuickForm onCreated={() => { setShowCreate(false); loadEvents(); }} onCancel={() => setShowCreate(false)} />}
-
-      {events.length > 0 ? (
-        <div className="space-y-4">
-          {events.map((event) => {
-            const isAttending = event.attendees?.some(a => 
-              (typeof a === 'string' ? a : a._id) === user?._id
-            );
-
-            return (
-              <div key={event._id} className="card flex flex-col sm:flex-row sm:items-center gap-4">
-                <div className="w-14 h-14 bg-primary-100 dark:bg-primary-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <HiCalendar className="w-7 h-7 text-primary-500 dark:text-primary-300" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-strong">{event.title}</h3>
-                  <div className="flex flex-wrap gap-4 mt-1 text-sm text-subtle">
-                    <span className="flex items-center gap-1">
-                      <HiCalendar className="w-4 h-4" />
-                      {format(new Date(event.date), 'MMM dd, yyyy • h:mm a')}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <HiLocationMarker className="w-4 h-4" />
-                      {event.location}
-                    </span>
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${
-                      event.status === 'upcoming' ? 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300' : 'bg-muted text-muted-fg'
-                    }`}>
-                      {event.status}
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 capitalize">
-                      {event.category}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {event.status === 'upcoming' && (
-                    <button
-                      onClick={() => handleRSVP(event._id)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        isAttending
-                          ? 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-500/25'
-                          : 'bg-primary-100 dark:bg-primary-500/15 text-primary-700 dark:text-primary-300 hover:bg-primary-200 dark:hover:bg-primary-500/25'
-                      }`}
-                    >
-                      {isAttending ? 'Cancel RSVP' : 'RSVP'}
-                    </button>
-                  )}
-                  {isAdmin && (
-                    <button onClick={() => handleDelete(event._id)} className="p-2 text-red-500 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg" title="Delete event">
-                      <HiTrash className="w-5 h-5" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+    <div className="relative w-full sm:w-44 aspect-video shrink-0 rounded-lg overflow-hidden bg-muted">
+      {event.image ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={cloudinaryImage(event.image, { width: 352, height: 198 })} alt="" loading="lazy" className="w-full h-full object-cover" />
       ) : (
-        <div className="text-center py-20">
-          <p className="text-subtle">No events available</p>
+        <div className={`w-full h-full bg-gradient-to-br ${CATEGORY_GRADIENTS[event.category] || CATEGORY_GRADIENTS.other} flex items-center justify-center`}>
+          <HiCalendar className="w-8 h-8 text-white/50" aria-hidden="true" />
         </div>
+      )}
+      {event.photos?.length > 0 && (
+        <span className="absolute bottom-1.5 right-1.5 badge bg-black/60 text-white">
+          <HiPhotograph className="w-3 h-3" aria-hidden="true" /> {event.photos.length}
+        </span>
       )}
     </div>
   );
 }
 
-function EventQuickForm({ onCreated, onCancel }) {
-  const [form, setForm] = useState({ title: '', description: '', date: '', location: '', category: 'other' });
-  const [submitting, setSubmitting] = useState(false);
+export default function PortalEventsPage() {
+  const { user, isAdmin } = useAuth();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [view, setView] = useState('upcoming');
+  const [editor, setEditor] = useState(null); // null, 'new', or the event being edited
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [rsvpBusy, setRsvpBusy] = useState(null);
+  const handledEditParam = useRef(false);
+
+  const load = useCallback(async () => {
+    setError(null);
     try {
-      await createEvent(form);
-      toast.success('Event created!');
-      onCreated();
-    } catch (err) { toast.error(err.message); }
-    finally { setSubmitting(false); }
+      const data = await getEvents('?limit=50');
+      setEvents(data.events || []);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  // The public event page links here with ?edit=<id> for administrators.
+  useEffect(() => {
+    if (handledEditParam.current || !isAdmin || !events.length) return;
+    const editId = new URLSearchParams(window.location.search).get('edit');
+    if (!editId) return;
+    handledEditParam.current = true;
+    const match = events.find((e) => e._id === editId);
+    if (match) setEditor(match);
+  }, [isAdmin, events]);
+
+  useEffect(() => {
+    if (editor) window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [editor]);
+
+  const grouped = useMemo(() => {
+    const upcoming = events.filter((e) => !isPastEvent(e)).sort((a, b) => new Date(a.date) - new Date(b.date));
+    const past = events.filter(isPastEvent).sort((a, b) => new Date(b.date) - new Date(a.date));
+    return { upcoming, past };
+  }, [events]);
+
+  const visible = grouped[view];
+
+  const isAttending = (event) => (event.attendees || []).some((a) => String(a?._id || a) === String(user?._id));
+
+  const handleRSVP = async (event) => {
+    setRsvpBusy(event._id);
+    try {
+      const result = await rsvpEvent(event._id);
+      toast.success(result.message);
+      setEvents((list) => list.map((e) => {
+        if (e._id !== event._id) return e;
+        const others = (e.attendees || []).filter((a) => String(a?._id || a) !== String(user._id));
+        return { ...e, attendees: result.attending ? [...others, user._id] : others };
+      }));
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setRsvpBusy(null);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await deleteEvent(pendingDelete._id);
+      toast.success('Event deleted.');
+      setEvents((list) => list.filter((e) => e._id !== pendingDelete._id));
+      setPendingDelete(null);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleSaved = (saved) => {
+    setEvents((list) => (editor === 'new'
+      ? [saved, ...list]
+      : list.map((e) => (e._id === saved._id ? { ...e, ...saved } : e))));
+    setEditor(null);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="card mb-6 border-2 border-primary-200 dark:border-primary-500/30">
-      <h3 className="font-semibold text-lg mb-4">Create Event</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-body mb-1">Title</label>
-          <input required value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="input-field" />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-body mb-1">Description</label>
-          <textarea required value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="input-field" rows={2} />
-        </div>
+    <div>
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-6">
         <div>
-          <label className="block text-sm font-medium text-body mb-1">Date & Time</label>
-          <input type="datetime-local" required value={form.date} onChange={e => setForm({...form, date: e.target.value})} className="input-field" />
+          <h1 className="page-title">Events</h1>
+          <p className="text-muted-fg mt-1">RSVP to upcoming events and browse photos from past ones.</p>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-body mb-1">Location</label>
-          <input required value={form.location} onChange={e => setForm({...form, location: e.target.value})} className="input-field" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-body mb-1">Category</label>
-          <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="input-field">
-            <option value="workshop">Workshop</option>
-            <option value="seminar">Seminar</option>
-            <option value="competition">Competition</option>
-            <option value="social">Social</option>
-            <option value="trip">Trip</option>
-            <option value="meeting">Meeting</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
+        {isAdmin && !editor && (
+          <button type="button" onClick={() => setEditor('new')} className="btn-primary">
+            <HiPlus className="w-4 h-4" aria-hidden="true" /> New event
+          </button>
+        )}
       </div>
-      <div className="flex gap-3 mt-4">
-        <button type="submit" disabled={submitting} className="btn-primary disabled:opacity-50 flex items-center gap-2">
-          {submitting && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
-          Create
-        </button>
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-muted-fg hover:text-strong">Cancel</button>
+
+      {editor && (
+        <div className="mb-8">
+          <EventForm
+            key={editor === 'new' ? 'new' : editor._id}
+            event={editor === 'new' ? null : editor}
+            onSaved={handleSaved}
+            onCancel={() => setEditor(null)}
+          />
+        </div>
+      )}
+
+      <div className="flex gap-2 mb-5" role="tablist" aria-label="Event timeframe">
+        {VIEWS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            role="tab"
+            aria-selected={view === option.id}
+            onClick={() => setView(option.id)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              view === option.id ? 'bg-primary-500 text-white' : 'bg-muted text-muted-fg hover:bg-muted-strong'
+            }`}
+          >
+            {option.label}
+            {!loading && <span className="ml-1.5 opacity-75">{grouped[option.id].length}</span>}
+          </button>
+        ))}
       </div>
-    </form>
+
+      {error ? (
+        <ErrorState error={error} onRetry={load} />
+      ) : loading ? (
+        <SkeletonList count={4} />
+      ) : visible.length === 0 ? (
+        <EmptyState
+          icon={HiCalendar}
+          title={view === 'upcoming' ? 'No upcoming events' : 'No past events yet'}
+          description={view === 'upcoming' ? 'New events will appear here as soon as they are announced.' : 'Events move here once they have taken place.'}
+          action={isAdmin && view === 'upcoming' ? 'Create an event' : undefined}
+          onAction={isAdmin ? () => setEditor('new') : undefined}
+        />
+      ) : (
+        <ul className="space-y-4">
+          {visible.map((event) => {
+            const date = new Date(event.date);
+            const attending = isAttending(event);
+            const count = event.attendees?.length || 0;
+            const full = event.maxAttendees > 0 && count >= event.maxAttendees;
+            const canRsvp = view === 'upcoming' && event.status !== 'cancelled';
+
+            return (
+              <li key={event._id} className="card p-4 flex flex-col sm:flex-row gap-4">
+                <Link href={`/events/${event._id}`} tabIndex={-1} aria-hidden="true">
+                  <EventThumb event={event} />
+                </Link>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className={`${STATUS_BADGES[event.status] || 'badge-neutral'} capitalize`}>{event.status}</span>
+                    <span className="badge-neutral capitalize">{event.category}</span>
+                    {attending && <span className="badge-brand">You&apos;re going</span>}
+                  </div>
+                  <h2 className="font-semibold text-strong text-lg leading-snug">
+                    <Link href={`/events/${event._id}`} className="hover:text-primary-500 dark:hover:text-primary-300">{event.title}</Link>
+                  </h2>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-sm text-subtle">
+                    {isValid(date) && (
+                      <span className="inline-flex items-center gap-1">
+                        <HiCalendar className="w-4 h-4" aria-hidden="true" /> {format(date, 'EEE d MMM yyyy, h:mm a')}
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1 min-w-0">
+                      <HiLocationMarker className="w-4 h-4 shrink-0" aria-hidden="true" /> <span className="truncate">{event.location}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <HiUsers className="w-4 h-4" aria-hidden="true" /> {count}{event.maxAttendees > 0 ? ` of ${event.maxAttendees}` : ''} attending
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex sm:flex-col items-stretch sm:items-end justify-between sm:justify-center gap-2 shrink-0">
+                  {canRsvp && (
+                    <button
+                      type="button"
+                      onClick={() => handleRSVP(event)}
+                      disabled={rsvpBusy === event._id || (full && !attending)}
+                      className={attending ? 'btn-outline btn-sm' : 'btn-primary btn-sm'}
+                    >
+                      {rsvpBusy === event._id ? 'Saving…' : attending ? 'Cancel RSVP' : full ? 'Full' : 'RSVP'}
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <div className="flex gap-1">
+                      <button type="button" onClick={() => setEditor(event)} className="btn-ghost btn-sm" aria-label={`Edit ${event.title}`}>
+                        <HiPencil className="w-4 h-4" aria-hidden="true" /> Edit
+                      </button>
+                      <button type="button" onClick={() => setPendingDelete(event)} className="btn-ghost btn-sm text-danger" aria-label={`Delete ${event.title}`}>
+                        <HiTrash className="w-4 h-4" aria-hidden="true" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        title={`Delete "${pendingDelete?.title}"?`}
+        description="The event, its RSVPs, its cover image and all of its photos will be permanently deleted."
+        confirmLabel="Delete event"
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+    </div>
   );
 }
