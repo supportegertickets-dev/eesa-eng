@@ -356,25 +356,33 @@ export const checkMpesaStatus = (checkoutRequestId) => api.get(`/payments/mpesa/
  * ------------------------------------------------------------------ */
 export const uploadResource = (formData, onProgress) => api.upload('/resources', formData, onProgress);
 export const getResources = (params = '') => api.get(`/resources${params}`);
-export const getResourceCatalog = () => api.get('/resources/catalog');
-export const getMyResources = () => api.get('/resources/my');
-export const getPendingResources = () => api.get('/resources/pending');
+export const getResource = (id) => api.get(`/resources/${id}`);
+export const getMyResources = (params = '') => api.get(`/resources/my${params}`);
+export const getPendingResources = (params = '') => api.get(`/resources/pending${params}`);
+export const updateResource = (id, data) => api.patch(`/resources/${id}`, data);
 export const reviewResource = (id, data) => api.put(`/resources/${id}/review`, data);
 export const trackDownload = (id) => api.put(`/resources/${id}/download`, {});
 export const deleteResource = (id) => api.delete(`/resources/${id}`);
 
+export const getUnits = (params = '') => api.get(`/units${params}`);
+export const createUnit = (data) => api.post('/units', data);
+export const updateUnit = (id, data) => api.put(`/units/${id}`, data);
+export const importUnits = (units) => api.post('/units/import', { units });
+export const mergeUnit = (id, into) => api.post(`/units/${id}/merge`, { into });
+export const deleteUnit = (id) => api.delete(`/units/${id}`);
+
 /**
  * Build a URL for viewing or downloading a library file.
  *
- * The file endpoint is opened directly by the browser, where an Authorization
- * header cannot be attached, so the credential has to be in the URL. It used to
- * be the member's full session token, which leaked a seven-day credential into
- * browser history, referrer headers and any intermediate log. This instead
- * fetches a five-minute ticket valid for one resource only.
+ * The file endpoint is opened directly by the browser and by document viewers,
+ * where an Authorization header cannot be attached, so the credential has to be
+ * in the URL. It is a five-minute ticket valid for one file only. The file name
+ * is part of the path because some viewers infer the format from the URL.
  */
-export const getResourceFileUrl = async (id) => {
-  const { token } = await api.get(`/resources/${id}/ticket`);
-  return `${API_URL}/resources/${id}/file?token=${encodeURIComponent(token)}`;
+export const getResourceFileUrl = async (id, { download = false } = {}) => {
+  const { token, fileName } = await api.get(`/resources/${id}/ticket`);
+  const name = fileName ? `/${encodeURIComponent(fileName)}` : '';
+  return `${API_URL}/resources/${id}/file${name}?token=${encodeURIComponent(token)}${download ? '&download=1' : ''}`;
 };
 
 /* ------------------------------------------------------------------ *

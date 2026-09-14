@@ -137,6 +137,7 @@ app.use('/api/contact', require('./routes/contact'));
 app.use('/api/elections', require('./routes/elections'));
 app.use('/api/payments', require('./routes/payments'));
 app.use('/api/resources', require('./routes/resources'));
+app.use('/api/units', require('./routes/units'));
 app.use('/api/sponsors', require('./routes/sponsors'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/gallery', require('./routes/gallery'));

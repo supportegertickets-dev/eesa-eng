@@ -4,3 +4,5 @@ node_modules/
 .env.local
 *.log
 out/
+# Copied from pdfjs-dist by scripts/copy-pdf-worker.js before dev and build.
+public/pdfjs/

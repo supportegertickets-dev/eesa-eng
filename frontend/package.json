@@ -3,14 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "predev": "node scripts/copy-pdf-worker.js",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-pdf-worker.js",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
     "date-fns": "^3.6.0",
+    "docx-preview": "^0.3.7",
+    "jszip": "^3.10.1",
     "next": "^14.2.0",
+    "pdfjs-dist": "^4.10.38",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-hot-toast": "^2.4.1",

@@ -56,7 +56,7 @@ EESA2/
 - Profile management
 - Elections: self-nomination with admin approval, secret ballot, automatic scheduling, results published when voting closes
 - Payments (M-Pesa STK Push, manual receipt upload)
-- Library (resource sharing, reviews)
+- Library: folders by Year › Semester › Unit › Type, multi-file upload that reads each file to suggest where it belongs, in-app preview (PDF, Word, PowerPoint, Excel, images), review with uploader notifications, private file storage, and units managed from the portal
 - Gallery (photo albums)
 - Sponsors management
 - Notifications

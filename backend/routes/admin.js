@@ -30,7 +30,7 @@ router.get('/overview', protect, adminRoleOnly, async (req, res) => {
       Election.countDocuments({ status: { $in: ['upcoming', 'active'] } }),
       User.find().select('firstName lastName email department role createdAt').sort({ createdAt: -1 }).limit(5).lean(),
       Payment.find().populate('user', 'firstName lastName').sort({ createdAt: -1 }).limit(5).lean(),
-      Resource.find().populate('uploadedBy', 'firstName lastName').select('title unitCode folder status uploadedBy createdAt').sort({ createdAt: -1 }).limit(5).lean(),
+      Resource.find().populate('uploadedBy', 'firstName lastName').select('title unitCode year semester status uploadedBy createdAt').sort({ createdAt: -1 }).limit(5).lean(),
       Contact.find().select('name email subject isRead createdAt').sort({ createdAt: -1 }).limit(5).lean(),
       Notification.find().select('title type target createdAt').sort({ createdAt: -1 }).limit(5).lean()
     ]);

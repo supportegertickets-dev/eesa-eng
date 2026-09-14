@@ -1,383 +1,432 @@
+const crypto = require('crypto');
 const express = require('express');
-const { Readable } = require('stream');
-const { body } = require('express-validator');
+const { pipeline, Readable } = require('stream');
+const { body, param, query } = require('express-validator');
 const jwt = require('jsonwebtoken');
 const Resource = require('../models/Resource');
+const Unit = require('../models/Unit');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { protect, adminOnly } = require('../middleware/auth');
 const { uploadFile } = require('../middleware/upload');
-const cloudinary = require('../config/cloudinary');
-const { COURSE_CATALOG, SERVICE_UNITS, extractUnitCode } = require('../utils/courseCatalog');
-const { buildSearchRegex } = require('../utils/sanitize');
-const { POWER_ROLES } = require('../utils/roles');
-
 const { validate } = require('../middleware/validate');
+const { asyncHandler, ApiError } = require('../utils/asyncHandler');
+const { buildSearchRegex } = require('../utils/sanitize');
+const { isPower } = require('../utils/roles');
+const {
+  RESOURCE_TYPES, TYPE_LABELS, detectUnitCode, folderPath, normalizeUnitCode, titleFromFileName
+} = require('../utils/library');
+const { placementRule, resolveUnit, saveUnit, removeIfUnused } = require('../utils/libraryUnits');
+const { uploadLibraryFile, fetchLibraryFile, destroyLibraryFile } = require('../utils/libraryStorage');
 
 const router = express.Router();
 
-const cloudinaryFolder = (folder) => folder
-  .replace(/&/g, 'and')
-  .replace(/[^a-zA-Z0-9/_-]+/g, '_')
-  .replace(/_+/g, '_');
-
-const streamResourceFile = (upstream, resource, res) => {
-  res.set('Content-Type', resource.fileType || upstream.headers.get('content-type') || 'application/octet-stream');
-  const contentLength = upstream.headers.get('content-length');
-  if (contentLength) res.set('Content-Length', contentLength);
-  res.set('Cache-Control', 'private, max-age=300');
-  const safeName = (resource.originalFileName || resource.title || 'file')
-    .replace(/[\\/\r\n"]/g, '_');
-  res.set('Content-Disposition', `inline; filename="${safeName}"`);
-
-  if (!upstream.body) throw new Error('Storage returned an empty response');
-  return Readable.fromWeb(upstream.body).pipe(res);
+const UNIT_FIELDS = 'code name year semester verified';
+const TICKET_SCOPE = 'resource-file';
+const TICKET_TTL_SECONDS = 300;
+const SORTS = {
+  newest: { createdAt: -1 },
+  popular: { downloads: -1, createdAt: -1 },
+  title: { title: 1 },
+  oldest: { createdAt: 1 }
 };
 
-// POST /api/resources - upload resource (members)
-router.post('/', protect, uploadFile.single('file'), async (req, res) => {
+/* ------------------------------------------------------------------ *
+ * Helpers
+ * ------------------------------------------------------------------ */
+
+const idParam = param('id').isMongoId().withMessage('That file could not be found.');
+const idOf = (value) => String(value?._id || value || '');
+const isOwner = (resource, user) => idOf(resource.uploadedBy) === idOf(user);
+const canSee = (resource, user) => resource.status === 'approved' || isOwner(resource, user) || isPower(user.role);
+const clip = (text, max) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
+const withDetails = (findQuery, uploaderFields = 'firstName lastName') =>
+  findQuery.populate('unit', UNIT_FIELDS).populate('uploadedBy', uploaderFields);
+
+const loadResource = async (id) => {
+  const resource = await Resource.findById(id);
+  if (!resource) throw new ApiError(404, 'That file could not be found.');
+  return resource;
+};
+
+/** Multer reads multipart file names as Latin-1; browsers send UTF-8. */
+const decodeFileName = (name = '') => {
+  const decoded = Buffer.from(name, 'latin1').toString('utf8');
+  return decoded.includes('\uFFFD') ? name : decoded;
+};
+
+/** RFC 6266 header with an ASCII fallback, so non-English names survive. */
+const contentDisposition = (type, fileName) => {
+  const ascii = fileName.replace(/[^\x20-\x7E]/g, '_').replace(/["\\]/g, '_');
+  return `${type}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+};
+
+const paginate = async (filter, { page = 1, limit = 20, sort = SORTS.newest, uploaderFields } = {}) => {
+  const [resources, total] = await Promise.all([
+    withDetails(Resource.find(filter), uploaderFields).sort(sort).skip((page - 1) * limit).limit(limit),
+    Resource.countDocuments(filter)
+  ]);
+  return { resources, page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) };
+};
+
+const notifyUploader = async (resource, reviewer, { title, message }) => {
+  if (isOwner(resource, reviewer)) return;
+  await Notification.create({
+    type: 'resource',
+    target: 'specific',
+    targetUsers: [idOf(resource.uploadedBy)],
+    title: clip(title, 200),
+    message: clip(message, 2000),
+    createdBy: reviewer._id
+  }).catch((error) => console.warn('Could not create library notification:', error.message));
+};
+
+const pageRules = [
+  query('page').optional().isInt({ min: 1 }).toInt(),
+  query('limit').optional().isInt({ min: 1, max: 50 }).toInt()
+];
+
+const detailRules = [
+  body('title').optional().isString().trim().isLength({ max: 200 }).withMessage('Titles can be at most 200 characters.'),
+  body('description').optional().isString().trim().isLength({ max: 1000 }).withMessage('Descriptions can be at most 1000 characters.'),
+  body('category').optional().isIn(RESOURCE_TYPES).withMessage('Choose a valid document type.'),
+  body('unit').optional({ values: 'falsy' }).isMongoId().withMessage('That unit could not be found.'),
+  body('unitCode').optional().isString().trim(),
+  body('unitName').optional().isString().trim().isLength({ max: 150 }).withMessage('Unit names can be at most 150 characters.'),
+  placementRule('year'),
+  placementRule('semester')
+];
+
+/* ------------------------------------------------------------------ *
+ * Upload
+ * ------------------------------------------------------------------ */
+
+/**
+ * POST /api/resources - upload one file.
+ *
+ * The file is filed under a unit chosen by id, by code, or detected from the
+ * file name. Everything is validated before the file is stored, and the stored
+ * file is deleted again if saving the record fails, so a rejected upload never
+ * leaves an orphan in storage. Reviewers' own uploads are published at once.
+ */
+router.post('/', protect, uploadFile.single('file'), [...detailRules, validate], asyncHandler(async (req, res) => {
+  if (!req.file) throw new ApiError(400, 'Choose a file to upload.');
+
+  const originalFileName = decodeFileName(req.file.originalname);
+  const trusted = isPower(req.user.role);
+  const title = req.body.title || titleFromFileName(originalFileName).slice(0, 200) || 'Untitled document';
+
+  const unit = await resolveUnit({
+    unitId: req.body.unit,
+    code: req.body.unitCode || detectUnitCode(`${originalFileName} ${title}`),
+    name: req.body.unitName,
+    year: req.body.year,
+    semester: req.body.semester,
+    user: req.user,
+    trusted
+  });
+
+  const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+  const duplicate = await Resource.findOne({ fileHash, status: { $ne: 'rejected' } }).select('title unitCode').lean();
+  if (duplicate) {
+    const error = new ApiError(409, `This file is already in the library as "${duplicate.title}"${duplicate.unitCode ? ` (${duplicate.unitCode})` : ''}.`);
+    error.code = 'duplicate_file';
+    throw error;
+  }
+
+  const stored = await uploadLibraryFile({ ...req.file, originalname: originalFileName });
+
+  let resource;
   try {
-    if (!req.file) return res.status(400).json({ message: 'File is required' });
-
-    const title = req.body.title || req.file.originalname;
-    const year = parseInt(req.body.year, 10);
-    const semester = parseInt(req.body.semester, 10);
-    if (![1, 2, 3, 4, 5].includes(year) || ![1, 2].includes(semester)) {
-      return res.status(400).json({ message: 'Select a valid year and semester.' });
-    }
-
-    const unitCode = extractUnitCode(`${title} ${req.file.originalname}`);
-    if (!unitCode) {
-      return res.status(400).json({ message: 'The unit code was not found. Include a code such as EEEN 481 in the document title or filename.' });
-    }
-    const unitFolder = `Year ${year}/Semester ${semester}/${unitCode}`;
-
-    const result = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { folder: `eesa/resources/${cloudinaryFolder(unitFolder)}`, resource_type: 'auto', access_mode: 'public' },
-        (error, result) => { if (error) reject(error); else resolve(result); }
-      );
-      stream.end(req.file.buffer);
-    });
-
-    const resource = await Resource.create({
+    const savedUnit = await saveUnit(unit);
+    resource = await Resource.create({
       title,
-      originalFileName: req.file.originalname,
       description: req.body.description || '',
       category: req.body.category || 'other',
-      department: req.body.department || 'General',
-      year,
-      semester,
-      unitCode,
-      unitName: unitCode,
-      folder: unitFolder,
-      fileUrl: result.secure_url,
-      filePublicId: result.public_id,
+      unit: savedUnit._id,
+      unitCode: savedUnit.code,
+      year: savedUnit.year,
+      semester: savedUnit.semester,
+      originalFileName,
+      ...stored,
       fileType: req.file.mimetype,
       fileSize: req.file.size,
-      uploadedBy: req.user._id
+      fileHash,
+      uploadedBy: req.user._id,
+      status: trusted ? 'approved' : 'pending',
+      ...(trusted && { reviewedBy: req.user._id, reviewedAt: new Date() })
     });
-
-    res.status(201).json(resource);
   } catch (error) {
-    console.error('Resource upload error:', error);
-    res.status(500).json({ message: error.message || 'Server error uploading resource' });
+    await destroyLibraryFile(stored);
+    throw error;
   }
-});
 
-// GET /api/resources/catalog - available units for the library upload folders
-router.get('/catalog', protect, async (req, res) => {
-  res.json({ years: COURSE_CATALOG, serviceUnits: SERVICE_UNITS });
-});
+  res.status(201).json(await withDetails(Resource.findById(resource._id)));
+}));
 
-// GET /api/resources - list approved resources (members)
-router.get('/', protect, async (req, res) => {
-  try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
-    const skip = (page - 1) * limit;
+/* ------------------------------------------------------------------ *
+ * Listing
+ * ------------------------------------------------------------------ */
 
-    const filter = { status: 'approved' };
-    if (req.query.category) filter.category = req.query.category;
-    if (req.query.department) filter.department = req.query.department;
-    if (req.query.year) {
-      const year = parseInt(req.query.year, 10);
-      if ([1, 2, 3, 4, 5].includes(year)) {
-        filter.year = year;
-      }
-    }
-    if (req.query.semester) {
-      const semester = parseInt(req.query.semester, 10);
-      if ([1, 2].includes(semester)) filter.semester = semester;
-    }
-    if (req.query.unitCode) filter.unitCode = req.query.unitCode.toUpperCase();
-    if (req.query.search) {
-      // Escaped so a title containing regex metacharacters is matched literally
-      // and no search term can trigger catastrophic backtracking.
-      const search = buildSearchRegex(req.query.search);
-      if (search) filter.$or = [{ title: search }, { unitCode: search }, { description: search }];
-    }
-
-    const [resources, total] = await Promise.all([
-      Resource.find(filter)
-        .populate('uploadedBy', 'firstName lastName')
-        .sort({ year: 1, semester: 1, unitCode: 1, createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      Resource.countDocuments(filter)
-    ]);
-
-    res.json({ resources, page, totalPages: Math.ceil(total / limit), total });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error fetching resources' });
-  }
-});
-
-// GET /api/resources/my - user's uploaded resources
-router.get('/my', protect, async (req, res) => {
-  try {
-    const resources = await Resource.find({ uploadedBy: req.user._id })
-      .sort({ createdAt: -1 });
-    res.json({ resources });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// GET /api/resources/pending - admin: pending resources
-router.get('/pending', protect, adminOnly, async (req, res) => {
-  try {
-    const resources = await Resource.find({ status: 'pending' })
-      .populate('uploadedBy', 'firstName lastName email department')
-      .sort({ createdAt: -1 });
-    res.json({ resources });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// PUT /api/resources/:id/review - admin: approve/reject
-router.put('/:id/review', protect, adminOnly, [
-  body('status').isIn(['approved', 'rejected']).withMessage('Invalid status'),
-  body('rejectionReason').optional().trim(),
+// GET /api/resources - approved files, filtered by folder and search
+router.get('/', protect, [
+  query('unit').optional().isMongoId().withMessage('That unit could not be found.'),
+  query('type').optional().isIn(RESOURCE_TYPES),
+  query('year').optional().isInt({ min: 1, max: 5 }).toInt(),
+  query('semester').optional().isInt({ min: 1, max: 2 }).toInt(),
+  query('sort').optional().isIn(Object.keys(SORTS)),
+  ...pageRules,
   validate
-], async (req, res) => {
-  try {
-    const resource = await Resource.findById(req.params.id);
-    if (!resource) return res.status(404).json({ message: 'Resource not found' });
+], asyncHandler(async (req, res) => {
+  const filter = { status: 'approved' };
+  if (req.query.unit) filter.unit = req.query.unit;
+  if (req.query.type) filter.category = req.query.type;
+  if (req.query.year) filter.year = req.query.year;
+  if (req.query.semester) filter.semester = req.query.semester;
 
-    resource.status = req.body.status;
-    resource.reviewedBy = req.user._id;
-    resource.reviewedAt = new Date();
-    if (req.body.status === 'rejected' && req.body.rejectionReason) {
-      resource.rejectionReason = req.body.rejectionReason;
-    }
-
-    await resource.save();
-
-    const populated = await Resource.findById(resource._id)
-      .populate('uploadedBy', 'firstName lastName email department');
-
-    res.json(populated);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error reviewing resource' });
+  const search = buildSearchRegex(req.query.search);
+  if (search) {
+    // Match unit names too, so "power electronics" finds everything in EEEN 436.
+    const unitIds = await Unit.find({ $or: [{ name: search }, { code: search }] }).distinct('_id');
+    filter.$or = [
+      { title: search },
+      { description: search },
+      { originalFileName: search },
+      { unitCode: search },
+      { unit: { $in: unitIds } }
+    ];
+    // "eeen481" should find EEEN 481.
+    const code = normalizeUnitCode(req.query.search);
+    if (code) filter.$or.push({ unitCode: code });
   }
-});
+
+  res.json(await paginate(filter, {
+    page: req.query.page,
+    limit: req.query.limit,
+    sort: SORTS[req.query.sort] || SORTS.newest
+  }));
+}));
+
+// GET /api/resources/my - the member's own uploads, in every status
+router.get('/my', protect, [
+  query('status').optional().isIn(['pending', 'approved', 'rejected']),
+  ...pageRules,
+  validate
+], asyncHandler(async (req, res) => {
+  const filter = { uploadedBy: req.user._id };
+  if (req.query.status) filter.status = req.query.status;
+  res.json(await paginate(filter, { page: req.query.page, limit: req.query.limit }));
+}));
+
+// GET /api/resources/pending - review queue, oldest first
+router.get('/pending', protect, adminOnly, pageRules, validate, asyncHandler(async (req, res) => {
+  res.json(await paginate({ status: 'pending' }, {
+    page: req.query.page,
+    limit: req.query.limit,
+    sort: SORTS.oldest,
+    uploaderFields: 'firstName lastName email yearOfStudy'
+  }));
+}));
+
+// GET /api/resources/:id - one file, for deep links from notifications
+router.get('/:id', protect, [idParam, validate], asyncHandler(async (req, res) => {
+  const resource = await withDetails(Resource.findById(req.params.id));
+  // Hidden files answer 404, not 403, so their existence is not revealed.
+  if (!resource || !canSee(resource, req.user)) throw new ApiError(404, 'That file could not be found.');
+  res.json(resource);
+}));
+
+/* ------------------------------------------------------------------ *
+ * Editing and review
+ * ------------------------------------------------------------------ */
+
+/**
+ * PATCH /api/resources/:id - edit details or move to another unit.
+ *
+ * Uploaders may edit their own files; reviewers may edit any. An uploader's
+ * change sends the file back for review when it was rejected, or when it now
+ * sits in a unit no reviewer has confirmed.
+ */
+router.patch('/:id', protect, [idParam, ...detailRules, validate], asyncHandler(async (req, res) => {
+  const resource = await loadResource(req.params.id);
+  const trusted = isPower(req.user.role);
+  if (!trusted && !isOwner(resource, req.user)) throw new ApiError(403, 'You can only edit files you uploaded.');
+
+  if (req.body.title !== undefined) {
+    if (!req.body.title) throw new ApiError(400, 'A title is required.', { title: 'A title is required.' });
+    resource.title = req.body.title;
+  }
+  if (req.body.description !== undefined) resource.description = req.body.description;
+  if (req.body.category !== undefined) resource.category = req.body.category;
+
+  const previousUnit = resource.unit;
+  let unit = null;
+  if (req.body.unit || req.body.unitCode) {
+    unit = await saveUnit(await resolveUnit({
+      unitId: req.body.unit,
+      code: req.body.unitCode,
+      name: req.body.unitName,
+      year: req.body.year,
+      semester: req.body.semester,
+      user: req.user,
+      trusted
+    }));
+    resource.unit = unit._id;
+    resource.unitCode = unit.code;
+    resource.year = unit.year;
+    resource.semester = unit.semester;
+  }
+
+  if (!trusted && (resource.status === 'rejected' || (unit && !unit.verified))) {
+    resource.status = 'pending';
+    resource.rejectionReason = undefined;
+    resource.reviewedBy = undefined;
+    resource.reviewedAt = undefined;
+  }
+
+  await resource.save();
+  if (unit && idOf(previousUnit) !== idOf(unit)) await removeIfUnused(previousUnit);
+
+  res.json(await withDetails(Resource.findById(resource._id)));
+}));
+
+// PUT /api/resources/:id/review - approve or reject, and tell the uploader
+router.put('/:id/review', protect, adminOnly, [
+  idParam,
+  body('status').isIn(['approved', 'rejected']).withMessage('Choose approve or reject.'),
+  body('rejectionReason')
+    .if(body('status').equals('rejected'))
+    .isString().trim().isLength({ min: 3, max: 500 })
+    .withMessage('Tell the uploader why (3–500 characters).'),
+  validate
+], asyncHandler(async (req, res) => {
+  const resource = await withDetails(Resource.findById(req.params.id));
+  if (!resource) throw new ApiError(404, 'That file could not be found.');
+  if (resource.status === req.body.status) throw new ApiError(409, `This file is already ${resource.status}.`);
+
+  resource.status = req.body.status;
+  resource.reviewedBy = req.user._id;
+  resource.reviewedAt = new Date();
+
+  const location = resource.unit
+    ? `${folderPath(resource.unit)} › ${TYPE_LABELS[resource.category]}`
+    : TYPE_LABELS[resource.category];
+
+  const approved = req.body.status === 'approved';
+  resource.rejectionReason = approved ? undefined : req.body.rejectionReason;
+  await resource.save();
+
+  // Approving a file confirms the unit it was filed under.
+  if (approved && resource.unit && !resource.unit.verified) {
+    await Unit.updateOne({ _id: resource.unit._id }, { $set: { verified: true } });
+  }
+
+  await notifyUploader(resource, req.user, approved ? {
+    title: 'Your upload is in the library',
+    message: `"${resource.title}" was approved and is now available under ${location}.`
+  } : {
+    title: 'Your upload was not approved',
+    message: `"${resource.title}" was not added to the library. Reason: ${req.body.rejectionReason}. You can fix it from My uploads and it will be reviewed again.`
+  });
+  res.json(await withDetails(Resource.findById(resource._id)));
+}));
+
+/* ------------------------------------------------------------------ *
+ * File access
+ * ------------------------------------------------------------------ */
 
 /**
  * GET /api/resources/:id/ticket
  *
- * Mint a short-lived token that authorises exactly one resource.
- *
- * The file endpoint is opened directly by the browser (iframe preview, download
- * anchor), where an Authorization header cannot be attached, so the credential
- * has to travel in the URL. Sending the full 7-day session token there leaked it
- * into browser history, referrer headers and server logs. This ticket instead
- * lasts five minutes and grants access to one resource only, so a leaked URL is
- * near-worthless.
+ * Mint a short-lived token that authorises exactly one file. The file endpoint
+ * is opened directly by the browser and by document viewers, where an
+ * Authorization header cannot be attached, so the credential travels in the
+ * URL. A five-minute, single-file ticket makes a leaked URL near-worthless.
  */
-router.get('/:id/ticket', protect, async (req, res) => {
+router.get('/:id/ticket', protect, [idParam, validate], asyncHandler(async (req, res) => {
+  const resource = await Resource.findById(req.params.id).select('status uploadedBy originalFileName title').lean();
+  if (!resource || !canSee(resource, req.user)) throw new ApiError(404, 'That file could not be found.');
+
+  const token = jwt.sign(
+    { id: req.user._id, rid: String(resource._id), scope: TICKET_SCOPE },
+    process.env.JWT_SECRET,
+    { expiresIn: TICKET_TTL_SECONDS }
+  );
+
+  res.json({ token, expiresIn: TICKET_TTL_SECONDS, fileName: resource.originalFileName || resource.title });
+}));
+
+/**
+ * GET /api/resources/:id/file[/:name]?token=…[&download=1]
+ *
+ * Stream a file from private storage. The optional trailing name exists for
+ * document viewers that infer the format from the URL.
+ */
+const serveFile = asyncHandler(async (req, res) => {
+  const { token } = req.query;
+  if (!token) throw new ApiError(401, 'Not authorized');
+
+  let decoded;
   try {
-    const resource = await Resource.findById(req.params.id).select('status uploadedBy').lean();
-    if (!resource) return res.status(404).json({ message: 'Resource not found' });
-
-    const isOwner = String(resource.uploadedBy) === String(req.user._id);
-    const isReviewer = POWER_ROLES.includes(req.user.role);
-    if (resource.status !== 'approved' && !isOwner && !isReviewer) {
-      return res.status(403).json({ message: 'This resource is not available.' });
-    }
-
-    const token = jwt.sign(
-      { id: req.user._id, rid: String(resource._id), scope: 'resource-file' },
-      process.env.JWT_SECRET,
-      { expiresIn: '5m' }
-    );
-
-    res.json({ token, expiresIn: 300 });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error preparing the download' });
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    throw new ApiError(401, 'This link has expired. Open the file from the library again.');
   }
+
+  // Only a ticket for this very file is accepted, never a session token.
+  if (decoded.scope !== TICKET_SCOPE || decoded.rid !== req.params.id) {
+    throw new ApiError(403, 'This link is not valid for that file.');
+  }
+
+  // The account must still be active, or a deactivated member keeps access
+  // for the life of the ticket.
+  const requester = await User.findById(decoded.id).select('role isActive').lean();
+  if (!requester?.isActive) throw new ApiError(403, 'Not authorized');
+
+  const resource = await loadResource(req.params.id);
+  if (!canSee(resource, requester)) throw new ApiError(404, 'That file could not be found.');
+
+  const upstream = await fetchLibraryFile(resource);
+  if (!upstream) throw new ApiError(502, 'The file could not be fetched from storage. Please try again shortly.');
+
+  const fileName = resource.originalFileName || resource.title || 'file';
+  res.set('Content-Type', resource.fileType || upstream.headers.get('content-type') || 'application/octet-stream');
+  if (!upstream.headers.get('content-encoding') && upstream.headers.get('content-length')) {
+    res.set('Content-Length', upstream.headers.get('content-length'));
+  }
+  res.set('Cache-Control', 'private, max-age=300');
+  res.set('Content-Disposition', contentDisposition(req.query.download === '1' ? 'attachment' : 'inline', fileName));
+
+  pipeline(Readable.fromWeb(upstream.body), res, (error) => {
+    if (error && !res.writableEnded) console.warn(`Streaming resource ${resource._id} failed:`, error.message);
+  });
 });
 
-// GET /api/resources/:id/file - stream file content, authorised by a ticket
-router.get('/:id/file', async (req, res) => {
-  try {
-    // The token arrives as a query parameter because this URL is opened directly
-    // by the browser (iframe preview and download), where headers cannot be set.
-    // It is therefore short-lived and scoped to this one resource.
-    const token = req.query.token;
-    if (!token) return res.status(401).json({ message: 'Not authorized' });
+router.get('/:id/file', [idParam, validate], serveFile);
+router.get('/:id/file/:name', [idParam, validate], serveFile);
 
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET);
-    } catch {
-      return res.status(401).json({ message: 'This download link has expired. Reopen the file from the library.' });
-    }
+// PUT /api/resources/:id/download - count each member once per file
+router.put('/:id/download', protect, [idParam, validate], asyncHandler(async (req, res) => {
+  const result = await Resource.updateOne(
+    { _id: req.params.id, status: 'approved', downloadedBy: { $ne: req.user._id } },
+    { $addToSet: { downloadedBy: req.user._id }, $inc: { downloads: 1 } }
+  );
+  res.json({ counted: result.modifiedCount === 1 });
+}));
 
-    // A ticket is bound to one resource. A plain session token is still accepted
-    // so existing tabs keep working, but it must not be scoped to another file.
-    if (decoded.scope === 'resource-file' && decoded.rid !== String(req.params.id)) {
-      return res.status(403).json({ message: 'This link is not valid for that file.' });
-    }
-
-    // Verifying the signature is not enough: the account must still exist and be
-    // active, otherwise a deactivated member keeps library access until their
-    // token expires.
-    const requester = await User.findById(decoded.id).select('role isActive').lean();
-    if (!requester || !requester.isActive) {
-      return res.status(403).json({ message: 'Not authorized' });
-    }
-
-    const resource = await Resource.findById(req.params.id);
-    if (!resource) return res.status(404).json({ message: 'Resource not found' });
-
-    // Pending and rejected uploads are visible only to their owner and to
-    // reviewers. Previously any signed-in member could read them by id.
-    const isOwner = String(resource.uploadedBy) === String(decoded.id);
-    const isReviewer = POWER_ROLES.includes(requester.role);
-    if (resource.status !== 'approved' && !isOwner && !isReviewer) {
-      return res.status(403).json({ message: 'This resource is not available.' });
-    }
-
-    if (!resource.fileUrl) {
-      return res.status(404).json({ message: 'File not found' });
-    }
-
-    // Build list of URLs to try (in order)
-    const urlsToTry = [];
-
-    // 1) Try the original stored URL first (works for public resources)
-    urlsToTry.push({ label: 'stored URL', url: resource.fileUrl });
-
-    // 2) Generate signed URLs with different resource_types
-    if (resource.filePublicId) {
-      // Detect resource_type from URL path
-      const urlPath = resource.fileUrl;
-      let detectedType = 'raw';
-      if (urlPath.includes('/image/upload/')) detectedType = 'image';
-      else if (urlPath.includes('/video/upload/')) detectedType = 'video';
-
-      // Extract version from URL
-      const vMatch = urlPath.match(/\/v(\d+)\//);
-      const version = vMatch ? vMatch[1] : undefined;
-
-      // Try detected type first, then others
-      const types = [detectedType, ...['image', 'raw', 'video'].filter(t => t !== detectedType)];
-      for (const resType of types) {
-        try {
-          const opts = { resource_type: resType, type: 'upload', sign_url: true, secure: true };
-          if (version) opts.version = version;
-          const signedUrl = cloudinary.url(resource.filePublicId, opts);
-          if (signedUrl !== resource.fileUrl) {
-            urlsToTry.push({ label: `signed ${resType}`, url: signedUrl });
-          }
-        } catch {}
-      }
-    }
-
-    // Try each URL until one works
-    for (const { label, url } of urlsToTry) {
-      try {
-        const upstream = await fetch(url, { redirect: 'follow' });
-        if (upstream.ok) {
-          return streamResourceFile(upstream, resource, res);
-        }
-        console.log(`File proxy: ${label} returned ${upstream.status} for resource ${req.params.id}`);
-      } catch (err) {
-        console.log(`File proxy: ${label} error for resource ${req.params.id}:`, err.message);
-      }
-    }
-
-    // All attempts failed - try making the resource public on Cloudinary
-    if (resource.filePublicId) {
-      try {
-        const urlPath = resource.fileUrl;
-        let resType = 'raw';
-        if (urlPath.includes('/image/upload/')) resType = 'image';
-        else if (urlPath.includes('/video/upload/')) resType = 'video';
-
-        await cloudinary.api.update(resource.filePublicId, {
-          resource_type: resType,
-          access_mode: 'public',
-        });
-        console.log(`Made resource ${req.params.id} public on Cloudinary (${resType})`);
-
-        // Retry with original URL after making public
-        const upstream = await fetch(resource.fileUrl, { redirect: 'follow' });
-        if (upstream.ok) {
-          return streamResourceFile(upstream, resource, res);
-        }
-      } catch (e) {
-        console.error('Cloudinary make-public failed:', e.message);
-      }
-    }
-
-    console.error(`File proxy: ALL attempts failed for resource ${req.params.id}, fileUrl: ${resource.fileUrl}, publicId: ${resource.filePublicId}`);
-    return res.status(502).json({ message: 'Failed to fetch file from storage' });
-  } catch (error) {
-    console.error('File proxy error:', error);
-    res.status(500).json({ message: 'Server error' });
+// DELETE /api/resources/:id - reviewers delete anything; uploaders their own
+router.delete('/:id', protect, [idParam, validate], asyncHandler(async (req, res) => {
+  const resource = await loadResource(req.params.id);
+  if (!isOwner(resource, req.user) && !isPower(req.user.role)) {
+    throw new ApiError(403, 'You can only delete files you uploaded.');
   }
-});
 
-// PUT /api/resources/:id/download - increment download count
-router.put('/:id/download', protect, async (req, res) => {
-  try {
-    await Resource.findByIdAndUpdate(req.params.id, { $inc: { downloads: 1 } });
-    res.json({ message: 'Download tracked' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
+  await destroyLibraryFile(resource);
+  await Resource.deleteOne({ _id: resource._id });
+  await removeIfUnused(resource.unit);
 
-// DELETE /api/resources/:id
-// Reviewers may delete anything; an uploader may withdraw their own upload,
-// which previously required an administrator.
-router.delete('/:id', protect, async (req, res) => {
-  try {
-    const resource = await Resource.findById(req.params.id);
-    if (!resource) return res.status(404).json({ message: 'Resource not found' });
-
-    const isOwner = String(resource.uploadedBy) === String(req.user._id);
-    if (!isOwner && !POWER_ROLES.includes(req.user.role)) {
-      return res.status(403).json({ message: 'You can only delete resources you uploaded.' });
-    }
-
-    if (resource.filePublicId) {
-      // The upload used resource_type 'auto', so the stored type may be image,
-      // video or raw. Assuming 'raw' left images orphaned in Cloudinary.
-      const url = resource.fileUrl || '';
-      const resType = url.includes('/image/upload/') ? 'image'
-        : url.includes('/video/upload/') ? 'video'
-        : 'raw';
-      await cloudinary.uploader.destroy(resource.filePublicId, { resource_type: resType }).catch(() => {});
-    }
-
-    await Resource.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Resource deleted' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error deleting resource' });
-  }
-});
+  res.json({ message: 'File deleted.' });
+}));
 
 module.exports = router;

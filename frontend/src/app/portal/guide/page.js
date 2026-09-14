@@ -20,15 +20,14 @@ const sections = [
   {
     icon: HiBookOpen,
     title: '2. Find and share learning materials',
-    description: 'Use the Library for notes, past papers, textbooks, tutorials, and lab reports.',
+    description: 'Use the Library for notes, past papers, textbooks, tutorials, and lab reports, filed by year, semester, and unit.',
     steps: [
-      'Open Library and use Browse to view approved resources.',
-      'Filter by category or year, or search by title.',
-      'Select a document to preview it, then use Download to save it.',
-      'To share a resource, select Upload and enter its title, category, and description.',
-      'Choose the Year and Semester. Include the unit code in the title or filename, for example EEEN 481.',
-      'The system automatically detects the unit code and puts every matching upload in the same unit folder.',
-      'New uploads wait for admin review before appearing in Browse. Use My Uploads to track your submissions.'
+      'Open Library and browse the folders: Year, then Semester, then Unit. Inside a unit, choose a type such as Past papers.',
+      'Search by title, unit code (for example EEEN 481), or unit name.',
+      'Select a file to preview it in the app, including on your phone, then use Download to save it.',
+      'To share, select Upload files and add up to 10 files at once. Each file is read to suggest its unit, year, semester, and type. Check the suggestions before uploading.',
+      'If a unit is not listed yet, type its code and add its name, year, and semester.',
+      'Uploads wait for review before they appear. You are notified when a file is approved or not approved, and can fix it from My uploads.'
     ],
     link: ['/portal/library', 'Open Library']
   },

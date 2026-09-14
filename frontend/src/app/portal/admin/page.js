@@ -10,7 +10,7 @@ import { HiBell, HiBookOpen, HiCalendar, HiCash, HiCheckCircle, HiClipboardList,
 const metricCards = [
   { key: 'activeMembers', label: 'Active members', icon: HiUsers, color: 'blue', href: '/portal/members' },
   { key: 'pendingPayments', label: 'Pending payments', icon: HiCash, color: 'amber', href: '/portal/payments' },
-  { key: 'pendingResources', label: 'Resources to review', icon: HiBookOpen, color: 'emerald', href: '/portal/library' },
+  { key: 'pendingResources', label: 'Resources to review', icon: HiBookOpen, color: 'emerald', href: '/portal/library/review' },
   { key: 'unreadMessages', label: 'Unread messages', icon: HiMail, color: 'rose', href: '/portal/notifications' },
   { key: 'events', label: 'Live events', icon: HiCalendar, color: 'violet', href: '/portal/events' },
   { key: 'activeProjects', label: 'Active projects', icon: HiDocumentText, color: 'cyan', href: '/projects' },
@@ -84,7 +84,7 @@ export default function AdminPage() {
             <ActivityPanel title="Payment activity" icon={HiCash} href="/portal/payments">
               {(data?.recent?.payments || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div><p className="font-medium text-strong">{item.user?.firstName} {item.user?.lastName}</p><p className="text-xs text-subtle">{item.type} • KSh {item.amount?.toLocaleString()}</p></div><span className={`text-xs font-medium capitalize ${item.status === 'verified' ? 'text-emerald-600 dark:text-emerald-300' : item.status === 'rejected' ? 'text-rose-600' : 'text-amber-600 dark:text-amber-300'}`}>{item.status}</span></div>)}
             </ActivityPanel>
-            <ActivityPanel title="Resource activity" icon={HiBookOpen} href="/portal/library">
+            <ActivityPanel title="Resource activity" icon={HiBookOpen} href="/portal/library/review">
               {(data?.recent?.resources || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div className="min-w-0"><p className="font-medium text-strong truncate">{item.title}</p><p className="text-xs text-subtle">{item.unitCode || 'Unit not set'} • {item.uploadedBy?.firstName} {item.uploadedBy?.lastName}</p></div><span className="text-xs capitalize text-subtle">{item.status}</span></div>)}
             </ActivityPanel>
             <ActivityPanel title="Contact messages" icon={HiMail} href="/contact">
