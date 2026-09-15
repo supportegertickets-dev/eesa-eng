@@ -1,8 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { HiAcademicCap, HiUserGroup, HiLightBulb, HiCog, HiGlobe, HiUser } from 'react-icons/hi';
+import DepartmentCard from '@/components/DepartmentCard';
 import { getLeaders } from '@/lib/api';
+import { DEPARTMENT_PROFILES, departmentHref } from '@/lib/departments';
 
 const ROLE_LABELS = { chairperson: 'Chairperson', vice_chairperson: 'Vice Chairperson', organizing_secretary: 'Organizing Secretary', secretary_general: 'Secretary General', publicity_manager: 'Publicity Manager', project_manager: 'Project Manager', patron: 'Patron', '1st_cohort_rep': '1st Cohort Rep', treasurer: 'Treasurer' };
 const ROLE_ORDER = ['patron', 'chairperson', 'vice_chairperson', 'secretary_general', 'organizing_secretary', 'project_manager', 'treasurer', 'publicity_manager', '1st_cohort_rep'];
@@ -122,7 +125,13 @@ export default function AboutPage() {
                 </div>
                 <h3 className="font-heading font-semibold text-lg">{leader.firstName} {leader.lastName}</h3>
                 <p className="text-accent-600 font-medium text-sm">{ROLE_LABELS[leader.role] || leader.role}</p>
-                <p className="text-subtle text-xs mt-1">{leader.department}</p>
+                {departmentHref(leader.department) ? (
+                  <Link href={departmentHref(leader.department)} className="inline-block text-subtle text-xs mt-1 hover:text-primary-500 dark:hover:text-primary-300 hover:underline">
+                    {leader.department}
+                  </Link>
+                ) : (
+                  <p className="text-subtle text-xs mt-1">{leader.department}</p>
+                )}
               </div>
             )) : (
               <div className="col-span-full text-center text-subtle py-8">
@@ -139,20 +148,19 @@ export default function AboutPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="section-title mb-4">Engineering Departments</h2>
+            <p className="section-subtitle mx-auto">
+              EESA brings together students from five departments. Explore what each one studies and where it leads.
+            </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              { name: 'Civil Engineering', desc: 'Building infrastructure that connects communities and drives development.' },
-              { name: 'Mechanical Engineering', desc: 'Designing and manufacturing systems that power modern industry.' },
-              { name: 'Electrical Engineering', desc: 'Harnessing electrical energy for communication, power, and automation.' },
-              { name: 'Agricultural Engineering', desc: 'Applying engineering principles to improve agricultural productivity.' },
-              { name: 'Industrial Technology', desc: 'Integrating technology and innovation to optimize industrial processes and production systems.' },
-            ].map((dept, i) => (
-              <div key={i} className="card hover:border-primary-300 dark:hover:border-primary-500/30 transition-colors">
-                <h3 className="font-heading font-semibold text-lg text-strong mb-2">{dept.name}</h3>
-                <p className="text-muted-fg text-sm">{dept.desc}</p>
-              </div>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {DEPARTMENT_PROFILES.map((department) => (
+              <li key={department.slug}>
+                <DepartmentCard department={department} />
+              </li>
             ))}
+          </ul>
+          <div className="text-center mt-10">
+            <Link href="/departments" className="btn-outline">View all departments</Link>
           </div>
         </div>
       </section>

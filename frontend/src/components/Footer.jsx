@@ -2,21 +2,15 @@ import Link from 'next/link';
 import { HiMail, HiPhone, HiLocationMarker } from 'react-icons/hi';
 import { FaWhatsapp, FaLinkedin, FaInstagram } from 'react-icons/fa';
 import { FaXTwitter } from 'react-icons/fa6';
+import { DEPARTMENT_PROFILES, departmentPath } from '@/lib/departments';
 
 const QUICK_LINKS = [
   { href: '/about', label: 'About us' },
+  { href: '/departments', label: 'Departments' },
   { href: '/events', label: 'Events' },
   { href: '/projects', label: 'Projects' },
   { href: '/news', label: 'News' },
   { href: '/contact', label: 'Contact' },
-];
-
-const DEPARTMENTS = [
-  'Civil Engineering',
-  'Mechanical Engineering',
-  'Electrical Engineering',
-  'Agricultural Engineering',
-  'Industrial Technology',
 ];
 
 const SOCIALS = [
@@ -83,12 +77,20 @@ export default function Footer() {
             </ul>
           </nav>
 
-          <div>
-            <h2 className="text-white font-semibold mb-4 text-sm uppercase tracking-wide">Departments</h2>
-            <ul className="space-y-2.5 text-sm text-slate-400">
-              {DEPARTMENTS.map((department) => <li key={department}>{department}</li>)}
+          <nav aria-labelledby="footer-departments">
+            <h2 id="footer-departments" className="text-white font-semibold mb-4 text-sm uppercase tracking-wide">
+              Departments
+            </h2>
+            <ul className="space-y-2.5">
+              {DEPARTMENT_PROFILES.map(({ slug, name }) => (
+                <li key={slug}>
+                  <Link href={departmentPath(slug)} className="text-sm text-slate-400 hover:text-accent-400 transition-colors">
+                    {name}
+                  </Link>
+                </li>
+              ))}
             </ul>
-          </div>
+          </nav>
 
           <div>
             <h2 className="text-white font-semibold mb-4 text-sm uppercase tracking-wide">Contact us</h2>

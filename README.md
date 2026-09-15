@@ -46,6 +46,7 @@ EESA2/
 ### Public Website
 - Home page with hero, stats, upcoming events, and projects
 - About page with mission, values, leadership, and departments
+- Department pages for each discipline: overview, specialisations, coursework, careers and professional registration, linked from the About page and footer
 - Events listing and detail pages with cover images, photo galleries and RSVP
 - Project showcase
 - News and articles
