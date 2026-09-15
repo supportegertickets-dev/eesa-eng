@@ -8,34 +8,64 @@
  * member can correct any of it, and the server validates the result.
  */
 import { findUnitCodes, fileKind, titleFromFileName } from '@/lib/library';
-import { loadPdfJs } from '@/lib/pdf';
+import { loadPdfDocument } from '@/lib/pdf';
 
 const SCAN_CHARS = 6000;
 const READ_TIMEOUT_MS = 8000;
+// Larger PDFs are usually scans with no text to find, and parsing one can take
+// most of a phone's memory. Their file names still give a suggestion.
+const MAX_SCAN_PDF_BYTES = 10 * 1024 * 1024;
 
 /* ------------------------------------------------------------------ *
  * Reading text
  * ------------------------------------------------------------------ */
 
-const withTimeout = (promise, ms) => Promise.race([
-  promise,
-  new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-]);
+/**
+ * Give up on a slow read after `ms`. A read that can be cancelled is cancelled
+ * too, so it stops using memory instead of carrying on unseen.
+ */
+const withTimeout = (promise, ms) => {
+  let timer;
+  // A read abandoned by the timeout may still reject later; nobody is waiting for it.
+  promise.catch(() => {});
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        promise.cancel?.();
+        reject(new Error('timeout'));
+      }, ms);
+    }),
+  ]).finally(() => clearTimeout(timer));
+};
 
-const readPdfText = async (file) => {
-  const pdfjs = await loadPdfJs();
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise;
-  try {
-    let text = '';
-    for (let pageNumber = 1; pageNumber <= Math.min(2, doc.numPages) && text.length < SCAN_CHARS; pageNumber += 1) {
-      const page = await doc.getPage(pageNumber);
-      const content = await page.getTextContent();
-      text += `${content.items.map((item) => `${item.str}${item.hasEOL ? '\n' : ' '}`).join('')}\n`;
+const readPdfText = (file) => {
+  const controller = new AbortController();
+
+  const read = async () => {
+    if (file.size > MAX_SCAN_PDF_BYTES) return '';
+    const doc = await loadPdfDocument(file, { signal: controller.signal });
+    controller.signal.addEventListener('abort', () => doc.destroy(), { once: true });
+    try {
+      let text = '';
+      for (
+        let pageNumber = 1;
+        pageNumber <= Math.min(2, doc.numPages) && text.length < SCAN_CHARS && !controller.signal.aborted;
+        pageNumber += 1
+      ) {
+        const page = await doc.getPage(pageNumber);
+        const content = await page.getTextContent();
+        text += `${content.items.map((item) => `${item.str}${item.hasEOL ? '\n' : ' '}`).join('')}\n`;
+      }
+      return text;
+    } finally {
+      doc.destroy();
     }
-    return text;
-  } finally {
-    doc.destroy();
-  }
+  };
+
+  const promise = read();
+  promise.cancel = () => controller.abort();
+  return promise;
 };
 
 const XML_ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&apos;': "'" };

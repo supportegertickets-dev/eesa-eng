@@ -92,33 +92,37 @@ export default function UploadDialog({ open, preset, units, onClose, onUploaded 
     const fresh = accepted.map((file) => ({ key: ++nextKey, file, status: 'analyzing', progress: 0, details: blankDetails(file) }));
     setItems((list) => [...list.filter((item) => item.status !== 'done'), ...fresh]);
 
-    fresh.forEach(async (item) => {
-      const suggestion = await analyzeFile(item.file, units).catch(() => null);
-      patch(item.key, (current) => {
-        if (!suggestion) return { status: 'ready' };
-        const details = {
-          ...current.details,
-          title: suggestion.title || current.details.title,
-          category: suggestion.category,
-          unitId: suggestion.unitId,
-          unitCode: suggestion.unitCode,
-          unitName: suggestion.unitName,
-          year: suggestion.year,
-          semester: suggestion.semester,
-        };
-        const usePreset = !suggestion.unitCode && Boolean(preset);
-        if (usePreset) {
-          Object.assign(details, {
-            unitId: preset._id,
-            unitCode: preset.code,
-            unitName: preset.name || '',
-            year: preset.year ?? '',
-            semester: preset.semester ?? '',
-          });
-        }
-        return { status: 'ready', details, sources: suggestion.sources, scanned: suggestion.scanned, usedPreset: usePreset };
-      });
-    });
+    // One file at a time. Reading a batch of large files at once used up a
+    // phone's memory, and previewing a file straight after uploading failed.
+    (async () => {
+      for (const item of fresh) {
+        const suggestion = await analyzeFile(item.file, units).catch(() => null);
+        patch(item.key, (current) => {
+          if (!suggestion) return { status: 'ready' };
+          const details = {
+            ...current.details,
+            title: suggestion.title || current.details.title,
+            category: suggestion.category,
+            unitId: suggestion.unitId,
+            unitCode: suggestion.unitCode,
+            unitName: suggestion.unitName,
+            year: suggestion.year,
+            semester: suggestion.semester,
+          };
+          const usePreset = !suggestion.unitCode && Boolean(preset);
+          if (usePreset) {
+            Object.assign(details, {
+              unitId: preset._id,
+              unitCode: preset.code,
+              unitName: preset.name || '',
+              year: preset.year ?? '',
+              semester: preset.semester ?? '',
+            });
+          }
+          return { status: 'ready', details, sources: suggestion.sources, scanned: suggestion.scanned, usedPreset: usePreset };
+        });
+      }
+    })();
   };
 
   const queue = items.filter((item) => item.status === 'ready' || item.status === 'error');

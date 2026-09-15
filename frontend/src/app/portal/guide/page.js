@@ -81,11 +81,11 @@ const sections = [
   {
     icon: HiPhotograph,
     title: '7. Explore the gallery',
-    description: 'View photos from EESA events and activities.',
+    description: 'Browse photo albums from EESA events and activities. Office holders can also create albums and upload photos.',
     steps: [
-      'Open Gallery from the portal menu.',
-      'Select an image to view it in a larger format.',
-      'Use the available navigation controls to browse the collection.'
+      'Open Gallery from the portal menu, then search, filter by category or sort to find an album.',
+      'Select a photo to view it full screen. Use the arrow keys or swipe to move between photos, and share or download from the top bar.',
+      'Office holders: select New album, then drop in as many photos as you like. Large photos are resized before upload, and you can add captions, reorder photos and choose a cover afterwards.'
     ],
     link: ['/portal/gallery', 'Open Gallery']
   },

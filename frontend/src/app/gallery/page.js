@@ -1,97 +1,23 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { getGalleryImages } from '@/lib/api';
-import { HiPhotograph, HiX } from 'react-icons/hi';
-
-const CATEGORIES = ['events', 'projects', 'campus', 'workshops', 'competitions', 'social', 'other'];
+import { albumHref } from '@/lib/gallery';
+import AlbumBrowser from '@/components/gallery/AlbumBrowser';
 
 export default function PublicGalleryPage() {
-  const [images, setImages] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedImg, setSelectedImg] = useState(null);
-  const [category, setCategory] = useState('');
-
-  useEffect(() => { loadImages(); }, [category]);
-
-  const loadImages = async () => {
-    setLoading(true);
-    try {
-      const params = category ? `?category=${category}` : '';
-      const data = await getGalleryImages(params);
-      setImages(data.images || data || []);
-    } catch { console.error('Failed to load gallery'); }
-    finally { setLoading(false); }
-  };
-
   return (
-    <div className="min-h-screen bg-canvas">
-      {/* Hero */}
-      <div className="bg-primary-500 text-white py-16">
+    <div className="bg-canvas min-h-screen">
+      <section className="bg-gradient-to-r from-primary-500 to-primary-700 text-white py-16 sm:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="font-heading text-4xl font-bold mb-3">Gallery</h1>
-          <p className="text-white/80 text-lg max-w-2xl mx-auto">Memories and moments from EESA events and activities</p>
+          <h1 className="font-heading text-4xl sm:text-5xl font-bold mb-4">Gallery</h1>
+          <p className="text-lg sm:text-xl text-white/85 max-w-2xl mx-auto">
+            Moments from EESA events, projects, competitions and campus life.
+          </p>
         </div>
-      </div>
+      </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Category filter */}
-        <div className="flex gap-2 mb-8 flex-wrap justify-center">
-          <button onClick={() => setCategory('')} className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${!category ? 'bg-primary-500 text-white' : 'bg-surface text-body hover:bg-muted shadow-sm'}`}>All</button>
-          {CATEGORIES.map(c => (
-            <button key={c} onClick={() => setCategory(c)} className={`px-4 py-2 rounded-full text-sm font-medium capitalize transition-colors ${category === c ? 'bg-primary-500 text-white' : 'bg-surface text-body hover:bg-muted shadow-sm'}`}>
-              {c}
-            </button>
-          ))}
-        </div>
-
-        {loading ? (
-          <div className="flex justify-center py-20"><div className="w-10 h-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>
-        ) : images.length === 0 ? (
-          <div className="text-center py-20 text-subtle">
-            <HiPhotograph className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <p className="text-lg">No photos yet</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {images.map((img) => (
-              <div key={img._id} className="group bg-surface rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setSelectedImg(img)}>
-                <div className="relative aspect-[4/3] overflow-hidden bg-muted">
-                  <img src={img.imageUrl} alt={img.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                </div>
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-semibold text-strong line-clamp-1">{img.title}</h3>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-300 font-medium capitalize whitespace-nowrap">{img.category}</span>
-                  </div>
-                  {img.description && (
-                    <p className="text-sm text-subtle mt-1.5 line-clamp-2">{img.description}</p>
-                  )}
-                  {img.createdAt && (
-                    <p className="text-xs text-faint mt-2">{new Date(img.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Lightbox */}
-      {selectedImg && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setSelectedImg(null)}>
-          <button className="absolute top-6 right-6 text-white/80 hover:text-white p-2" onClick={() => setSelectedImg(null)}>
-            <HiX className="w-8 h-8" />
-          </button>
-          <div className="max-w-5xl max-h-[90vh] w-full" onClick={e => e.stopPropagation()}>
-            <img src={selectedImg.imageUrl} alt={selectedImg.title} className="w-full max-h-[80vh] object-contain rounded-lg" />
-            <div className="text-center mt-4">
-              <p className="text-white text-xl font-medium">{selectedImg.title}</p>
-              {selectedImg.description && <p className="text-white/60 mt-1">{selectedImg.description}</p>}
-            </div>
-          </div>
-        </div>
-      )}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
+        <AlbumBrowser hrefFor={albumHref} />
+      </section>
     </div>
   );
 }

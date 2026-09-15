@@ -12,6 +12,7 @@
 const WORKER_SRC = '/pdfjs/pdf.worker.min.mjs';
 
 let pdfjsPromise = null;
+let sharedWorker = null;
 
 export const loadPdfJs = () => {
   if (!pdfjsPromise) {
@@ -27,4 +28,52 @@ export const loadPdfJs = () => {
       });
   }
   return pdfjsPromise;
+};
+
+/**
+ * One worker for every PDF the page opens.
+ *
+ * PDF.js starts a new worker for each document unless it is handed one. The
+ * upload dialog reads every chosen PDF to suggest its unit, so uploading a
+ * batch and then opening a preview left several workers each holding a whole
+ * file. Phones ran short of memory and the preview failed until the page was
+ * reloaded.
+ */
+const getWorker = (pdfjs) => {
+  if (!sharedWorker || sharedWorker.destroyed) sharedWorker = new pdfjs.PDFWorker();
+  return sharedWorker;
+};
+
+/**
+ * Open a PDF from a Blob or File on the shared worker.
+ *
+ * If loading fails for a reason other than the file itself, the worker is
+ * replaced and the file tried once more. Aborting `signal` cancels a load still
+ * in progress. Destroy the returned document when finished with it; that
+ * leaves the shared worker running for the next one.
+ */
+export const loadPdfDocument = async (source, { signal } = {}) => {
+  const pdfjs = await loadPdfJs();
+
+  for (let attempt = 1; ; attempt += 1) {
+    // PDF.js takes ownership of the bytes it is given, so each attempt reads them afresh.
+    const data = new Uint8Array(await source.arrayBuffer());
+    if (signal?.aborted) throw new DOMException('The PDF was closed before it opened.', 'AbortError');
+
+    const task = pdfjs.getDocument({ data, worker: getWorker(pdfjs), isEvalSupported: false });
+    const cancel = () => task.destroy();
+    signal?.addEventListener('abort', cancel, { once: true });
+
+    try {
+      return await task.promise;
+    } catch (error) {
+      task.destroy();
+      // A damaged or password-protected file fails the same way on any worker.
+      if (signal?.aborted || attempt >= 2 || ['InvalidPDFException', 'PasswordException'].includes(error?.name)) throw error;
+      sharedWorker?.destroy();
+      sharedWorker = null;
+    } finally {
+      signal?.removeEventListener('abort', cancel);
+    }
+  }
 };

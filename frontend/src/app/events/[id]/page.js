@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { format, isValid } from 'date-fns';
 import toast from 'react-hot-toast';
 import { HiArrowLeft, HiCalendar, HiLocationMarker, HiUsers, HiPencil, HiPhotograph } from 'react-icons/hi';
-import { getEvent, rsvpEvent } from '@/lib/api';
+import { getAlbums, getEvent, rsvpEvent } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
+import { albumHref, photoCountLabel } from '@/lib/gallery';
 import { cloudinaryImage } from '@/lib/images';
 import Avatar from '@/components/ui/Avatar';
 import ErrorState from '@/components/ui/ErrorState';
@@ -43,6 +44,12 @@ export default function EventDetailPage({ params }) {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Gallery albums linked to this event. Optional, so a failure shows nothing.
+  const [albums, setAlbums] = useState([]);
+  useEffect(() => {
+    getAlbums(`?event=${id}&limit=4`).then((data) => setAlbums(data.albums || [])).catch(() => setAlbums([]));
+  }, [id]);
 
   // The cover opens the viewer too, so it leads the gallery.
   const gallery = useMemo(() => {
@@ -281,6 +288,32 @@ export default function EventDetailPage({ params }) {
                   <p className="text-xs uppercase tracking-wide text-subtle">Organised by</p>
                   <p className="text-sm font-medium text-strong">{fullName(event.organizer)}</p>
                 </div>
+              </div>
+            )}
+
+            {albums.length > 0 && (
+              <div className="card">
+                <h2 className="font-heading font-semibold text-strong mb-3">In the gallery</h2>
+                <ul className="space-y-3">
+                  {albums.map((album) => (
+                    <li key={album._id}>
+                      <Link href={albumHref(album)} className="group flex items-center gap-3">
+                        <span className="w-14 h-14 rounded-lg overflow-hidden bg-muted shrink-0 flex items-center justify-center">
+                          {album.cover?.url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={cloudinaryImage(album.cover.url, { width: 112, height: 112 })} alt="" loading="lazy" className="w-full h-full object-cover" />
+                          ) : (
+                            <HiPhotograph className="w-6 h-6 text-faint" aria-hidden="true" />
+                          )}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-strong truncate group-hover:text-primary-500 dark:group-hover:text-primary-300">{album.title}</span>
+                          <span className="block text-xs text-subtle">{photoCountLabel(album.photoCount)}</span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
 

@@ -57,7 +57,7 @@ EESA2/
 - Elections: self-nomination with admin approval, secret ballot, automatic scheduling, results published when voting closes
 - Payments (M-Pesa STK Push, manual receipt upload)
 - Library: folders by Year › Semester › Unit › Type, multi-file upload that reads each file to suggest where it belongs, in-app preview (PDF, Word, PowerPoint, Excel, images), review with uploader notifications, private file storage, and units managed from the portal
-- Gallery (photo albums)
+- Gallery: albums with search, category filters and sorting; a masonry photo grid with a full-screen viewer, shareable links to albums and single photos, and downloads; office holders bulk-upload by drag and drop (photos are resized in the browser first), caption, reorder and choose a cover
 - Sponsors management
 - Notifications
 - Member directory with search
@@ -208,6 +208,20 @@ The script is idempotent, so running it twice is safe. Other changes to be aware
 - The member directory API now requires a signed-in member.
 - Only the `admin` role can change roles; the chairperson can still deactivate and restore ordinary members.
 - `JWT_SECRET` must be at least 32 characters when `NODE_ENV=production`.
+
+### Gallery albums
+
+The gallery is now organised into albums, and the `/api/gallery` endpoints have changed to match (see `backend/routes/gallery.js`). Move the photos from the old gallery once after deploying:
+
+```bash
+cd backend
+npm run migrate:gallery               # preview
+npm run migrate:gallery -- --apply    # move them
+```
+
+Each category the old gallery used becomes one album, for example `/gallery/events-archive`, which office holders can rename, caption and reorder from Portal › Gallery. Files are not moved in Cloudinary, and the old `galleries` collection is left in place until you drop it. The script skips photos it has already moved, so it is safe to run again.
+
+Gallery photos upload one request per file and have their own rate limit, `GALLERY_UPLOAD_RATE_LIMIT_MAX` (default 600 per 15 minutes per IP), so a large batch does not use up the general request budget.
 
 ## Deployment
 

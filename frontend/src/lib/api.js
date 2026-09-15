@@ -405,8 +405,18 @@ export const deleteNotification = (id) => api.delete(`/notifications/${id}`);
 /* ------------------------------------------------------------------ *
  * Gallery
  * ------------------------------------------------------------------ */
-export const getGalleryImages = (params = '') => api.get(`/gallery${params}`);
-export const uploadGalleryImage = (formData) => api.post('/gallery', formData);
-export const deleteGalleryImage = (id) => api.delete(`/gallery/${id}`);
+export const getAlbums = (params = '') => api.get(`/gallery/albums${params}`);
+// By id or by slug; returns `{ album, photos }`.
+export const getAlbum = (key) => api.get(`/gallery/albums/${encodeURIComponent(key)}`);
+export const createAlbum = (data) => api.post('/gallery/albums', data);
+export const updateAlbum = (id, data) => api.put(`/gallery/albums/${id}`, data);
+export const deleteAlbum = (id) => api.delete(`/gallery/albums/${id}`);
+export const reorderAlbumPhotos = (id, photoIds) => api.put(`/gallery/albums/${id}/order`, { photoIds });
+export const announceAlbumPhotos = (id) => api.post(`/gallery/albums/${id}/announce`);
+// One photo per request, so each file in a batch reports its own progress and outcome.
+export const uploadAlbumPhoto = (id, formData, onProgress) => api.upload(`/gallery/albums/${id}/photos`, formData, onProgress);
+export const deleteAlbumPhotos = (id, photoIds) => api.post(`/gallery/albums/${id}/photos/delete`, { photoIds });
+export const updatePhoto = (id, data) => api.patch(`/gallery/photos/${id}`, data);
+export const deletePhoto = (id) => api.delete(`/gallery/photos/${id}`);
 
 export default api;

@@ -2,7 +2,7 @@
 
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { HiChevronLeft, HiChevronRight, HiMinus, HiPlus } from 'react-icons/hi';
-import { loadPdfJs } from '@/lib/pdf';
+import { loadPdfDocument } from '@/lib/pdf';
 
 const ZOOM_STEPS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
 const MAX_FIT_WIDTH = 960;
@@ -139,30 +139,28 @@ export default function PdfViewer({ blob, onError }) {
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     let loaded = null;
 
     (async () => {
       try {
-        const pdfjs = await loadPdfJs();
-        const data = new Uint8Array(await blob.arrayBuffer());
-        loaded = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
-        if (cancelled) {
+        loaded = await loadPdfDocument(blob, { signal: controller.signal });
+        if (controller.signal.aborted) {
           loaded.destroy();
           return;
         }
         const first = await loaded.getPage(1);
         const viewport = first.getViewport({ scale: 1 });
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         setFallbackRatio(viewport.height / viewport.width);
         setDoc(loaded);
       } catch (error) {
-        if (!cancelled) onErrorRef.current?.(error);
+        if (!controller.signal.aborted) onErrorRef.current?.(error);
       }
     })();
 
     return () => {
-      cancelled = true;
+      controller.abort();
       loaded?.destroy();
     };
   }, [blob]);

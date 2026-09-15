@@ -92,6 +92,12 @@ app.use(cors({
  * Rate limiting
  * ------------------------------------------------------------------ */
 
+// Gallery photos upload one request per file, so a leader adding a few hundred
+// photos from an event would exhaust the general budgets below. They get a
+// budget of their own instead. The route itself requires a leadership session.
+const GALLERY_PHOTO_UPLOAD = /^\/gallery\/albums\/[a-f0-9]{24}\/photos\/?$/i;
+const isGalleryPhotoUpload = (req) => req.method === 'POST' && GALLERY_PHOTO_UPLOAD.test(req.path);
+
 // A portal page can legitimately fire a dozen requests on load, so the global
 // budget is generous. Credential endpoints impose their own far tighter limits
 // inside routes/auth.js.
@@ -99,7 +105,7 @@ const globalLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.RATE_LIMIT_MAX) || 600,
   // Health checks come from uptime monitors and must never be throttled.
-  skip: (req) => req.path === '/health',
+  skip: (req) => req.path === '/health' || isGalleryPhotoUpload(req),
   message: 'Too many requests. Please slow down and try again shortly.'
 });
 
@@ -107,12 +113,20 @@ const globalLimiter = createLimiter({
 const writeLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.WRITE_RATE_LIMIT_MAX) || 150,
-  skip: (req) => req.method === 'GET' || req.method === 'OPTIONS',
+  skip: (req) => req.method === 'GET' || req.method === 'OPTIONS' || isGalleryPhotoUpload(req),
   message: 'Too many changes submitted. Please wait a moment and try again.'
+});
+
+const galleryUploadLimiter = createLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.GALLERY_UPLOAD_RATE_LIMIT_MAX) || 600,
+  skip: (req) => !isGalleryPhotoUpload(req),
+  message: 'Too many photos uploaded in a short time. Please wait a few minutes and retry the rest.'
 });
 
 app.use('/api/', globalLimiter);
 app.use('/api/', writeLimiter);
+app.use('/api/', galleryUploadLimiter);
 
 /* ------------------------------------------------------------------ *
  * Body parsing

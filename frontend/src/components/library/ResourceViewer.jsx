@@ -183,10 +183,14 @@ export default function ResourceViewer({ resource, onClose, actions }) {
     }
   };
 
-  const failPreview = () => setState({
-    status: 'error',
-    error: new Error('This file could not be displayed here. Download it to open it on your device.'),
-  });
+  const failPreview = (error) => {
+    // The member only sees the friendly message; the cause stays in the console for diagnosis.
+    console.warn(`Preview of resource ${resource._id} failed:`, error);
+    setState({
+      status: 'error',
+      error: new Error('This file could not be displayed here. Download it to open it on your device.'),
+    });
+  };
 
   let body;
   if (state.status === 'loading') {
