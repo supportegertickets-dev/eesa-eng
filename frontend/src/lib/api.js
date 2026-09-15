@@ -248,6 +248,34 @@ class ApiClient {
       xhr.send(body);
     });
   }
+
+  /**
+   * Fetch a file that needs the session header, such as a CSV export, as a
+   * Blob. A plain link cannot carry the Authorization header.
+   */
+  async download(endpoint) {
+    const token = this.getToken();
+
+    let response;
+    try {
+      response = await fetch(`${this.baseURL}${endpoint}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch {
+      throw new ApiError('Cannot reach the server. Check your internet connection.', { status: 0, code: 'network' });
+    }
+
+    if (!response.ok) {
+      const data = await this.parseBody(response);
+      if (response.status === 401 && this.onUnauthorized) this.onUnauthorized(data?.code);
+      throw new ApiError(data?.message || this.statusMessage(response.status), {
+        status: response.status,
+        code: data?.code,
+      });
+    }
+
+    return response.blob();
+  }
 }
 
 const api = new ApiClient();
@@ -304,12 +332,19 @@ export const joinProject = (id) => api.post(`/projects/${id}/join`);
  * Users
  * ------------------------------------------------------------------ */
 export const getUsers = (params = '') => api.get(`/users${params}`);
+// A member's profile as other members see it; returns `{ user, contributions }`.
+export const getMember = (id) => api.get(`/users/${id}`);
 export const getLeaders = () => api.get('/users/leaders');
 export const getUserStats = () => api.get('/users/stats');
 export const getAdminMembers = (params = '') => api.get(`/users/admin/list${params}`);
+export const getAdminMemberSummary = () => api.get('/users/admin/summary');
+export const getAdminMember = (id) => api.get(`/users/admin/${id}`);
+export const exportAdminMembers = (params = '') => api.download(`/users/admin/export${params}`);
 export const getAdminOverview = () => api.get('/admin/overview');
 export const updateUserRole = (id, role) => api.put(`/users/${id}/role`, { role });
 export const setUserStatus = (id, isActive) => api.patch(`/users/${id}/status`, { isActive });
+export const updateMemberDetails = (id, data) => api.patch(`/users/${id}`, data);
+export const updateMembership = (id, data) => api.patch(`/users/${id}/membership`, data);
 export const deactivateUser = (id) => api.delete(`/users/${id}`);
 
 /* ------------------------------------------------------------------ *

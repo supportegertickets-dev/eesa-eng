@@ -5,8 +5,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { createArticle, createProject } from '@/lib/api';
 import EventForm from '@/components/events/EventForm';
 import toast from 'react-hot-toast';
-import { HiCalendar, HiNewspaper, HiLightBulb, HiUserGroup } from 'react-icons/hi';
-import AccountsPanel from '@/components/admin/AccountsPanel';
+import { HiCalendar, HiNewspaper, HiLightBulb } from 'react-icons/hi';
 
 export default function ManagePage() {
   const { user } = useAuth();
@@ -30,7 +29,6 @@ export default function ManagePage() {
           { id: 'event', label: 'New Event', icon: HiCalendar },
           { id: 'news', label: 'New Article', icon: HiNewspaper },
           { id: 'project', label: 'New Project', icon: HiLightBulb },
-          { id: 'accounts', label: 'Member Accounts', icon: HiUserGroup },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -52,7 +50,6 @@ export default function ManagePage() {
       {activeTab === 'event' && <div className="max-w-3xl"><EventForm /></div>}
       {activeTab === 'news' && <NewsForm />}
       {activeTab === 'project' && <ProjectForm />}
-      {activeTab === 'accounts' && <AccountsPanel />}
     </div>
   );
 }

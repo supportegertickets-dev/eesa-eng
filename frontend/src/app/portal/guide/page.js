@@ -103,11 +103,12 @@ const sections = [
   {
     icon: HiUsers,
     title: '9. Connect with members',
-    description: 'Browse the EESA membership directory and find colleagues by department.',
+    description: 'Browse the EESA membership directory, find colleagues and see what they contribute.',
     steps: [
       'Open Members from the portal menu.',
-      'Use the department filters to narrow the directory.',
-      'Review member departments, year status, leadership roles, and biographies.'
+      'Search by name or use the department filters to narrow the directory.',
+      'Select a member to open their profile: bio, leadership role, projects and approved library uploads.',
+      'Contact details stay private. Only administrators can see email addresses, phone numbers and registration numbers.'
     ],
     link: ['/portal/members', 'View Members']
   },

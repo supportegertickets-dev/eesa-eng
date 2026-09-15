@@ -24,6 +24,12 @@ export const fromLocalInput = (value) => {
   return date ? date.toISOString() : '';
 };
 
+/** "4 Mar 2026". */
+export const formatDate = (value) => {
+  const date = toDate(value);
+  return date ? format(date, 'd MMM yyyy') : '';
+};
+
 export const formatDateTime = (value) => {
   const date = toDate(value);
   return date ? format(date, 'EEE d MMM yyyy, h:mm a') : '';

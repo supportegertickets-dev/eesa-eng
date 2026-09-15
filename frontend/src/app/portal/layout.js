@@ -11,7 +11,7 @@ import { SkeletonList } from '@/components/ui/Skeleton';
 import {
   HiHome, HiUser, HiCalendar, HiUsers, HiCog, HiLogout, HiCash, HiBookOpen,
   HiBell, HiPhotograph, HiClipboardList, HiStar, HiInformationCircle,
-  HiDotsHorizontal, HiX,
+  HiDotsHorizontal, HiX, HiUserGroup,
 } from 'react-icons/hi';
 
 // How often the unread badge re-checks. The count was previously fetched once
@@ -93,6 +93,7 @@ export default function PortalLayout({ children }) {
       items.push({ href: '/portal/admin', icon: HiCog, label: 'Admin Overview' });
     }
     if (POWER_ROLES.includes(user.role)) {
+      items.push({ href: '/portal/admin/members', icon: HiUserGroup, label: 'Manage Members' });
       items.push({ href: '/portal/manage', icon: HiCog, label: 'Manage' });
     }
 
@@ -100,11 +101,16 @@ export default function PortalLayout({ children }) {
   }, [user, unreadCount]);
 
   /**
-   * Highlight the current section. `/portal` must match exactly, or it would
-   * stay lit on every page beneath it.
+   * Highlight the current section: the most specific item containing this page,
+   * so Manage Members does not also light up Admin Overview. `/portal` must
+   * match exactly, or it would stay lit on every page beneath it.
    */
-  const isCurrent = (href) =>
-    href === '/portal' ? pathname === '/portal' : pathname === href || pathname.startsWith(`${href}/`);
+  const currentHref = useMemo(() => navItems
+    .map((item) => item.href)
+    .filter((href) => (href === '/portal' ? pathname === '/portal' : pathname === href || pathname.startsWith(`${href}/`)))
+    .sort((a, b) => b.length - a.length)[0], [navItems, pathname]);
+
+  const isCurrent = (href) => href === currentHref;
 
   if (loading) {
     return (

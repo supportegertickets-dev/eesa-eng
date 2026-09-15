@@ -8,7 +8,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import { HiBell, HiBookOpen, HiCalendar, HiCash, HiCheckCircle, HiClipboardList, HiDocumentText, HiMail, HiRefresh, HiUserGroup, HiUsers, HiArrowRight } from 'react-icons/hi';
 
 const metricCards = [
-  { key: 'activeMembers', label: 'Active members', icon: HiUsers, color: 'blue', href: '/portal/members' },
+  { key: 'activeMembers', label: 'Active members', icon: HiUsers, color: 'blue', href: '/portal/admin/members' },
   { key: 'pendingPayments', label: 'Pending payments', icon: HiCash, color: 'amber', href: '/portal/payments' },
   { key: 'pendingResources', label: 'Resources to review', icon: HiBookOpen, color: 'emerald', href: '/portal/library/review' },
   { key: 'unreadMessages', label: 'Unread messages', icon: HiMail, color: 'rose', href: '/portal/notifications' },
@@ -78,8 +78,8 @@ export default function AdminPage() {
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <ActivityPanel title="Recent members" icon={HiUserGroup} href="/portal/members">
-              {(data?.recent?.users || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div><p className="font-medium text-strong">{item.firstName} {item.lastName}</p><p className="text-xs text-subtle">{item.department || 'Department not set'} • {item.role}</p></div><time className="text-xs text-faint">{formatDate(item.createdAt)}</time></div>)}
+            <ActivityPanel title="Recent members" icon={HiUserGroup} href="/portal/admin/members">
+              {(data?.recent?.users || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div><Link href={`/portal/admin/members/${item._id}`} className="font-medium text-strong hover:text-primary-600 dark:hover:text-primary-300">{item.firstName} {item.lastName}</Link><p className="text-xs text-subtle">{item.department || 'Department not set'} • {item.role}</p></div><time className="text-xs text-faint">{formatDate(item.createdAt)}</time></div>)}
             </ActivityPanel>
             <ActivityPanel title="Payment activity" icon={HiCash} href="/portal/payments">
               {(data?.recent?.payments || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div><p className="font-medium text-strong">{item.user?.firstName} {item.user?.lastName}</p><p className="text-xs text-subtle">{item.type} • KSh {item.amount?.toLocaleString()}</p></div><span className={`text-xs font-medium capitalize ${item.status === 'verified' ? 'text-emerald-600 dark:text-emerald-300' : item.status === 'rejected' ? 'text-rose-600' : 'text-amber-600 dark:text-amber-300'}`}>{item.status}</span></div>)}
