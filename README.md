@@ -56,11 +56,12 @@ EESA2/
 - Dashboard with stats and upcoming events
 - Profile management
 - Elections: self-nomination with admin approval, secret ballot, automatic scheduling, results published when voting closes
-- Payments (M-Pesa STK Push, manual receipt upload)
+- Payments: M-Pesa STK Push for the configured registration and renewal fees, or a manual receipt upload for review
 - Library: folders by Year › Semester › Unit › Type, multi-file upload that reads each file to suggest where it belongs, in-app preview (PDF, Word, PowerPoint, Excel, images), review with uploader notifications, private file storage, and units managed from the portal
 - Gallery: albums with search, category filters and sorting; a masonry photo grid with a full-screen viewer, shareable links to albums and single photos, and downloads; office holders bulk-upload by drag and drop (photos are resized in the browser first), caption, reorder and choose a cover
 - Sponsors management
 - Notifications
+- Messages: the admin and chairperson read, reply to and delete messages sent from the contact page, with an unread badge in the portal menu
 - Member directory with search
 - Light, dark and system themes
 
@@ -128,6 +129,11 @@ MPESA_CONSUMER_SECRET=your_consumer_secret
 MPESA_SHORTCODE=your_shortcode
 MPESA_PASSKEY=your_passkey
 MPESA_CALLBACK_URL=http://localhost:5000/api/payments/mpesa/callback
+MPESA_ENV=sandbox          # or production for real payments
+
+# Membership fees in whole shillings; M-Pesa charges exactly these
+REGISTRATION_FEE=500
+RENEWAL_FEE=500
 ```
 
 **Frontend** — copy the template:
@@ -174,7 +180,7 @@ Open `http://localhost:3000` in your browser.
 
 ## Testing
 
-The backend has an API test suite covering authentication, authorisation and input safety. It runs against an in-memory MongoDB, so it never touches your real database.
+The backend has an API test suite covering authentication, authorisation, input safety, payments, and the other main features. It runs against an in-memory MongoDB, so it never touches your real database.
 
 ```bash
 cd backend
@@ -209,6 +215,9 @@ The script is idempotent, so running it twice is safe. Other changes to be aware
 - The member directory API now requires a signed-in member.
 - Only the `admin` role can change roles; the chairperson can still deactivate and restore ordinary members.
 - `JWT_SECRET` must be at least 32 characters when `NODE_ENV=production`.
+- M-Pesa payments charge `REGISTRATION_FEE` or `RENEWAL_FEE` instead of an amount the member types, and a fee that is not set cannot be paid by M-Pesa. Set both before deploying.
+- M-Pesa uses the Daraja sandbox unless `MPESA_ENV=production`. Set it, together with live Daraja credentials, to take real payments.
+- An unpublished news article can no longer be opened by its id, except by the admin and chairperson.
 
 ### Gallery albums
 
@@ -261,6 +270,9 @@ Gallery photos upload one request per file and have their own rate limit, `GALLE
 | `SMTP_PASS` | Render | Your Brevo SMTP password |
 | `SMTP_FROM` | Render | Your sender email |
 | `MPESA_*` | Render | Your Daraja API credentials |
+| `MPESA_ENV` | Render | `production` for real payments; defaults to `sandbox` |
+| `REGISTRATION_FEE` | Render | `500` (whole shillings) |
+| `RENEWAL_FEE` | Render | `500` (whole shillings) |
 | `NEXT_PUBLIC_API_URL` | Vercel | `https://your-backend.onrender.com/api` |
 | `NEXT_PUBLIC_SITE_URL` | Vercel | `https://eesa-en.vercel.app` |
 | `SEED_ADMIN_EMAIL` | Local, when seeding | Administrator's email |

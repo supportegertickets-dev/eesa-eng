@@ -352,7 +352,7 @@ export const deactivateUser = (id) => api.delete(`/users/${id}`);
  * ------------------------------------------------------------------ */
 export const sendContact = (data) => api.post('/contact', data);
 export const getContactMessages = (params = '') => api.get(`/contact${params}`);
-export const markContactRead = (id) => api.put(`/contact/${id}/read`, {});
+export const markContactRead = (id, isRead = true) => api.put(`/contact/${id}/read`, { isRead });
 export const deleteContactMessage = (id) => api.delete(`/contact/${id}`);
 
 /* ------------------------------------------------------------------ *
@@ -377,6 +377,7 @@ export const getElectionResults = (id) => api.get(`/elections/${id}/results`);
 /* ------------------------------------------------------------------ *
  * Payments
  * ------------------------------------------------------------------ */
+export const getPaymentFees = () => api.get('/payments/fees');
 export const submitPayment = (data) => api.post('/payments', data);
 export const getMyPayments = () => api.get('/payments/my');
 export const getAllPayments = (params = '') => api.get(`/payments${params}`);

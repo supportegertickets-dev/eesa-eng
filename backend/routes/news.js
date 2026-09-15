@@ -1,7 +1,7 @@
 const express = require('express');
-const { body } = require('express-validator');
+const { body, param } = require('express-validator');
 const News = require('../models/News');
-const { protect, adminOnly, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
+const { protect, optionalAuth, adminOnly, leadershipOnly, POWER_ROLES } = require('../middleware/auth');
 const { sendEmailToMembers, renderLayout, html } = require('../utils/email');
 
 const { validate } = require('../middleware/validate');
@@ -42,13 +42,21 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET /api/news/:id
-router.get('/:id', async (req, res) => {
+// GET /api/news/:id - published articles for everyone; drafts only for those who can edit them
+router.get('/:id', optionalAuth, [
+  param('id').isMongoId().withMessage('That article could not be found.'),
+  validate
+], async (req, res) => {
   try {
     const article = await News.findById(req.params.id)
       .populate('author', 'firstName lastName avatar');
 
-    if (!article) return res.status(404).json({ message: 'Article not found' });
+    // A draft answers exactly as a missing article does, so a guessed or leaked
+    // id reveals nothing before publication.
+    const canSeeDrafts = Boolean(req.user && POWER_ROLES.includes(req.user.role));
+    if (!article || (!article.isPublished && !canSeeDrafts)) {
+      return res.status(404).json({ message: 'Article not found' });
+    }
     res.json(article);
   } catch (error) {
     res.status(500).json({ message: 'Server error fetching article' });

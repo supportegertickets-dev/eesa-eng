@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
-import { getNotifications } from '@/lib/api';
+import { getContactMessages, getNotifications } from '@/lib/api';
 import { roleLabel, LEADERSHIP_ROLES, POWER_ROLES } from '@/lib/roles';
 import Avatar from '@/components/ui/Avatar';
 import { SkeletonList } from '@/components/ui/Skeleton';
 import {
   HiHome, HiUser, HiCalendar, HiUsers, HiCog, HiLogout, HiCash, HiBookOpen,
   HiBell, HiPhotograph, HiClipboardList, HiStar, HiInformationCircle,
-  HiDotsHorizontal, HiX, HiUserGroup,
+  HiDotsHorizontal, HiX, HiUserGroup, HiMail,
 } from 'react-icons/hi';
 
 // How often the unread badge re-checks. The count was previously fetched once
@@ -24,6 +24,7 @@ export default function PortalLayout({ children }) {
   const pathname = usePathname();
 
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const [mobileMore, setMobileMore] = useState(false);
 
   useEffect(() => {
@@ -35,8 +36,16 @@ export default function PortalLayout({ children }) {
 
   const refreshUnread = useCallback(async () => {
     if (!user) return;
-    try {
-      const data = await getNotifications();
+    // Administrators also get a badge for unread contact messages.
+    const [notifications, messages] = await Promise.allSettled([
+      getNotifications(),
+      POWER_ROLES.includes(user.role) ? getContactMessages('?status=unread&limit=1') : null,
+    ]);
+
+    // A failed poll should not interrupt the member; each badge simply keeps
+    // its previous value.
+    if (notifications.status === 'fulfilled') {
+      const data = notifications.value;
       // The API now returns the count directly; the fallback keeps this working
       // against an older backend.
       setUnreadCount(
@@ -44,9 +53,9 @@ export default function PortalLayout({ children }) {
           ? data.unreadCount
           : (data?.notifications || []).filter((n) => !n.readBy?.includes(user._id)).length
       );
-    } catch {
-      // A failed poll should not interrupt the member; the badge simply keeps
-      // its previous value.
+    }
+    if (messages.status === 'fulfilled' && typeof messages.value?.unread === 'number') {
+      setUnreadMessages(messages.value.unread);
     }
   }, [user]);
 
@@ -94,11 +103,12 @@ export default function PortalLayout({ children }) {
     }
     if (POWER_ROLES.includes(user.role)) {
       items.push({ href: '/portal/admin/members', icon: HiUserGroup, label: 'Manage Members' });
+      items.push({ href: '/portal/messages', icon: HiMail, label: 'Messages', badge: unreadMessages });
       items.push({ href: '/portal/manage', icon: HiCog, label: 'Manage' });
     }
 
     return items;
-  }, [user, unreadCount]);
+  }, [user, unreadCount, unreadMessages]);
 
   /**
    * Highlight the current section: the most specific item containing this page,

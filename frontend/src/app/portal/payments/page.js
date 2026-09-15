@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
-import { submitPayment, getMyPayments, getAllPayments, verifyPayment, getPaymentStats, deletePayment, initiateMpesaPayment, checkMpesaStatus } from '@/lib/api';
+import { submitPayment, getMyPayments, getAllPayments, verifyPayment, getPaymentStats, deletePayment, initiateMpesaPayment, checkMpesaStatus, getPaymentFees } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { HiCash, HiPlus, HiCheckCircle, HiXCircle, HiClock, HiEye, HiTrash } from 'react-icons/hi';
 import { format } from 'date-fns';
@@ -12,11 +12,20 @@ export default function PaymentsPage() {
   const [tab, setTab] = useState('my');
   const [payments, setPayments] = useState([]);
   const [stats, setStats] = useState(null);
+  const [fees, setFees] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const isAdmin = ['admin', 'chairperson'].includes(user?.role);
 
   useEffect(() => { loadPayments(); }, [tab]);
+
+  // The M-Pesa form charges these amounts, and reviewers compare manual
+  // submissions against them.
+  useEffect(() => {
+    getPaymentFees()
+      .then(setFees)
+      .catch(() => setFees({ registration: null, renewal: null, mpesa: false }));
+  }, []);
 
   const loadPayments = async () => {
     setLoading(true);
@@ -99,7 +108,7 @@ export default function PaymentsPage() {
         </div>
       )}
 
-      {showForm && <PaymentForm onSubmitted={() => { setShowForm(false); loadPayments(); }} onCancel={() => setShowForm(false)} />}
+      {showForm && <PaymentForm fees={fees} onSubmitted={() => { setShowForm(false); loadPayments(); }} onCancel={() => setShowForm(false)} />}
 
       {loading ? (
         <div className="flex justify-center py-12"><div className="w-8 h-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" /></div>
@@ -119,7 +128,10 @@ export default function PaymentsPage() {
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge(p.status)}`}>{p.status}</span>
                   </div>
                   {tab === 'all' && p.user && <p className="text-sm text-muted-fg">{p.user.firstName} {p.user.lastName} — {p.user.email}</p>}
-                  <p className="text-sm text-subtle">KES {p.amount} • {p.reference} {p.paymentMethod === 'mpesa' && <span className="inline-block bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300 text-xs px-1.5 py-0.5 rounded ml-1">M-Pesa</span>}</p>
+                  <p className="text-sm text-subtle">
+                    KES {p.amount} • {p.reference} {p.paymentMethod === 'mpesa' && <span className="inline-block bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300 text-xs px-1.5 py-0.5 rounded ml-1">M-Pesa</span>}
+                    {tab === 'all' && fees?.[p.type] && p.amount < fees[p.type] && <span className="badge-warning ml-1">Below the KES {fees[p.type]} fee</span>}
+                  </p>
                   {p.semester && <p className="text-xs text-faint">{p.semester} — {p.academicYear}</p>}
                   <p className="text-xs text-faint">{format(new Date(p.createdAt), 'MMM d, yyyy h:mm a')}</p>
                   {p.rejectionReason && <p className="text-xs text-red-500 dark:text-red-300 mt-1">Reason: {p.rejectionReason}</p>}
@@ -158,7 +170,7 @@ export default function PaymentsPage() {
   );
 }
 
-function PaymentForm({ onSubmitted, onCancel }) {
+function PaymentForm({ fees, onSubmitted, onCancel }) {
   const [method, setMethod] = useState('mpesa');
   const [form, setForm] = useState({ type: 'registration', amount: '', reference: '', semester: '', academicYear: '', notes: '', phone: '' });
   const [proof, setProof] = useState(null);
@@ -167,16 +179,31 @@ function PaymentForm({ onSubmitted, onCancel }) {
   const [checkoutId, setCheckoutId] = useState(null);
   const pollRef = useRef(null);
 
+  // M-Pesa always charges the configured fee; the server ignores any other amount.
+  const fee = fees?.[form.type] || null;
+  const mpesaReady = Boolean(fees?.mpesa && fee);
+
   useEffect(() => { return () => { if (pollRef.current) clearInterval(pollRef.current); }; }, []);
+
+  // Suggest the fee for a manual submission once it is known, without
+  // overwriting an amount the member has already entered.
+  useEffect(() => {
+    if (fee) setForm((current) => (current.amount ? current : { ...current, amount: String(fee) }));
+  }, [fee]);
+
+  const setType = (type) => setForm((current) => ({
+    ...current,
+    type,
+    amount: fees?.[type] ? String(fees[type]) : current.amount,
+  }));
 
   const handleMpesa = async (e) => {
     e.preventDefault();
-    if (!form.phone || !form.amount) return toast.error('Phone and amount are required');
+    if (!form.phone) return toast.error('Phone number is required');
     setSubmitting(true);
     try {
       const res = await initiateMpesaPayment({
         phone: form.phone,
-        amount: form.amount,
         type: form.type,
         semester: form.semester,
         academicYear: form.academicYear,
@@ -265,14 +292,16 @@ function PaymentForm({ onSubmitted, onCancel }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-body mb-1">Type</label>
-                <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="input-field">
+                <select value={form.type} onChange={e => setType(e.target.value)} className="input-field">
                   <option value="registration">Registration</option>
                   <option value="renewal">Renewal</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-body mb-1">Amount (KES)</label>
-                <input type="number" required value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} className="input-field" placeholder="e.g., 500" />
+                <span className="block text-sm font-medium text-body mb-1">Amount (KES)</span>
+                <p className="input-field bg-muted tabular-nums" aria-live="polite">
+                  {fee ? fee.toLocaleString() : fees ? 'Not set' : 'Loading…'}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-body mb-1">M-Pesa Phone Number</label>
@@ -286,13 +315,21 @@ function PaymentForm({ onSubmitted, onCancel }) {
                 <label className="block text-sm font-medium text-body mb-1">Academic Year</label>
                 <input value={form.academicYear} onChange={e => setForm({...form, academicYear: e.target.value})} className="input-field" placeholder="e.g., 2024/2025" />
               </div>
+              {fees && !mpesaReady && (
+                <p className="sm:col-span-2 text-sm text-warning" role="status">
+                  {fees.mpesa
+                    ? `The ${form.type} fee has not been set up yet, so it cannot be paid by M-Pesa.`
+                    : 'M-Pesa payments are not available right now.'}
+                  {' '}Use Manual Upload instead.
+                </p>
+              )}
             </div>
           )}
           {!mpesaStatus && (
             <div className="flex gap-3 mt-4">
-              <button type="submit" disabled={submitting} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2 transition">
+              <button type="submit" disabled={submitting || !mpesaReady} className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex items-center gap-2 transition">
                 {submitting && <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent" />}
-                Pay with M-Pesa
+                {fee ? `Pay KES ${fee.toLocaleString()} with M-Pesa` : 'Pay with M-Pesa'}
               </button>
               <button type="button" onClick={onCancel} className="px-4 py-2 text-sm text-muted-fg hover:text-strong">Cancel</button>
             </div>
@@ -303,7 +340,7 @@ function PaymentForm({ onSubmitted, onCancel }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-body mb-1">Type</label>
-              <select value={form.type} onChange={e => setForm({...form, type: e.target.value})} className="input-field">
+              <select value={form.type} onChange={e => setType(e.target.value)} className="input-field">
                 <option value="registration">Registration</option>
                 <option value="renewal">Renewal</option>
               </select>

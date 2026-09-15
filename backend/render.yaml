@@ -44,3 +44,9 @@ services:
         sync: false
       - key: MPESA_CALLBACK_URL
         sync: false
+      - key: MPESA_ENV
+        sync: false
+      - key: REGISTRATION_FEE
+        sync: false
+      - key: RENEWAL_FEE
+        sync: false

@@ -10,14 +10,53 @@ const { validate } = require('../middleware/validate');
 
 const router = express.Router();
 
+const PAYMENT_TYPES = ['registration', 'renewal'];
+
+// ─── Fees ───────────────────────────────────────────────────────────
+
+const FEE_SETTINGS = { registration: 'REGISTRATION_FEE', renewal: 'RENEWAL_FEE' };
+
+/**
+ * The fee for a payment type in whole shillings, or null when it is not set.
+ *
+ * M-Pesa payments are verified automatically, so the amount charged has to come
+ * from the server. It used to be whatever the browser sent, which let a member
+ * pay KES 1 for a full membership term.
+ */
+const feeFor = (type) => {
+  const fee = Number(process.env[FEE_SETTINGS[type]]);
+  return Number.isInteger(fee) && fee > 0 ? fee : null;
+};
+
 // ─── M-Pesa helpers ─────────────────────────────────────────────────
+
+const MPESA_HOSTS = {
+  sandbox: 'https://sandbox.safaricom.co.ke',
+  production: 'https://api.safaricom.co.ke'
+};
+
+const MPESA_SETTINGS = ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_SHORTCODE', 'MPESA_PASSKEY', 'MPESA_CALLBACK_URL'];
+
+/**
+ * The Daraja host for MPESA_ENV. Unset means the sandbox. Any other value is
+ * treated as a mistake rather than quietly sending live payments to the sandbox.
+ */
+const mpesaHost = () => MPESA_HOSTS[process.env.MPESA_ENV || 'sandbox'] || null;
+
+const mpesaConfigured = () => Boolean(mpesaHost()) && MPESA_SETTINGS.every((key) => process.env[key]);
+
 const getMpesaToken = async () => {
   const auth = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString('base64');
   const res = await fetch(
-    'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
+    `${mpesaHost()}/oauth/v1/generate?grant_type=client_credentials`,
     { headers: { Authorization: `Basic ${auth}` } }
   );
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
+  // Credentials for the wrong environment fail here; say so instead of sending
+  // the STK request with an undefined token.
+  if (!res.ok || !data.access_token) {
+    throw new Error(`M-Pesa authentication failed with status ${res.status}`);
+  }
   return data.access_token;
 };
 
@@ -26,22 +65,42 @@ const formatPhone = (phone) => {
   return p;
 };
 
+// GET /api/payments/fees - the amounts members pay, and whether M-Pesa is available
+router.get('/fees', protect, (req, res) => {
+  res.json({
+    registration: feeFor('registration'),
+    renewal: feeFor('renewal'),
+    mpesa: mpesaConfigured()
+  });
+});
+
 // POST /api/payments/mpesa/stkpush - initiate M-Pesa STK Push
 router.post('/mpesa/stkpush', protect, [
   body('phone').trim().notEmpty().withMessage('Phone number is required'),
-  body('amount').isNumeric().withMessage('Amount is required'),
-  body('type').isIn(['registration', 'renewal']).withMessage('Invalid payment type'),
+  body('type').isIn(PAYMENT_TYPES).withMessage('Invalid payment type'),
   body('semester').optional().trim(),
   body('academicYear').optional().trim(),
   validate
 ], async (req, res) => {
   try {
-    const { phone, amount, type, semester, academicYear } = req.body;
+    // Any amount in the request is ignored; the member pays the configured fee.
+    const { phone, type, semester, academicYear } = req.body;
+
+    if (!mpesaConfigured()) {
+      if (!mpesaHost()) console.error(`MPESA_ENV must be "sandbox" or "production", not "${process.env.MPESA_ENV}".`);
+      return res.status(503).json({ message: 'M-Pesa payments are not available right now. Please submit your payment manually.' });
+    }
+
+    const amount = feeFor(type);
+    if (!amount) {
+      return res.status(503).json({ message: `The ${type} fee has not been set up yet, so it cannot be paid by M-Pesa. Please contact the treasurer.` });
+    }
+
     const token = await getMpesaToken();
     const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
     const password = Buffer.from(`${process.env.MPESA_SHORTCODE}${process.env.MPESA_PASSKEY}${timestamp}`).toString('base64');
 
-    const stkRes = await fetch('https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest', {
+    const stkRes = await fetch(`${mpesaHost()}/mpesa/stkpush/v1/processrequest`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
@@ -52,7 +111,7 @@ router.post('/mpesa/stkpush', protect, [
         Password: password,
         Timestamp: timestamp,
         TransactionType: 'CustomerPayBillOnline',
-        Amount: Math.round(amount),
+        Amount: amount,
         PartyA: formatPhone(phone),
         PartyB: process.env.MPESA_SHORTCODE,
         PhoneNumber: formatPhone(phone),
@@ -72,7 +131,7 @@ router.post('/mpesa/stkpush', protect, [
     const payment = await Payment.create({
       user: req.user._id,
       type,
-      amount: Math.round(amount),
+      amount,
       paymentMethod: 'mpesa',
       mpesaCheckoutRequestID: stkData.CheckoutRequestID,
       mpesaMerchantRequestID: stkData.MerchantRequestID,
@@ -86,6 +145,7 @@ router.post('/mpesa/stkpush', protect, [
       message: 'STK Push sent. Check your phone to complete payment.',
       checkoutRequestID: stkData.CheckoutRequestID,
       paymentId: payment._id,
+      amount,
     });
   } catch (error) {
     console.error('M-Pesa STK Push error:', error);
@@ -160,7 +220,7 @@ router.get('/mpesa/status/:checkoutRequestId', protect, async (req, res) => {
 
 // POST /api/payments - submit payment
 router.post('/', protect, uploadImage.single('proofScreenshot'), [
-  body('type').isIn(['registration', 'renewal']).withMessage('Invalid payment type'),
+  body('type').isIn(PAYMENT_TYPES).withMessage('Invalid payment type'),
   body('amount').isFloat({ min: 1, max: 1000000 }).withMessage('Enter a valid amount between KES 1 and 1,000,000').toFloat(),
   body('reference').trim().notEmpty().withMessage('Payment reference is required')
     .isLength({ max: 60 }).withMessage('Payment reference is too long'),

@@ -1,5 +1,5 @@
 const express = require('express');
-const { body } = require('express-validator');
+const { body, param, query } = require('express-validator');
 const Contact = require('../models/Contact');
 const { protect, adminOnly } = require('../middleware/auth');
 const { createLimiter } = require('../utils/rateLimit');
@@ -13,6 +13,10 @@ const contactLimiter = createLimiter({
   max: 5,
   message: 'Too many submissions. Please try again in a few minutes.'
 });
+
+const READ_FILTERS = { unread: { isRead: false }, read: { isRead: true } };
+
+const idParam = param('id').isMongoId().withMessage('That message could not be found.');
 
 // POST /api/contact - Public: submit contact form
 router.post('/', contactLimiter, [
@@ -32,30 +36,41 @@ router.post('/', contactLimiter, [
   }
 });
 
-// GET /api/contact - Admin: view messages
-router.get('/', protect, adminOnly, async (req, res) => {
+// GET /api/contact - Admin: view messages, optionally only unread or read ones
+router.get('/', protect, adminOnly, [
+  query('status').optional({ values: 'falsy' }).isIn(Object.keys(READ_FILTERS)).withMessage('Choose unread or read messages.'),
+  validate
+], async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(parseInt(req.query.limit) || 20, 50);
     const skip = (page - 1) * limit;
+    const filter = READ_FILTERS[req.query.status] || {};
 
-    const [messages, total] = await Promise.all([
-      Contact.find().sort({ createdAt: -1 }).skip(skip).limit(limit),
-      Contact.countDocuments()
+    // The unread count ignores the filter, so the inbox badge stays right
+    // whichever view is open.
+    const [messages, total, unread] = await Promise.all([
+      Contact.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Contact.countDocuments(filter),
+      Contact.countDocuments({ isRead: false })
     ]);
 
-    res.json({ messages, page, totalPages: Math.ceil(total / limit), total });
+    res.json({ messages, page, totalPages: Math.ceil(total / limit), total, unread });
   } catch (error) {
     res.status(500).json({ message: 'Server error fetching messages' });
   }
 });
 
-// PUT /api/contact/:id/read - Admin: mark as read
-router.put('/:id/read', protect, adminOnly, async (req, res) => {
+// PUT /api/contact/:id/read - Admin: mark as read, or as unread again with { isRead: false }
+router.put('/:id/read', protect, adminOnly, [
+  idParam,
+  body('isRead').optional().isBoolean().withMessage('isRead must be true or false.').toBoolean(),
+  validate
+], async (req, res) => {
   try {
     const message = await Contact.findByIdAndUpdate(
       req.params.id,
-      { isRead: true },
+      { isRead: req.body.isRead !== false },
       { new: true }
     );
     if (!message) return res.status(404).json({ message: 'Message not found' });
@@ -66,7 +81,7 @@ router.put('/:id/read', protect, adminOnly, async (req, res) => {
 });
 
 // DELETE /api/contact/:id - Admin: delete message
-router.delete('/:id', protect, adminOnly, async (req, res) => {
+router.delete('/:id', protect, adminOnly, [idParam, validate], async (req, res) => {
   try {
     const message = await Contact.findByIdAndDelete(req.params.id);
     if (!message) return res.status(404).json({ message: 'Message not found' });
