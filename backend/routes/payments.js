@@ -5,6 +5,9 @@ const User = require('../models/User');
 const { protect, adminOnly } = require('../middleware/auth');
 const { uploadImage } = require('../middleware/upload');
 const cloudinary = require('../config/cloudinary');
+const { mpesaHost, mpesaConfigured, formatPhone, requestStkPush, receiptFrom } = require('../utils/mpesa');
+const { applyOrderMpesaResult } = require('../utils/merchandise');
+const { membershipActivatedNotice } = require('../utils/membership');
 
 const { validate } = require('../middleware/validate');
 
@@ -26,43 +29,6 @@ const FEE_SETTINGS = { registration: 'REGISTRATION_FEE', renewal: 'RENEWAL_FEE' 
 const feeFor = (type) => {
   const fee = Number(process.env[FEE_SETTINGS[type]]);
   return Number.isInteger(fee) && fee > 0 ? fee : null;
-};
-
-// ─── M-Pesa helpers ─────────────────────────────────────────────────
-
-const MPESA_HOSTS = {
-  sandbox: 'https://sandbox.safaricom.co.ke',
-  production: 'https://api.safaricom.co.ke'
-};
-
-const MPESA_SETTINGS = ['MPESA_CONSUMER_KEY', 'MPESA_CONSUMER_SECRET', 'MPESA_SHORTCODE', 'MPESA_PASSKEY', 'MPESA_CALLBACK_URL'];
-
-/**
- * The Daraja host for MPESA_ENV. Unset means the sandbox. Any other value is
- * treated as a mistake rather than quietly sending live payments to the sandbox.
- */
-const mpesaHost = () => MPESA_HOSTS[process.env.MPESA_ENV || 'sandbox'] || null;
-
-const mpesaConfigured = () => Boolean(mpesaHost()) && MPESA_SETTINGS.every((key) => process.env[key]);
-
-const getMpesaToken = async () => {
-  const auth = Buffer.from(`${process.env.MPESA_CONSUMER_KEY}:${process.env.MPESA_CONSUMER_SECRET}`).toString('base64');
-  const res = await fetch(
-    `${mpesaHost()}/oauth/v1/generate?grant_type=client_credentials`,
-    { headers: { Authorization: `Basic ${auth}` } }
-  );
-  const data = await res.json().catch(() => ({}));
-  // Credentials for the wrong environment fail here; say so instead of sending
-  // the STK request with an undefined token.
-  if (!res.ok || !data.access_token) {
-    throw new Error(`M-Pesa authentication failed with status ${res.status}`);
-  }
-  return data.access_token;
-};
-
-const formatPhone = (phone) => {
-  let p = phone.replace(/\s+/g, '').replace(/^0/, '254').replace(/^\+/, '');
-  return p;
 };
 
 // GET /api/payments/fees - the amounts members pay, and whether M-Pesa is available
@@ -96,35 +62,17 @@ router.post('/mpesa/stkpush', protect, [
       return res.status(503).json({ message: `The ${type} fee has not been set up yet, so it cannot be paid by M-Pesa. Please contact the treasurer.` });
     }
 
-    const token = await getMpesaToken();
-    const timestamp = new Date().toISOString().replace(/[-T:.Z]/g, '').slice(0, 14);
-    const password = Buffer.from(`${process.env.MPESA_SHORTCODE}${process.env.MPESA_PASSKEY}${timestamp}`).toString('base64');
-
-    const stkRes = await fetch(`${mpesaHost()}/mpesa/stkpush/v1/processrequest`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        BusinessShortCode: process.env.MPESA_SHORTCODE,
-        Password: password,
-        Timestamp: timestamp,
-        TransactionType: 'CustomerPayBillOnline',
-        Amount: amount,
-        PartyA: formatPhone(phone),
-        PartyB: process.env.MPESA_SHORTCODE,
-        PhoneNumber: formatPhone(phone),
-        CallBackURL: process.env.MPESA_CALLBACK_URL,
-        AccountReference: `EESA-${type.toUpperCase()}`,
-        TransactionDesc: `EESA ${type} payment`,
-      }),
-    });
-
-    const stkData = await stkRes.json();
-
-    if (stkData.ResponseCode !== '0') {
-      return res.status(400).json({ message: stkData.errorMessage || stkData.ResponseDescription || 'STK Push failed' });
+    let stkData;
+    try {
+      stkData = await requestStkPush({
+        phone,
+        amount,
+        accountReference: `EESA-${type.toUpperCase()}`,
+        description: `EESA ${type} payment`
+      });
+    } catch (error) {
+      if (error.rejectedByMpesa) return res.status(400).json({ message: error.message });
+      throw error;
     }
 
     // Create pending payment
@@ -161,10 +109,14 @@ router.post('/mpesa/callback', async (req, res) => {
 
     if (!stkCallback) return res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
 
-    const { CheckoutRequestID, ResultCode, CallbackMetadata } = stkCallback;
+    const { CheckoutRequestID, ResultCode } = stkCallback;
 
     const payment = await Payment.findOne({ mpesaCheckoutRequestID: CheckoutRequestID });
-    if (!payment) return res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
+    // Shop orders are paid through the same shortcode and callback URL.
+    if (!payment) {
+      await applyOrderMpesaResult(stkCallback);
+      return res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
+    }
 
     // Safaricom retries callbacks until it receives an acknowledgement, so the
     // same result can arrive several times. Acknowledge repeats without
@@ -176,8 +128,7 @@ router.post('/mpesa/callback', async (req, res) => {
 
     if (ResultCode === 0) {
       // Successful payment
-      const meta = CallbackMetadata?.Item || [];
-      const receipt = meta.find(i => i.Name === 'MpesaReceiptNumber')?.Value;
+      const receipt = receiptFrom(stkCallback);
 
       payment.status = 'verified';
       payment.mpesaReceiptNumber = receipt || '';
@@ -332,11 +283,12 @@ router.put('/:id/verify', protect, adminOnly, [
 
     // If verified, update user's membership status
     if (status === 'verified') {
-      await User.findByIdAndUpdate(payment.user, {
+      const member = await User.findByIdAndUpdate(payment.user, {
         membershipPaid: true,
         membershipExpiry: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000), // ~6 months
         lastPaymentDate: new Date()
-      });
+      }, { new: true });
+      if (member) await membershipActivatedNotice(member, req.user._id);
     }
 
     const populated = await Payment.findById(payment._id)

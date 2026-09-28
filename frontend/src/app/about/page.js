@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { HiAcademicCap, HiUserGroup, HiLightBulb, HiCog, HiGlobe, HiUser } from 'react-icons/hi';
+import { HiAcademicCap, HiUserGroup, HiLightBulb, HiCog, HiGlobe, HiUser, HiScale, HiHand } from 'react-icons/hi';
 import DepartmentCard from '@/components/DepartmentCard';
 import { getLeaders } from '@/lib/api';
 import { DEPARTMENT_PROFILES, departmentHref } from '@/lib/departments';
@@ -161,6 +161,28 @@ export default function AboutPage() {
           </ul>
           <div className="text-center mt-10">
             <Link href="/departments" className="btn-outline">View all departments</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Governance and partnership */}
+      <section className="py-20 bg-surface">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="card flex flex-col">
+            <HiScale className="w-10 h-10 text-primary-500 dark:text-primary-300" />
+            <h2 className="font-heading text-2xl font-bold text-strong mt-4">Our Constitution</h2>
+            <p className="text-muted-fg mt-2 flex-1">
+              How EESA is run: who can join, the duties of office bearers, how elections work and how funds are managed.
+            </p>
+            <Link href="/constitution" className="btn-outline mt-6 self-start">Read the constitution</Link>
+          </div>
+          <div className="card flex flex-col">
+            <HiHand className="w-10 h-10 text-accent-600" />
+            <h2 className="font-heading text-2xl font-bold text-strong mt-4">Partner with Us</h2>
+            <p className="text-muted-fg mt-2 flex-1">
+              Sponsor an event, offer attachments, mentor students or fund a project with Egerton&apos;s engineering students.
+            </p>
+            <Link href="/partner" className="btn-outline mt-6 self-start">Become a partner</Link>
           </div>
         </div>
       </section>

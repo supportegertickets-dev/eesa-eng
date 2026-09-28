@@ -15,6 +15,7 @@ const { buildSearchRegex } = require('../utils/sanitize');
 const { toCsv } = require('../utils/csv');
 const { ALL_ROLES, LEADERSHIP_ROLES, ROLES, labelFor } = require('../utils/roles');
 const { DEPARTMENTS } = require('../models/User');
+const { membershipClause, membershipActivatedNotice } = require('../utils/membership');
 
 const router = express.Router();
 
@@ -22,7 +23,7 @@ const router = express.Router();
 // and registration number.
 const DIRECTORY_FIELDS = 'firstName lastName username department yearOfStudy academicStatus role avatar bio createdAt';
 
-const ADMIN_LIST_FIELDS = 'firstName lastName email username regNumber phone department yearOfStudy academicStatus role avatar isActive membershipPaid membershipExpiry lastLoginAt createdAt';
+const ADMIN_LIST_FIELDS = 'firstName lastName email username regNumber memberNumber phone department yearOfStudy academicStatus role avatar isActive membershipPaid membershipExpiry lastPaymentDate lastLoginAt createdAt';
 
 // Matches the term applied when a submitted payment is verified.
 const MEMBERSHIP_TERM_MS = 180 * 24 * 60 * 60 * 1000;
@@ -117,17 +118,6 @@ const ADMIN_SORTS = {
   lastLogin: { lastLoginAt: -1 }
 };
 
-/**
- * Verifying a payment sets `membershipPaid` and an expiry, but nothing clears
- * the flag when the expiry passes, so the expiry decides whether it is current.
- * Accounts marked paid with no expiry predate expiries and count as current.
- */
-const membershipClause = (state, now = new Date()) => {
-  if (state === 'current') return { membershipPaid: true, $or: [{ membershipExpiry: { $gt: now } }, { membershipExpiry: null }] };
-  if (state === 'expired') return { membershipPaid: true, membershipExpiry: { $lte: now } };
-  if (state === 'none') return { membershipPaid: { $ne: true } };
-  return null;
-};
 
 const membershipLabel = (user, now = new Date()) => {
   if (!user.membershipPaid) return 'Not paid';
@@ -159,7 +149,7 @@ const buildAdminFilter = (q) => {
 
   const search = buildSearchRegex(q.search);
   if (search) {
-    clauses.push({ $or: [{ firstName: search }, { lastName: search }, { email: search }, { username: search }, { regNumber: search }] });
+    clauses.push({ $or: [{ firstName: search }, { lastName: search }, { email: search }, { username: search }, { regNumber: search }, { memberNumber: search }] });
   }
 
   return clauses.length ? { $and: clauses } : {};
@@ -221,6 +211,7 @@ router.get('/admin/export', protect, adminOnly, [...adminListRules, validate], a
     { label: 'Email', value: (u) => u.email },
     { label: 'Phone', value: (u) => u.phone },
     { label: 'Registration number', value: (u) => u.regNumber },
+    { label: 'Member number', value: (u) => u.memberNumber },
     { label: 'Department', value: (u) => u.department },
     { label: 'Year of study', value: (u) => (u.academicStatus === 'alumni' ? 'Alumni' : u.yearOfStudy) },
     { label: 'Role', value: (u) => labelFor(u.role) },
@@ -499,6 +490,7 @@ router.patch('/:id/membership', protect, adminOnly, [
   }
 
   await target.save({ validateBeforeSave: false });
+  if (membershipPaid) await membershipActivatedNotice(target, req.user._id);
 
   res.json({
     message: membershipPaid

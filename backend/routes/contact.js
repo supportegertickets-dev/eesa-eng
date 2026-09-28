@@ -15,6 +15,7 @@ const contactLimiter = createLimiter({
 });
 
 const READ_FILTERS = { unread: { isRead: false }, read: { isRead: true } };
+const CATEGORIES = ['general', 'partnership'];
 
 const idParam = param('id').isMongoId().withMessage('That message could not be found.');
 
@@ -25,11 +26,29 @@ router.post('/', contactLimiter, [
   body('subject').trim().notEmpty().withMessage('Subject is required'),
   body('message').trim().notEmpty().withMessage('Message is required')
     .isLength({ max: 3000 }).withMessage('Message too long'),
+  body('category').optional({ values: 'falsy' }).isIn(CATEGORIES).withMessage('Unknown message type'),
+  body('organization').if(body('category').equals('partnership'))
+    .trim().notEmpty().withMessage('Organisation name is required')
+    .isLength({ max: 150 }).withMessage('Organisation name is too long'),
+  body('phone').optional({ values: 'falsy' }).trim().isLength({ max: 30 }).withMessage('Phone number is too long'),
+  body('interest').optional({ values: 'falsy' }).trim().isLength({ max: 60 }).withMessage('Partnership type is too long'),
   validate
 ], async (req, res) => {
   try {
     const { name, email, subject, message } = req.body;
-    await Contact.create({ name, email, subject, message });
+    const partnership = req.body.category === 'partnership';
+    await Contact.create({
+      name,
+      email,
+      subject,
+      message,
+      category: partnership ? 'partnership' : 'general',
+      ...(partnership && {
+        organization: req.body.organization,
+        phone: req.body.phone || undefined,
+        interest: req.body.interest || undefined
+      })
+    });
     res.status(201).json({ message: 'Message sent successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error sending message' });
@@ -39,23 +58,28 @@ router.post('/', contactLimiter, [
 // GET /api/contact - Admin: view messages, optionally only unread or read ones
 router.get('/', protect, adminOnly, [
   query('status').optional({ values: 'falsy' }).isIn(Object.keys(READ_FILTERS)).withMessage('Choose unread or read messages.'),
+  query('category').optional({ values: 'falsy' }).isIn(CATEGORIES).withMessage('Choose general or partnership messages.'),
   validate
 ], async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.min(parseInt(req.query.limit) || 20, 50);
     const skip = (page - 1) * limit;
-    const filter = READ_FILTERS[req.query.status] || {};
+    const filter = { ...(READ_FILTERS[req.query.status] || {}) };
+    // Messages sent before categories existed have none and are general.
+    if (req.query.category === 'partnership') filter.category = 'partnership';
+    else if (req.query.category === 'general') filter.category = { $ne: 'partnership' };
 
-    // The unread count ignores the filter, so the inbox badge stays right
+    // The unread counts ignore the filter, so the inbox badge stays right
     // whichever view is open.
-    const [messages, total, unread] = await Promise.all([
+    const [messages, total, unread, unreadPartnerships] = await Promise.all([
       Contact.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
       Contact.countDocuments(filter),
-      Contact.countDocuments({ isRead: false })
+      Contact.countDocuments({ isRead: false }),
+      Contact.countDocuments({ isRead: false, category: 'partnership' })
     ]);
 
-    res.json({ messages, page, totalPages: Math.ceil(total / limit), total, unread });
+    res.json({ messages, page, totalPages: Math.ceil(total / limit), total, unread, unreadPartnerships });
   } catch (error) {
     res.status(500).json({ message: 'Server error fetching messages' });
   }

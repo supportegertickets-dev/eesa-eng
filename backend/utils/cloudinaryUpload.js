@@ -13,7 +13,11 @@ const PRESETS = {
   photo: [{ width: 1920, height: 1920, crop: 'limit', quality: 'auto' }],
   // Candidate portraits: a consistent 3:4 frame centred on the face, so ballot
   // cards line up regardless of what was uploaded.
-  portrait: [{ width: 600, height: 800, crop: 'fill', gravity: 'face', quality: 'auto' }]
+  portrait: [{ width: 600, height: 800, crop: 'fill', gravity: 'face', quality: 'auto' }],
+  // Membership card photos: the 35 x 45 mm passport ratio, centred on the face.
+  passport: [{ width: 420, height: 540, crop: 'fill', gravity: 'face', quality: 'auto' }],
+  // Shop photos: capped, not cropped; the shop crops to a square when it displays them.
+  product: [{ width: 1200, height: 1200, crop: 'limit', quality: 'auto' }]
 };
 
 /**

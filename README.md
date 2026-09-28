@@ -50,6 +50,10 @@ EESA2/
 - Events listing and detail pages with cover images, photo galleries and RSVP
 - Project showcase
 - News and articles
+- Official merchandise shop: products by category with sizes, colours and stock, a cart, and checkout for signed-in members
+- Constitution: the current version as searchable articles with a contents list, earlier versions, download and print
+- Partner with us: ways to partner, partnership levels, current sponsors and an enquiry form
+- Membership card verification: scan a card's QR code or enter its member number
 - Contact form
 
 ### Member Portal
@@ -57,11 +61,15 @@ EESA2/
 - Profile management
 - Elections: self-nomination with admin approval, secret ballot, automatic scheduling, results published when voting closes
 - Payments: M-Pesa STK Push for the configured registration and renewal fees, or a manual receipt upload for review
+- Membership card: paid-up members upload a passport photo, an administrator approves it, and the member downloads or prints a card with a QR code; administrators can mark members paid, add photos, and print members' cards one at a time or in bulk
+- My Orders: pay for shop orders by M-Pesa prompt or with an M-Pesa code, and follow them until collection
+- Merchandise (treasurer, chairperson, admin): manage products and stock, check payments, and mark orders ready and collected
+- Constitution (admin, chairperson): upload the document, check the articles read from it, and publish
 - Library: folders by Year › Semester › Unit › Type, multi-file upload that reads each file to suggest where it belongs, in-app preview (PDF, Word, PowerPoint, Excel, images), review with uploader notifications, private file storage, and units managed from the portal
 - Gallery: albums with search, category filters and sorting; a masonry photo grid with a full-screen viewer, shareable links to albums and single photos, and downloads; office holders bulk-upload by drag and drop (photos are resized in the browser first), caption, reorder and choose a cover
 - Sponsors management
 - Notifications
-- Messages: the admin and chairperson read, reply to and delete messages sent from the contact page, with an unread badge in the portal menu
+- Messages: the admin and chairperson read, reply to and delete messages sent from the contact page and partnership enquiries, with an unread badge in the portal menu
 - Member directory with search
 - Light, dark and system themes
 
@@ -71,6 +79,7 @@ EESA2/
 | `member`   | View content, RSVP, update profile, vote, upload payments  |
 | `leader`   | Create/edit events, news, projects, manage elections        |
 | `admin`    | Full control: manage users, roles, all content, approvals   |
+| `treasurer`| Runs the merchandise shop, together with the admin and chairperson |
 
 ---
 
@@ -134,6 +143,11 @@ MPESA_ENV=sandbox          # or production for real payments
 # Membership fees in whole shillings; M-Pesa charges exactly these
 REGISTRATION_FEE=500
 RENEWAL_FEE=500
+
+# Merchandise shop (optional)
+SHOP_PICKUP_LOCATION=the EESA office
+SHOP_PAYMENT_INSTRUCTIONS=         # e.g. Paybill 123456, account: your order number
+ORDER_HOLD_HOURS=72                # unpaid orders are cancelled after this
 ```
 
 **Frontend** — copy the template:
@@ -197,6 +211,40 @@ npm test
 6. Results, including turnout, percentages, winners and ties, are hidden from everyone until voting closes.
 
 Elections created before this version keep their candidates and vote counts.
+
+## How membership cards work
+
+1. A member pays the semester subscription (registration for new members, renewal after that). Cards are only issued while the subscription is current.
+2. Once the payment is verified, the member uploads a passport photo from Portal › Membership Card.
+3. The admin or chairperson approves or rejects it from the Photo reviews tab. Rejections need a reason, and the member is notified either way.
+4. On approval the member gets a member number such as `EESA-26-7K3M9Q`. Numbers are random, so the public lookup cannot be used to list members, and they never change, so a printed card works again after renewal.
+5. The card is drawn in the browser and can be downloaded as a PNG or printed at bank-card size (85.6 × 54 mm), or saved as a PDF from the print dialog.
+6. Its QR code opens `/verify/<member number>`, which shows the name, photo, department and whether the membership is active or expired. A deactivated member's card shows as withdrawn with no details. Email, phone and registration number are never shown.
+
+Administrators (admin and chairperson) can also produce cards themselves, from Portal › Membership Card › Members' cards or from a member's page in Manage Members:
+
+- See every active member's card status: ready to print, needs a photo, photo waiting for review, or not paid up.
+- Mark an unpaid member as paid, for example after a cash payment at a meeting, optionally recording the payment. The same **Mark paid** action is in the Manage Members list. Nobody can change their own membership.
+- Add a member's passport photo; it is approved at once and the card is issued if the membership is current.
+- Open, download or print any member's card, or select several and print them on A4 (eight to a page, with cutting guides) or download them as a ZIP.
+
+Members are notified when their membership becomes active, whether an administrator marks it paid or verifies a submitted payment, with what their card still needs.
+
+## How the shop works
+
+1. The treasurer, chairperson or admin adds products in Portal › Merchandise, with photos, sizes, colours and optional stock.
+2. Anyone can browse `/merchandise`; ordering needs an account. The server prices every order from the catalogue, and placing it holds the stock.
+3. The member pays on the order's page: an M-Pesa prompt to their phone, or an M-Pesa code for money sent another way (`SHOP_PAYMENT_INSTRUCTIONS` says where to send it).
+4. M-Pesa payments confirm automatically through the existing callback URL (no new Daraja setup). Codes wait under Payments to check.
+5. The treasurer marks the order ready, with optional collection details, and the member is notified. Then it is marked collected.
+6. Unpaid orders are cancelled after `ORDER_HOLD_HOURS` and their stock is returned. Members can cancel an unpaid order themselves; only the shop can cancel a paid one.
+
+## How the constitution is published
+
+1. The admin or chairperson opens Portal › Constitution and uploads the document as PDF, Word (.docx) or text.
+2. The browser reads it and splits it into articles at headings such as “ARTICLE IV – ELECTIONS”, “Chapter Two” or “5. FINANCE”, or at a Word file's heading styles. Page numbers and running headers are dropped, and the version and adoption date are suggested if the document states them.
+3. They check the articles (edit, reorder, join, add or delete) and preview the result, then publish or save a draft.
+4. `/constitution` shows the current version with a contents list and search, and offers the original file for download. Older versions stay readable. Scanned PDFs have no text to read, so their articles are typed in by hand; the file is still kept for download.
 
 ## Upgrading an existing deployment
 
@@ -273,6 +321,9 @@ Gallery photos upload one request per file and have their own rate limit, `GALLE
 | `MPESA_ENV` | Render | `production` for real payments; defaults to `sandbox` |
 | `REGISTRATION_FEE` | Render | `500` (whole shillings) |
 | `RENEWAL_FEE` | Render | `500` (whole shillings) |
+| `SHOP_PICKUP_LOCATION` | Render | Where orders are collected (optional) |
+| `SHOP_PAYMENT_INSTRUCTIONS` | Render | Where to send manual shop payments (optional) |
+| `ORDER_HOLD_HOURS` | Render | `72` (optional) |
 | `NEXT_PUBLIC_API_URL` | Vercel | `https://your-backend.onrender.com/api` |
 | `NEXT_PUBLIC_SITE_URL` | Vercel | `https://eesa-en.vercel.app` |
 | `SEED_ADMIN_EMAIL` | Local, when seeding | Administrator's email |

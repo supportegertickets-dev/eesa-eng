@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
 import { getNotifications, createNotification, markNotificationRead, markAllNotificationsRead, deleteNotification } from '@/lib/api';
 import toast from 'react-hot-toast';
-import { HiBell, HiPlus, HiCheck, HiCheckCircle, HiTrash, HiSpeakerphone, HiCash, HiClipboardList, HiBookOpen, HiCalendar } from 'react-icons/hi';
+import { HiBell, HiPlus, HiCheck, HiCheckCircle, HiTrash, HiSpeakerphone, HiCash, HiClipboardList, HiBookOpen, HiCalendar, HiIdentification, HiShoppingBag } from 'react-icons/hi';
 import { format } from 'date-fns';
 
 const TYPE_ICONS = {
@@ -14,6 +14,8 @@ const TYPE_ICONS = {
   election: HiClipboardList,
   resource: HiBookOpen,
   event: HiCalendar,
+  membership: HiIdentification,
+  merchandise: HiShoppingBag,
 };
 
 export default function NotificationsPage() {

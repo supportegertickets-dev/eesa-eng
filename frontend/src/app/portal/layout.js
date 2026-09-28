@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
-import { getContactMessages, getNotifications } from '@/lib/api';
-import { roleLabel, LEADERSHIP_ROLES, POWER_ROLES } from '@/lib/roles';
+import { getContactMessages, getNotifications, getPassportPhotos, getShopSummary } from '@/lib/api';
+import { roleLabel, LEADERSHIP_ROLES, POWER_ROLES, MERCHANDISE_ROLES } from '@/lib/roles';
 import Avatar from '@/components/ui/Avatar';
 import { SkeletonList } from '@/components/ui/Skeleton';
 import {
   HiHome, HiUser, HiCalendar, HiUsers, HiCog, HiLogout, HiCash, HiBookOpen,
   HiBell, HiPhotograph, HiClipboardList, HiStar, HiInformationCircle,
-  HiDotsHorizontal, HiX, HiUserGroup, HiMail,
+  HiDotsHorizontal, HiX, HiUserGroup, HiMail, HiIdentification, HiShoppingBag, HiTag, HiScale,
 } from 'react-icons/hi';
 
 // How often the unread badge re-checks. The count was previously fetched once
@@ -25,6 +25,8 @@ export default function PortalLayout({ children }) {
 
   const [unreadCount, setUnreadCount] = useState(0);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [pendingPhotos, setPendingPhotos] = useState(0);
+  const [shopActions, setShopActions] = useState(0);
   const [mobileMore, setMobileMore] = useState(false);
 
   useEffect(() => {
@@ -36,10 +38,14 @@ export default function PortalLayout({ children }) {
 
   const refreshUnread = useCallback(async () => {
     if (!user) return;
-    // Administrators also get a badge for unread contact messages.
-    const [notifications, messages] = await Promise.allSettled([
+    // Administrators also get badges for unread contact messages and passport
+    // photos to review; shop managers for orders that need them.
+    const isPower = POWER_ROLES.includes(user.role);
+    const [notifications, messages, photos, shop] = await Promise.allSettled([
       getNotifications(),
-      POWER_ROLES.includes(user.role) ? getContactMessages('?status=unread&limit=1') : null,
+      isPower ? getContactMessages('?status=unread&limit=1') : null,
+      isPower ? getPassportPhotos('?status=pending&limit=1') : null,
+      MERCHANDISE_ROLES.includes(user.role) ? getShopSummary() : null,
     ]);
 
     // A failed poll should not interrupt the member; each badge simply keeps
@@ -56,6 +62,12 @@ export default function PortalLayout({ children }) {
     }
     if (messages.status === 'fulfilled' && typeof messages.value?.unread === 'number') {
       setUnreadMessages(messages.value.unread);
+    }
+    if (photos.status === 'fulfilled' && typeof photos.value?.pending === 'number') {
+      setPendingPhotos(photos.value.pending);
+    }
+    if (shop.status === 'fulfilled' && typeof shop.value?.needsAction === 'number') {
+      setShopActions(shop.value.needsAction);
     }
   }, [user]);
 
@@ -87,10 +99,17 @@ export default function PortalLayout({ children }) {
       { href: '/portal/profile', icon: HiUser, label: 'Profile' },
       { href: '/portal/elections', icon: HiClipboardList, label: 'Elections' },
       { href: '/portal/payments', icon: HiCash, label: 'Payments' },
+      {
+        href: '/portal/card',
+        icon: HiIdentification,
+        label: 'Membership Card',
+        badge: POWER_ROLES.includes(user.role) ? pendingPhotos : 0,
+      },
       { href: '/portal/library', icon: HiBookOpen, label: 'Library' },
       { href: '/portal/notifications', icon: HiBell, label: 'Notifications', badge: unreadCount },
       { href: '/portal/gallery', icon: HiPhotograph, label: 'Gallery' },
       { href: '/portal/events', icon: HiCalendar, label: 'My Events' },
+      { href: '/portal/orders', icon: HiShoppingBag, label: 'My Orders' },
       { href: '/portal/members', icon: HiUsers, label: 'Members' },
       { href: '/portal/guide', icon: HiInformationCircle, label: 'Platform Guide' },
     ];
@@ -98,17 +117,21 @@ export default function PortalLayout({ children }) {
     if (LEADERSHIP_ROLES.includes(user.role)) {
       items.push({ href: '/portal/sponsors', icon: HiStar, label: 'Sponsors' });
     }
+    if (MERCHANDISE_ROLES.includes(user.role)) {
+      items.push({ href: '/portal/merchandise', icon: HiTag, label: 'Merchandise', badge: shopActions });
+    }
     if (user.role === 'admin') {
       items.push({ href: '/portal/admin', icon: HiCog, label: 'Admin Overview' });
     }
     if (POWER_ROLES.includes(user.role)) {
       items.push({ href: '/portal/admin/members', icon: HiUserGroup, label: 'Manage Members' });
       items.push({ href: '/portal/messages', icon: HiMail, label: 'Messages', badge: unreadMessages });
+      items.push({ href: '/portal/constitution', icon: HiScale, label: 'Constitution' });
       items.push({ href: '/portal/manage', icon: HiCog, label: 'Manage' });
     }
 
     return items;
-  }, [user, unreadCount, unreadMessages]);
+  }, [user, unreadCount, unreadMessages, pendingPhotos, shopActions]);
 
   /**
    * Highlight the current section: the most specific item containing this page,

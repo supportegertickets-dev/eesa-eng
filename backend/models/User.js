@@ -113,6 +113,25 @@ const userSchema = new mongoose.Schema({
   lastPaymentDate: {
     type: Date
   },
+  // Printed on the membership card and used to verify it. Random rather than
+  // sequential, so the public verification page cannot be used to list members.
+  memberNumber: {
+    type: String,
+    unique: true,
+    sparse: true,
+    uppercase: true,
+    trim: true
+  },
+  // The approved passport photo on the membership card. Submissions awaiting
+  // review live in the PassportPhoto collection until an administrator approves one.
+  passportPhoto: {
+    type: String,
+    default: ''
+  },
+  passportPhotoId: {
+    type: String,
+    default: ''
+  },
   lastLoginAt: {
     type: Date
   },

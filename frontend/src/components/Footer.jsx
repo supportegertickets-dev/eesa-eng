@@ -10,6 +10,10 @@ const QUICK_LINKS = [
   { href: '/events', label: 'Events' },
   { href: '/projects', label: 'Projects' },
   { href: '/news', label: 'News' },
+  { href: '/merchandise', label: 'Official merchandise' },
+  { href: '/constitution', label: 'Constitution' },
+  { href: '/partner', label: 'Partner with us' },
+  { href: '/verify', label: 'Verify a membership card' },
   { href: '/contact', label: 'Contact' },
 ];
 
@@ -31,7 +35,7 @@ const CONTACT_EMAIL = 'egertonengineeringstudentsasso@gmail.com';
  */
 export default function Footer() {
   return (
-    <footer className="bg-[#12151b] text-slate-300 border-t border-white/10">
+    <footer className="bg-[#12151b] text-slate-300 border-t border-white/10 print:hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
           <div>

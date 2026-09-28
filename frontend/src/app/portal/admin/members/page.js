@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { formatDate, formatDateTime, relativeTime } from '@/lib/dates';
 import { MEMBERSHIP_FILTERS, adminMemberHref, fullName, membershipState, saveBlob, studyLabel } from '@/lib/members';
 import { ALL_ROLES, DEPARTMENTS, roleLabel } from '@/lib/roles';
+import MembershipDialog from '@/components/members/MembershipDialog';
 import Avatar from '@/components/ui/Avatar';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
@@ -76,6 +77,7 @@ function AdminMembers() {
   const [error, setError] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [pending, setPending] = useState(null);
+  const [payingFor, setPayingFor] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const replaceQuery = useCallback((params) => {
@@ -336,6 +338,16 @@ function AdminMembers() {
                             {membership.id === 'expired' ? 'Ended' : 'Until'} {formatDate(member.membershipExpiry)}
                           </p>
                         )}
+                        {/* A cash payment at a meeting, say. Nobody marks their own membership. */}
+                        {membership.id !== 'current' && !isSelf && member.isActive && (
+                          <button
+                            type="button"
+                            onClick={() => setPayingFor(member)}
+                            className="block mt-1 text-xs font-medium text-primary-600 dark:text-primary-300 hover:underline"
+                          >
+                            Mark paid<span className="sr-only"> for {name}</span>
+                          </button>
+                        )}
                       </td>
                       <td className="px-4 py-3 hidden xl:table-cell text-subtle whitespace-nowrap">
                         {member.lastLoginAt
@@ -378,6 +390,13 @@ function AdminMembers() {
           )}
         </div>
       )}
+
+      <MembershipDialog
+        open={Boolean(payingFor)}
+        member={payingFor}
+        onClose={() => setPayingFor(null)}
+        onSaved={() => { load(); loadSummary(); }}
+      />
 
       <ConfirmDialog
         open={Boolean(pending)}
