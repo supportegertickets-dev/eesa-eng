@@ -103,6 +103,20 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  // A new sign-up waits, inactive, until an administrator approves it. Being
+  // inactive keeps it out of sign-in, the directory, member counts and
+  // broadcasts without each of those needing to know about approval. Absent
+  // on accounts created before approval existed, which count as approved.
+  pendingApproval: {
+    type: Boolean
+  },
+  approvedAt: {
+    type: Date
+  },
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
   membershipPaid: {
     type: Boolean,
     default: false
@@ -173,6 +187,8 @@ userSchema.index({ isActive: 1, createdAt: -1 });
 userSchema.index({ isActive: 1, department: 1 });
 userSchema.index({ role: 1, isActive: 1 });
 userSchema.index({ academicStatus: 1, academicYearStartedAt: 1 });
+// The approval queue. Partial, so the index holds only the few waiting accounts.
+userSchema.index({ createdAt: -1 }, { partialFilterExpression: { pendingApproval: true } });
 
 userSchema.virtual('fullName').get(function () {
   return [this.firstName, this.lastName].filter(Boolean).join(' ');

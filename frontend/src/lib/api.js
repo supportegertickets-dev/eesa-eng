@@ -343,6 +343,10 @@ export const exportAdminMembers = (params = '') => api.download(`/users/admin/ex
 export const getAdminOverview = () => api.get('/admin/overview');
 export const updateUserRole = (id, role) => api.put(`/users/${id}/role`, { role });
 export const setUserStatus = (id, isActive) => api.patch(`/users/${id}/status`, { isActive });
+// Let sign-ups awaiting approval in; returns `{ approved, message }`.
+export const approveMembers = (ids) => api.post('/users/admin/approve', { ids });
+// Permanently remove a deactivated or unapproved account that has no history.
+export const deleteMemberAccount = (id) => api.delete(`/users/admin/${id}`);
 export const updateMemberDetails = (id, data) => api.patch(`/users/${id}`, data);
 export const updateMembership = (id, data) => api.patch(`/users/${id}/membership`, data);
 // Many at once: { membershipPaid, ids } or { membershipPaid: true, filter }, with dryRun to preview.

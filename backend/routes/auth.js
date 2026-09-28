@@ -10,6 +10,11 @@ const { sendEmail } = require('../utils/email');
 const { validate } = require('../middleware/validate');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { passwordValidator, RULES_TEXT } = require('../utils/password');
+const {
+  REG_NUMBER_PATTERN, REG_NUMBER_EXAMPLE, normalizeRegNumber, sameName, SAME_NAME_MESSAGE,
+  nameValidator, usernameValidator, bioValidator, emailValidator
+} = require('../utils/identity');
+const { announceApplicant } = require('../utils/accounts');
 const { ROLE_LABELS, ALL_ROLES } = require('../utils/roles');
 const { DEPARTMENTS } = require('../models/User');
 const cloudinary = require('../config/cloudinary');
@@ -28,8 +33,8 @@ const generateToken = (user) =>
 
 /**
  * The exact shape the frontend stores as the session user. Declared once so
- * login, registration and profile updates cannot drift apart, and so no field
- * is exposed by accident.
+ * login and profile updates cannot drift apart, and so no field is exposed by
+ * accident.
  */
 const publicUser = (user) => ({
   _id: user._id,
@@ -65,34 +70,53 @@ const credentialLimiter = createLimiter({
   message: 'Too many attempts. Please wait 15 minutes and try again.'
 });
 
-const registrationLimiter = createLimiter({
-  windowMs: 60 * 60 * 1000,
-  max: 5,
-  message: 'Too many accounts created from this network. Please try again later.'
-});
-
 const resetLimiter = createLimiter({
   windowMs: 60 * 60 * 1000,
   max: 5,
   message: 'Too many password reset requests. Please try again later.'
 });
 
+// Names are stored raw and escaped at render time by React. Escaping on the
+// way in corrupted legitimate names such as O'Brien into O&#x27;Brien.
+const nameRule = (field, label, check = nameValidator(label)) => body(field).isString().withMessage(`${label} is required`)
+  .trim().notEmpty().withMessage(`${label} is required`)
+  .isLength({ max: 50 }).withMessage(`${label} must be 50 characters or fewer`)
+  .bail()
+  .custom(check);
+
+const usernameRule = (check = usernameValidator) => body('username').optional({ values: 'falsy' }).trim().toLowerCase()
+  .isLength({ min: 3, max: 50 }).withMessage('Username must be 3 to 50 characters')
+  .matches(/^[a-z0-9._-]+$/).withMessage('Username may only contain letters, numbers, dots, underscores and hyphens')
+  .bail()
+  .custom(check);
+
+/**
+ * The profile form sends every field on each save, so only a changed value is
+ * checked. A member whose older record would fail today's rules can still
+ * update their phone number without being made to rename themselves.
+ */
+const ifChanged = (field, check) => (value, { req }) => value === req.user?.[field] || check(value);
+
 // POST /api/auth/register
-router.post('/register', registrationLimiter, [
-  // Names are stored raw and escaped at render time by React. Escaping on the
-  // way in corrupted legitimate names such as O'Brien into O&#x27;Brien.
-  body('firstName').trim().notEmpty().withMessage('First name is required')
-    .isLength({ max: 50 }).withMessage('First name must be 50 characters or fewer'),
-  body('lastName').trim().notEmpty().withMessage('Last name is required')
-    .isLength({ max: 50 }).withMessage('Last name must be 50 characters or fewer'),
-  body('username').optional({ values: 'falsy' }).trim().toLowerCase()
-    .isLength({ min: 3, max: 50 }).withMessage('Username must be 3 to 50 characters')
-    .matches(/^[a-z0-9._-]+$/).withMessage('Username may only contain letters, numbers, dots, underscores and hyphens'),
-  body('email').isEmail().withMessage('Valid email is required').normalizeEmail(),
+// The account is created waiting for an administrator's approval, so no
+// session is issued. The applicant signs in once they are approved.
+// There is no per-network sign-up limit: students registering together on
+// campus Wi-Fi share one address, and the approval step already keeps junk
+// accounts out.
+router.post('/register', [
+  nameRule('firstName', 'First name'),
+  nameRule('lastName', 'Last name')
+    .custom((value, { req }) => {
+      if (sameName(req.body.firstName, value)) throw new Error(SAME_NAME_MESSAGE);
+      return true;
+    }),
+  usernameRule(),
+  body('email').isEmail().withMessage('Valid email is required').bail().custom(emailValidator).normalizeEmail(),
   body('password').custom(passwordValidator),
   body('department').optional({ values: 'falsy' }).isIn(DEPARTMENTS).withMessage('Select a valid department'),
-  body('regNumber').optional({ values: 'falsy' }).trim().toUpperCase()
-    .isLength({ max: 30 }).withMessage('Registration number is too long'),
+  body('regNumber').customSanitizer(normalizeRegNumber)
+    .notEmpty().withMessage('Registration number is required')
+    .matches(REG_NUMBER_PATTERN).withMessage(`Enter your engineering registration number, for example ${REG_NUMBER_EXAMPLE}`),
   body('yearOfStudy').optional({ values: 'falsy' }).isInt({ min: 1, max: 5 }).withMessage('Year of study must be between 1 and 5').toInt(),
   validate
 ], asyncHandler(async (req, res) => {
@@ -100,9 +124,8 @@ router.post('/register', registrationLimiter, [
 
   // One query instead of three round trips, and it reports every clash at once
   // rather than making the user resubmit for each.
-  const clauses = [{ email }];
+  const clauses = [{ email }, { regNumber }];
   if (username) clauses.push({ username });
-  if (regNumber) clauses.push({ regNumber });
 
   const conflicts = await User.find({ $or: clauses }).select('email username regNumber').lean();
   if (conflicts.length) {
@@ -112,16 +135,24 @@ router.post('/register', registrationLimiter, [
     if (username && conflicts.some((c) => c.username === username)) {
       throw new ApiError(409, 'That username is already taken.');
     }
-    throw new ApiError(409, 'That registration number is already in use.');
+    throw new ApiError(409, 'That registration number is already in use. If it is yours, contact the EESA committee.');
   }
 
   const user = await User.create({
-    firstName, lastName, email, password, department, yearOfStudy,
+    firstName, lastName, email, password, department, yearOfStudy, regNumber,
     username: username || undefined,
-    regNumber: regNumber || undefined
+    isActive: false,
+    pendingApproval: true
   });
 
-  res.status(201).json({ ...publicUser(user), token: generateToken(user) });
+  await announceApplicant(user);
+
+  res.status(201).json({
+    pending: true,
+    email: user.email,
+    message: `Thanks, ${user.firstName}. Your registration has been received. The EESA committee will check it `
+      + `and email ${user.email} once your account is approved. You can sign in after that.`
+  });
 }));
 
 // POST /api/auth/login - accepts an email address or a username
@@ -163,6 +194,11 @@ router.post('/login', credentialLimiter, [
     }
     await user.save({ validateBeforeSave: false });
     return invalid();
+  }
+
+  // Checked only after the password, so this cannot reveal who has applied.
+  if (user.pendingApproval) {
+    throw new ApiError(403, 'Your account is waiting for approval by the EESA committee. You will get an email as soon as it is approved.');
   }
 
   if (!user.isActive) {
@@ -280,13 +316,15 @@ router.get('/roles', (req, res) => {
 });
 
 // PUT /api/auth/profile
+// The same name rules as registration, so an approved account cannot be
+// renamed to something that would never have been approved.
 router.put('/profile', protect, [
-  body('firstName').optional().trim().notEmpty().withMessage('First name cannot be empty').isLength({ max: 50 }),
-  body('lastName').optional().trim().notEmpty().withMessage('Last name cannot be empty').isLength({ max: 50 }),
-  body('username').optional({ values: 'falsy' }).trim().toLowerCase()
-    .isLength({ min: 3, max: 50 }).withMessage('Username must be 3 to 50 characters')
-    .matches(/^[a-z0-9._-]+$/).withMessage('Username may only contain letters, numbers, dots, underscores and hyphens'),
-  body('bio').optional({ values: 'falsy' }).trim().isLength({ max: 500 }).withMessage('Bio must be 500 characters or fewer'),
+  nameRule('firstName', 'First name', ifChanged('firstName', nameValidator('First name'))).optional(),
+  nameRule('lastName', 'Last name', ifChanged('lastName', nameValidator('Last name'))).optional(),
+  usernameRule(ifChanged('username', usernameValidator)),
+  body('bio').optional({ values: 'falsy' }).trim().isLength({ max: 500 }).withMessage('Bio must be 500 characters or fewer')
+    .bail()
+    .custom(ifChanged('bio', bioValidator)),
   body('phone').optional({ values: 'falsy' }).trim().isLength({ max: 20 }).withMessage('Phone number is too long'),
   body('department').optional({ values: 'falsy' }).isIn(DEPARTMENTS).withMessage('Select a valid department'),
   body('yearOfStudy').optional({ values: 'falsy' }).isInt({ min: 1, max: 5 }).withMessage('Year of study must be between 1 and 5').toInt(),
@@ -297,6 +335,12 @@ router.put('/profile', protect, [
 
   for (const field of allowedFields) {
     if (req.body[field] !== undefined) updates[field] = req.body[field];
+  }
+
+  const first = updates.firstName ?? req.user.firstName;
+  const last = updates.lastName ?? req.user.lastName;
+  if ((first !== req.user.firstName || last !== req.user.lastName) && sameName(first, last)) {
+    throw new ApiError(400, SAME_NAME_MESSAGE);
   }
 
   // Changing a username must not silently collide with someone else's.

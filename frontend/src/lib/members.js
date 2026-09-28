@@ -23,6 +23,25 @@ export const membershipState = (member, now = new Date()) => {
   return { id: 'current', label: 'Paid', badge: 'badge-success' };
 };
 
+/** Whether an account is active, deactivated or a sign-up awaiting approval. */
+export const accountState = (member) => {
+  if (member?.pendingApproval) return { id: 'pending', label: 'Awaiting approval', badge: 'badge-warning' };
+  if (member?.isActive === false) return { id: 'deactivated', label: 'Deactivated', badge: 'badge-danger' };
+  return { id: 'active', label: 'Active', badge: 'badge-success' };
+};
+
+/**
+ * Faculty of Engineering registration numbers, as the server requires them at
+ * sign-up: B and a programme code, a five-digit serial, the year of admission.
+ */
+export const REG_NUMBER_PATTERN = /^B\d{2}\/\d{5}\/\d{2}$/;
+export const REG_NUMBER_EXAMPLE = 'B12/12345/21';
+export const normalizeRegNumber = (value) => String(value ?? '')
+  .trim()
+  .toUpperCase()
+  .replace(/\s+/g, '')
+  .replace(/[\\-]/g, '/');
+
 export const MEMBERSHIP_FILTERS = [
   { value: '', label: 'Any membership' },
   { value: 'current', label: 'Paid' },

@@ -19,6 +19,7 @@ delete process.env.ACADEMIC_YEAR_START_MONTH;
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const request = require('supertest');
+const { registerApproved } = require('./helpers');
 
 const cloudinary = require('../config/cloudinary');
 
@@ -87,29 +88,19 @@ after(async () => {
   if (mongod) await mongod.stop();
 });
 
-let counter = 0;
 const DAY = 24 * 60 * 60 * 1000;
 
 /** A member; `paid` gives them a subscription running for another 90 days. */
 const makeUser = async ({ role = 'member', paid = false, expiry, department = 'Civil Engineering' } = {}) => {
-  counter += 1;
-  const res = await request(app).post('/api/auth/register').send({
-    firstName: `Cert${counter}`,
-    lastName: 'Holder',
-    email: `cert${counter}-${Date.now()}@example.com`,
-    password: 'Str0ngPass1',
-    regNumber: `C13/0${counter}/26`,
-    department
-  });
-  assert.equal(res.status, 201, res.body.message);
+  const user = await registerApproved(app, { department });
   const updates = {};
   if (role !== 'member') updates.role = role;
   if (paid) {
     updates.membershipPaid = true;
     updates.membershipExpiry = expiry || new Date(Date.now() + 90 * DAY);
   }
-  if (Object.keys(updates).length) await User.updateOne({ _id: res.body._id }, updates);
-  return { id: res.body._id, name: `Cert${counter} Holder`, auth: { Authorization: `Bearer ${res.body.token}` } };
+  if (Object.keys(updates).length) await User.updateOne({ _id: user.id }, updates);
+  return user;
 };
 
 const addSignatory = (admin, { name = 'Jane Wanjiru', title = 'Chairperson', types } = {}) => {
@@ -457,7 +448,7 @@ describe('membership certificates', () => {
     assert.equal(first.body.certificate.academicYear, year);
     assert.equal(first.body.certificate.recipientName, member.name);
     assert.equal(first.body.certificate.department, '', '"Other" is not printed');
-    assert.match(first.body.certificate.regNumber, /^C13\//);
+    assert.equal(first.body.certificate.regNumber, member.regNumber);
 
     const again = await request(app).post('/api/certificates/membership').set(member.auth).send({ academicYear: year });
     assert.equal(again.status, 200);
@@ -682,7 +673,7 @@ describe('editing a certificate', () => {
 
     assert.equal(edited.edits.length, 1);
     const [entry] = edited.edits;
-    assert.ok(entry.editedBy.name.startsWith('Cert'));
+    assert.equal(entry.editedBy.name, admin.name);
     const byField = Object.fromEntries(entry.changes.map((c) => [c.field, c]));
     assert.deepEqual(Object.keys(byField).sort(), ['department', 'endDate', 'office', 'recipientName', 'regNumber']);
     assert.equal(byField.recipientName.from, member.name);

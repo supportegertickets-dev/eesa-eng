@@ -15,12 +15,13 @@ const router = express.Router();
 router.get('/overview', protect, adminRoleOnly, async (req, res) => {
   try {
     const [
-      totalMembers, activeMembers, pendingPayments, pendingResources, unreadMessages,
+      totalMembers, activeMembers, pendingMembers, pendingPayments, pendingResources, unreadMessages,
       events, publishedNews, activeProjects, activeElections, recentUsers,
       recentPayments, recentResources, recentContacts, recentNotifications
     ] = await Promise.all([
       User.countDocuments(),
       User.countDocuments({ isActive: true }),
+      User.countDocuments({ pendingApproval: true }),
       Payment.countDocuments({ status: 'pending' }),
       Resource.countDocuments({ status: 'pending' }),
       Contact.countDocuments({ isRead: false }),
@@ -28,7 +29,7 @@ router.get('/overview', protect, adminRoleOnly, async (req, res) => {
       News.countDocuments({ isPublished: true }),
       Project.countDocuments({ status: { $in: ['planning', 'in-progress'] } }),
       Election.countDocuments({ status: { $in: ['upcoming', 'active'] } }),
-      User.find().select('firstName lastName email department role createdAt').sort({ createdAt: -1 }).limit(5).lean(),
+      User.find().select('firstName lastName email department role pendingApproval createdAt').sort({ createdAt: -1 }).limit(5).lean(),
       Payment.find().populate('user', 'firstName lastName').sort({ createdAt: -1 }).limit(5).lean(),
       Resource.find().populate('uploadedBy', 'firstName lastName').select('title unitCode year semester status uploadedBy createdAt').sort({ createdAt: -1 }).limit(5).lean(),
       Contact.find().select('name email subject isRead createdAt').sort({ createdAt: -1 }).limit(5).lean(),
@@ -37,7 +38,7 @@ router.get('/overview', protect, adminRoleOnly, async (req, res) => {
 
     res.json({
       generatedAt: new Date(),
-      metrics: { totalMembers, activeMembers, pendingPayments, pendingResources, unreadMessages, events, publishedNews, activeProjects, activeElections },
+      metrics: { totalMembers, activeMembers, pendingMembers, pendingPayments, pendingResources, unreadMessages, events, publishedNews, activeProjects, activeElections },
       recent: { users: recentUsers, payments: recentPayments, resources: recentResources, contacts: recentContacts, notifications: recentNotifications }
     });
   } catch (error) {

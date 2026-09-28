@@ -1,4 +1,5 @@
-const CACHE_NAME = 'eesa-v1';
+// v2 drops the cross-origin images v1 cached, which broke certificate signatures.
+const CACHE_NAME = 'eesa-v2';
 const OFFLINE_URL = '/offline';
 
 // Assets to precache
@@ -37,6 +38,12 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
   if (url.pathname.startsWith('/api')) return;
+
+  // Leave other sites (Cloudinary images, the API) to the browser. An <img>
+  // fetches them without CORS, and a cached copy of that response cannot be
+  // served to the CORS request a canvas makes for the same image, so
+  // signatures and card photos would silently fail to draw.
+  if (url.origin !== self.location.origin) return;
 
   // Navigation requests – network first, fallback to offline page
   if (request.mode === 'navigate') {

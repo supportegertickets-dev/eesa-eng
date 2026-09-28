@@ -5,15 +5,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import {
-  HiArrowLeft, HiBell, HiBookOpen, HiCalendar, HiCash, HiClipboardList, HiEye,
-  HiIdentification, HiPencil, HiPhotograph, HiShieldCheck, HiUserAdd, HiUserRemove,
+  HiArrowLeft, HiBell, HiBookOpen, HiCalendar, HiCash, HiCheck, HiClipboardList, HiEye,
+  HiIdentification, HiPencil, HiPhotograph, HiShieldCheck, HiTrash, HiUserAdd, HiUserRemove,
 } from 'react-icons/hi';
-import { getAdminMember, setUserStatus } from '@/lib/api';
+import { approveMembers, deleteMemberAccount, getAdminMember, setUserStatus } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 import { formatDate, formatDateTime, relativeTime } from '@/lib/dates';
 import { TYPE_LABELS } from '@/lib/library';
 import {
-  PROJECT_STATUS_LABELS, STATUS_BADGES, formatAmount, fullName, memberHref, membershipState,
+  PROJECT_STATUS_LABELS, STATUS_BADGES, accountState, formatAmount, fullName, memberHref, membershipState,
 } from '@/lib/members';
 import EditMemberDialog from '@/components/members/EditMemberDialog';
 import MemberHeader from '@/components/members/MemberHeader';
@@ -169,6 +169,36 @@ export default function AdminMemberProfilePage({ params }) {
   // Mirrors the API: only a full admin may act on another admin's account.
   const canManage = !isSelf && (member.role !== 'admin' || isFullAdmin);
   const membership = membershipState(member);
+  const account = accountState(member);
+  const awaitingApproval = account.id === 'pending';
+
+  const approve = async () => {
+    setBusy(true);
+    try {
+      const result = await approveMembers([member._id]);
+      toast.success(result?.message || 'Approved.');
+      refresh();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirmDelete = async () => {
+    setBusy(true);
+    try {
+      const result = await deleteMemberAccount(member._id);
+      toast.success(result?.message || 'Account deleted.');
+      router.push('/portal/admin/members');
+    } catch (err) {
+      // An account with history cannot be deleted; the message says what it has.
+      toast.error(err.message, { duration: 8000 });
+      setDialog(null);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const confirmStatus = async () => {
     setBusy(true);
@@ -187,12 +217,14 @@ export default function AdminMemberProfilePage({ params }) {
   const menuActions = [
     member.isActive && { label: 'View as members see it', icon: HiEye, onClick: () => router.push(memberHref(member._id)) },
     isFullAdmin && !isSelf && { label: 'Change role', icon: HiShieldCheck, onClick: () => setDialog('role') },
-    canManage && {
+    // A sign-up is approved rather than restored, so the applicant is told.
+    canManage && !awaitingApproval && {
       label: member.isActive ? 'Deactivate account' : 'Restore account',
       icon: member.isActive ? HiUserRemove : HiUserAdd,
       danger: member.isActive,
       onClick: () => setDialog('status'),
     },
+    canManage && !member.isActive && { label: 'Delete account', icon: HiTrash, danger: true, onClick: () => setDialog('delete') },
   ].filter(Boolean);
 
   const headerActions = (
@@ -213,7 +245,7 @@ export default function AdminMemberProfilePage({ params }) {
 
   const badges = (
     <>
-      {!member.isActive && <span className="badge-danger">Deactivated</span>}
+      {account.id !== 'active' && <span className={account.badge}>{account.label}</span>}
       {member.isLocked && <span className="badge-warning">Sign-in locked</span>}
     </>
   );
@@ -230,6 +262,26 @@ export default function AdminMemberProfilePage({ params }) {
     <div>
       {backLink}
       <MemberHeader member={member} badges={badges} actions={headerActions} />
+
+      {awaitingApproval && (
+        <div className="card p-4 mt-4 flex flex-wrap items-center gap-3 border-warning/40 bg-warning-soft" role="status">
+          <p className="text-sm text-strong flex-1 min-w-[16rem]">
+            <span className="font-semibold">Registered {relativeTime(member.createdAt)} and waiting for approval.</span>{' '}
+            Check the name and registration number are a real engineering student&apos;s. They cannot sign in until approved,
+            and are emailed when you approve them.
+          </p>
+          {canManage && (
+            <div className="flex gap-2">
+              <button type="button" className="btn-outline btn-sm" onClick={() => setDialog('delete')}>
+                <HiTrash className="w-4 h-4" aria-hidden="true" /> Delete
+              </button>
+              <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={approve}>
+                <HiCheck className="w-4 h-4" aria-hidden="true" /> Approve
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {isSelf && (
         <p className="card py-3 mt-4 text-sm text-muted-fg">
@@ -266,7 +318,7 @@ export default function AdminMemberProfilePage({ params }) {
           <Section
             title="Membership"
             icon={HiCash}
-            action={!isSelf && (
+            action={!isSelf && !awaitingApproval && (
               <button type="button" className="btn-ghost btn-sm" onClick={() => setDialog('membership')}>Update</button>
             )}
           >
@@ -306,7 +358,9 @@ export default function AdminMemberProfilePage({ params }) {
                 </span>
               )}
               <div className="text-sm min-w-0">
-                {!member.isActive ? (
+                {awaitingApproval ? (
+                  <p className="text-muted-fg">No card until the account is approved.</p>
+                ) : !member.isActive ? (
                   <p className="text-danger">Withdrawn: the account is deactivated</p>
                 ) : membership.id === 'current' && member.passportPhoto ? (
                   <>
@@ -487,6 +541,18 @@ export default function AdminMemberProfilePage({ params }) {
       {dialog === 'card' && <MemberCardDialog userId={member._id} onClose={closeDialog} onChanged={refresh} />}
       <NotifyMemberDialog open={dialog === 'notify'} member={member} onClose={closeDialog} />
       <RoleDialog open={dialog === 'role'} member={member} onClose={closeDialog} onSaved={refresh} />
+      <ConfirmDialog
+        open={dialog === 'delete'}
+        destructive
+        title={`Delete ${name}'s account?`}
+        description={awaitingApproval
+          ? 'The registration is removed for good, which frees its email address and registration number. Nothing is sent to them.'
+          : 'The account is removed for good. An account with payments, orders, uploads or any other history cannot be deleted and stays deactivated.'}
+        confirmLabel="Delete for good"
+        busy={busy}
+        onConfirm={confirmDelete}
+        onCancel={closeDialog}
+      />
       <ConfirmDialog
         open={dialog === 'status'}
         destructive={member.isActive}

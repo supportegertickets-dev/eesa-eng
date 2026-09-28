@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 import { getAdminOverview } from '@/lib/api';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import { HiBell, HiBookOpen, HiCalendar, HiCash, HiCheckCircle, HiClipboardList, HiDocumentText, HiMail, HiRefresh, HiUserGroup, HiUsers, HiArrowRight } from 'react-icons/hi';
+import { HiBell, HiBookOpen, HiCalendar, HiCash, HiCheckCircle, HiClipboardList, HiDocumentText, HiMail, HiRefresh, HiUserAdd, HiUserGroup, HiUsers, HiArrowRight } from 'react-icons/hi';
 
 const metricCards = [
   { key: 'activeMembers', label: 'Active members', icon: HiUsers, color: 'blue', href: '/portal/admin/members' },
@@ -67,6 +67,16 @@ export default function AdminPage() {
 
       {error ? <div className="card border-red-200 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 mb-6">{error}</div> : (
         <>
+          {data?.metrics?.pendingMembers > 0 && (
+            <div className="card p-4 mb-6 flex flex-wrap items-center gap-3 border-warning/40 bg-warning-soft" role="status">
+              <HiUserAdd className="w-5 h-5 text-warning shrink-0" aria-hidden="true" />
+              <p className="text-sm text-strong flex-1 min-w-0 font-semibold">
+                {data.metrics.pendingMembers} sign-up{data.metrics.pendingMembers === 1 ? ' is' : 's are'} waiting for approval.
+              </p>
+              <Link href="/portal/admin/members?active=pending" className="btn-primary btn-sm">Review</Link>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {metricCards.map(({ key, label, icon: Icon, color, href }) => (
               <Link key={key} href={href} className="card hover:border-primary-300 dark:hover:border-primary-500/30 transition-colors">
@@ -79,7 +89,7 @@ export default function AdminPage() {
 
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
             <ActivityPanel title="Recent members" icon={HiUserGroup} href="/portal/admin/members">
-              {(data?.recent?.users || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div><Link href={`/portal/admin/members/${item._id}`} className="font-medium text-strong hover:text-primary-600 dark:hover:text-primary-300">{item.firstName} {item.lastName}</Link><p className="text-xs text-subtle">{item.department || 'Department not set'} • {item.role}</p></div><time className="text-xs text-faint">{formatDate(item.createdAt)}</time></div>)}
+              {(data?.recent?.users || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div><Link href={`/portal/admin/members/${item._id}`} className="font-medium text-strong hover:text-primary-600 dark:hover:text-primary-300">{item.firstName} {item.lastName}</Link><p className="text-xs text-subtle">{item.department || 'Department not set'} • {item.pendingApproval ? <span className="text-warning font-medium">Awaiting approval</span> : item.role}</p></div><time className="text-xs text-faint">{formatDate(item.createdAt)}</time></div>)}
             </ActivityPanel>
             <ActivityPanel title="Payment activity" icon={HiCash} href="/portal/payments">
               {(data?.recent?.payments || []).map(item => <div key={item._id} className="flex items-center justify-between gap-3 py-3 border-b last:border-0"><div><p className="font-medium text-strong">{item.user?.firstName} {item.user?.lastName}</p><p className="text-xs text-subtle">{item.type} • KSh {item.amount?.toLocaleString()}</p></div><span className={`text-xs font-medium capitalize ${item.status === 'verified' ? 'text-emerald-600 dark:text-emerald-300' : item.status === 'rejected' ? 'text-rose-600' : 'text-amber-600 dark:text-amber-300'}`}>{item.status}</span></div>)}

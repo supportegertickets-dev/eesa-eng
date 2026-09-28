@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { register } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
+import { REG_NUMBER_EXAMPLE, REG_NUMBER_PATTERN, normalizeRegNumber } from '@/lib/members';
 import toast from 'react-hot-toast';
-import { HiEye, HiEyeOff } from 'react-icons/hi';
+import { HiCheckCircle, HiEye, HiEyeOff } from 'react-icons/hi';
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -23,7 +24,10 @@ export default function RegisterPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const { user, loading, loginUser } = useAuth();
+  // New accounts wait for the committee's approval, so success ends here
+  // rather than signing the applicant in.
+  const [received, setReceived] = useState(null);
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   // A signed-in member has no reason to see the registration form.
@@ -54,14 +58,18 @@ export default function RegisterPage() {
       return;
     }
 
+    const regNumber = normalizeRegNumber(form.regNumber);
+    if (!REG_NUMBER_PATTERN.test(regNumber)) {
+      toast.error(`Enter your engineering registration number, for example ${REG_NUMBER_EXAMPLE}.`);
+      return;
+    }
+
     setSubmitting(true);
     try {
       // eslint-disable-next-line no-unused-vars
       const { confirmPassword, ...userData } = form;
-      const data = await register(userData);
-      loginUser(data);
-      toast.success('Welcome to EESA!');
-      router.push('/portal');
+      setReceived(await register({ ...userData, regNumber }));
+      window.scrollTo(0, 0);
     } catch (error) {
       toast.error(error.message || 'Registration failed');
     } finally {
@@ -70,6 +78,23 @@ export default function RegisterPage() {
   };
 
   const updateForm = (field, value) => setForm({ ...form, [field]: value });
+
+  if (received) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-canvas py-12 px-4">
+        <div className="max-w-lg w-full card text-center" role="status">
+          <HiCheckCircle className="w-14 h-14 text-success mx-auto" aria-hidden="true" />
+          <h1 className="font-heading text-2xl font-bold text-strong mt-4">Registration received</h1>
+          <p className="text-muted-fg mt-3">{received.message}</p>
+          <p className="text-sm text-subtle mt-3">
+            Nothing arrived after a few days? Check your spam folder, or{' '}
+            <Link href="/contact" className="text-primary-500 dark:text-primary-300 font-medium hover:underline">contact the committee</Link>.
+          </p>
+          <Link href="/" className="btn-primary mt-6 inline-flex">Back to the home page</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-canvas py-12 px-4">
@@ -132,14 +157,20 @@ export default function RegisterPage() {
           </div>
 
           <div className="mb-4">
-            <label className="block text-sm font-medium text-body mb-1">Registration Number</label>
+            <label htmlFor="regNumber" className="block text-sm font-medium text-body mb-1">Registration Number</label>
             <input
+              id="regNumber"
               type="text"
+              required
               value={form.regNumber}
               onChange={(e) => updateForm('regNumber', e.target.value)}
-              className="input-field"
-              placeholder="e.g. S13/12345/21"
+              onBlur={(e) => updateForm('regNumber', normalizeRegNumber(e.target.value))}
+              className="input-field uppercase"
+              placeholder={`e.g. ${REG_NUMBER_EXAMPLE}`}
+              autoCapitalize="characters"
+              aria-describedby="regNumber-hint"
             />
+            <p id="regNumber-hint" className="text-xs text-subtle mt-1">Your engineering registration number, as on your student ID.</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -204,6 +235,11 @@ export default function RegisterPage() {
               </div>
             </div>
           </div>
+
+          <p className="text-sm text-muted-fg mb-4">
+            Use your real name as it appears on your student ID. The EESA committee checks every new account,
+            and you can sign in once yours is approved.
+          </p>
 
           <button
             type="submit"

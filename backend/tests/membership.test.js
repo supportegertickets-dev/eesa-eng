@@ -17,6 +17,7 @@ delete process.env.SMTP_HOST;
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const request = require('supertest');
+const { registerApproved } = require('./helpers');
 
 const cloudinary = require('../config/cloudinary');
 
@@ -73,29 +74,19 @@ after(async () => {
   if (mongod) await mongod.stop();
 });
 
-let counter = 0;
 const DAY = 24 * 60 * 60 * 1000;
 
 /** A member; `paid` gives them a subscription running for another 90 days. */
 const makeUser = async ({ role = 'member', paid = false, expiry } = {}) => {
-  counter += 1;
-  const res = await request(app).post('/api/auth/register').send({
-    firstName: `Card${counter}`,
-    lastName: 'Holder',
-    email: `card${counter}-${Date.now()}@example.com`,
-    password: 'Str0ngPass1',
-    regNumber: `S13/0${counter}/26`,
-    department: 'Electrical Engineering'
-  });
-  assert.equal(res.status, 201, res.body.message);
+  const user = await registerApproved(app, { department: 'Electrical Engineering' });
   const updates = {};
   if (role !== 'member') updates.role = role;
   if (paid) {
     updates.membershipPaid = true;
     updates.membershipExpiry = expiry || new Date(Date.now() + 90 * DAY);
   }
-  if (Object.keys(updates).length) await User.updateOne({ _id: res.body._id }, updates);
-  return { id: res.body._id, auth: { Authorization: `Bearer ${res.body.token}` } };
+  if (Object.keys(updates).length) await User.updateOne({ _id: user.id }, updates);
+  return user;
 };
 
 const uploadPhoto = (member) => request(app)
@@ -190,7 +181,7 @@ describe('reviewing photos', () => {
     assert.equal(res.body.pending, 2);
     assert.deepEqual(res.body.photos.map((p) => String(p.user._id)), [first.id, second.id]);
     assert.equal(res.body.photos[0].membershipCurrent, true);
-    assert.equal(res.body.photos[0].user.regNumber, 'S13/0' + (counter - 1) + '/26');
+    assert.equal(res.body.photos[0].user.regNumber, first.regNumber);
   });
 
   test('rejecting needs a reason, and the member is told why', async () => {
@@ -408,6 +399,6 @@ describe('cards for administrators', () => {
     const readyOnly = await request(app).get('/api/membership/cards?state=ready&limit=50').set(admin.auth);
     assert.ok(readyOnly.body.members.length >= 2);
     assert.ok(readyOnly.body.members.every((m) => m.state === 'ready' && m.card?.memberNumber && m.card.photo));
-    assert.equal(readyOnly.body.members.find((m) => String(m._id) === ready.id).card.regNumber.startsWith('S13/'), true);
+    assert.equal(readyOnly.body.members.find((m) => String(m._id) === ready.id).card.regNumber, ready.regNumber);
   });
 });
