@@ -55,6 +55,7 @@ EESA2/
 - Partner with us: ways to partner, partnership levels, current sponsors and an enquiry form
 - Card and certificate verification: scan the QR code on a membership card or certificate, or enter its number
 - Contact form
+- Search engine support: `/sitemap.xml`, `/robots.txt`, a canonical link and description on every public page, and noindex on private ones
 
 ### Member Portal
 - Dashboard with stats and upcoming events
@@ -322,6 +323,29 @@ Gallery photos upload one request per file and have their own rate limit, `GALLE
 3. Add environment variable: `NEXT_PUBLIC_API_URL=https://your-backend.onrender.com/api`
 4. Deploy.
 
+### Search engines and domains
+
+The frontend serves `/sitemap.xml` and `/robots.txt` on every domain it runs on. Both files, and every page's canonical link, use `NEXT_PUBLIC_SITE_URL`. Whichever address Google finds the site by, it is pointed at that one and indexes a single copy.
+
+The sitemap lists the fixed public pages, each department, and every public event, published article and gallery album with photos. It is rebuilt at most once an hour, so new items appear without a redeploy. If the API is asleep or down, the sitemap still lists the fixed pages and adds the rest on the next rebuild. The portal is left out and blocked in `robots.txt`. Sign-in, password and card/certificate result pages carry `noindex`.
+
+To get the site into Google:
+
+1. In [Google Search Console](https://search.google.com/search-console), add a **URL prefix** property for the address in `NEXT_PUBLIC_SITE_URL` (today `https://eesa-en.vercel.app`).
+2. Choose **HTML tag** verification. Copy the tag's `content` value into `GOOGLE_SITE_VERIFICATION` in Vercel, redeploy, then click **Verify**.
+3. Under **Sitemaps**, submit `sitemap.xml`.
+
+[Bing Webmaster Tools](https://www.bing.com/webmasters) can import the site from Search Console. Otherwise put its meta-tag token in `BING_SITE_VERIFICATION`.
+
+When `eesa.ac.ke` is bought:
+
+1. In Vercel, **Settings › Domains**, add `eesa.ac.ke` and `www.eesa.ac.ke`, add the DNS records Vercel shows at the registrar, and set `www.eesa.ac.ke` to redirect to `eesa.ac.ke`.
+2. Once `https://eesa.ac.ke` loads, set `NEXT_PUBLIC_SITE_URL=https://eesa.ac.ke` in Vercel and redeploy. Doing it earlier points the sitemap and canonical links at an address that does not answer.
+3. On Render, put `https://eesa.ac.ke` first in `FRONTEND_URL` and keep the Vercel address after it, e.g. `https://eesa.ac.ke,https://eesa-en.vercel.app`. The API only accepts requests from these addresses, and links in emails use the first one.
+4. In Search Console, add a **Domain** property for `eesa.ac.ke`. It is verified with a DNS TXT record and covers `www` as well. Submit `https://eesa.ac.ke/sitemap.xml`.
+
+`eesa-en.vercel.app` keeps working. Its pages name `eesa.ac.ke` as canonical, so Google replaces its results with the new addresses over the following weeks.
+
 ### Environment Variables Checklist (Production)
 
 | Variable | Where | Example |
@@ -350,7 +374,9 @@ Gallery photos upload one request per file and have their own rate limit, `GALLE
 | `ORDER_HOLD_HOURS` | Render | `72` (optional) |
 | `ACADEMIC_YEAR_START_MONTH` | Render | `9` (September, the default) |
 | `NEXT_PUBLIC_API_URL` | Vercel | `https://your-backend.onrender.com/api` |
-| `NEXT_PUBLIC_SITE_URL` | Vercel | `https://eesa-en.vercel.app` |
+| `NEXT_PUBLIC_SITE_URL` | Vercel | `https://eesa-en.vercel.app`; `https://eesa.ac.ke` once that domain is live |
+| `GOOGLE_SITE_VERIFICATION` | Vercel | Search Console HTML-tag token (optional; comma-separate several) |
+| `BING_SITE_VERIFICATION` | Vercel | Bing Webmaster Tools meta-tag token (optional) |
 | `SEED_ADMIN_EMAIL` | Local, when seeding | Administrator's email |
 
 ---

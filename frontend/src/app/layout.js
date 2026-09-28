@@ -3,6 +3,7 @@ import './globals.css';
 import { AuthProvider } from '@/lib/AuthContext';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import { themeInitScript } from '@/lib/themeScript';
+import { SITE_URL, TITLE_TEMPLATE } from '@/lib/site';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ToastHost from '@/components/ToastHost';
@@ -39,28 +40,33 @@ const playfair = Playfair_Display({
   variable: '--font-display',
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eesa-en.vercel.app';
+// Search Console and Bing Webmaster verification tokens. Several can be given,
+// comma-separated, one per verified address.
+const verificationTokens = (value) => (value || '').split(',').map((token) => token.trim()).filter(Boolean);
+const googleVerification = verificationTokens(process.env.GOOGLE_SITE_VERIFICATION);
+const bingVerification = verificationTokens(process.env.BING_SITE_VERIFICATION);
 
 export const metadata = {
   // Required for Open Graph and canonical URLs to resolve as absolute.
-  metadataBase: new URL(siteUrl),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: 'EESA — Egerton Engineering Student Association',
     // Pages set only their own name; the suffix is appended here.
-    template: '%s | EESA',
+    template: TITLE_TEMPLATE,
   },
   description:
     'The official website and member portal of the Egerton Engineering Student Association: events, projects, news, a shared resource library and elections.',
   keywords: ['Egerton University', 'Engineering', 'Student Association', 'EESA', 'Kenya', 'Njoro'],
   authors: [{ name: 'Egerton Engineering Student Association' }],
   manifest: '/manifest.json',
-  alternates: { canonical: '/' },
+  // No canonical or og:url here: every page would inherit them and tell Google
+  // and link previews that it is a copy of the home page. Each public page sets
+  // its own canonical in its layout.
   openGraph: {
     type: 'website',
     siteName: 'EESA',
     title: 'EESA — Egerton Engineering Student Association',
     description: 'Events, projects, news and resources for engineering students at Egerton University.',
-    url: siteUrl,
     locale: 'en_KE',
     images: [{ url: '/logo.png', width: 512, height: 512, alt: 'EESA logo' }],
   },
@@ -71,6 +77,10 @@ export const metadata = {
     images: ['/logo.png'],
   },
   robots: { index: true, follow: true },
+  verification: {
+    ...(googleVerification.length && { google: googleVerification }),
+    ...(bingVerification.length && { other: { 'msvalidate.01': bingVerification } }),
+  },
   appleWebApp: { capable: true, statusBarStyle: 'default', title: 'EESA' },
   icons: { icon: '/logo.png', apple: '/logo.png' },
   formatDetection: { telephone: false },
