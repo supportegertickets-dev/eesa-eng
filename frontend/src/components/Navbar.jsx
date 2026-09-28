@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { roleLabel } from '@/lib/roles';
 import Avatar from '@/components/ui/Avatar';
 import ThemeToggle from '@/components/ui/ThemeToggle';
-import { HiMenu, HiX, HiChevronDown, HiUser, HiViewGrid, HiLogout } from 'react-icons/hi';
+import { HiMenu, HiX, HiChevronDown, HiUser, HiViewGrid, HiLogout, HiScale, HiHand, HiBadgeCheck } from 'react-icons/hi';
 
 const NAV_LINKS = [
   { href: '/', label: 'Home' },
@@ -16,7 +16,15 @@ const NAV_LINKS = [
   { href: '/projects', label: 'Projects' },
   { href: '/gallery', label: 'Gallery' },
   { href: '/news', label: 'News' },
+  { href: '/merchandise', label: 'Shop' },
   { href: '/contact', label: 'Contact' },
+];
+
+// Less-visited pages, grouped so the bar stays on one line.
+const MORE_LINKS = [
+  { href: '/constitution', label: 'Constitution', description: 'How the association is run', icon: HiScale },
+  { href: '/partner', label: 'Partner with us', description: 'Sponsor, mentor or recruit', icon: HiHand },
+  { href: '/verify', label: 'Verify a membership card', description: 'Check a card is genuine', icon: HiBadgeCheck },
 ];
 
 export default function Navbar() {
@@ -25,13 +33,16 @@ export default function Navbar() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const userMenuRef = useRef(null);
+  const moreRef = useRef(null);
 
   // Close both menus on navigation. Previously the mobile menu stayed open
   // behind the new page after every tap.
   useEffect(() => {
     setMenuOpen(false);
     setUserMenuOpen(false);
+    setMoreOpen(false);
   }, [pathname]);
 
   // Lock body scroll while the mobile menu covers the page.
@@ -40,14 +51,19 @@ export default function Navbar() {
     return () => document.body.classList.remove('overflow-hidden');
   }, [menuOpen]);
 
+  // Either dropdown closes on a click outside it or on Escape.
   useEffect(() => {
-    if (!userMenuOpen) return undefined;
+    if (!userMenuOpen && !moreOpen) return undefined;
 
     const onPointerDown = (event) => {
       if (!userMenuRef.current?.contains(event.target)) setUserMenuOpen(false);
+      if (!moreRef.current?.contains(event.target)) setMoreOpen(false);
     };
     const onKeyDown = (event) => {
-      if (event.key === 'Escape') setUserMenuOpen(false);
+      if (event.key === 'Escape') {
+        setUserMenuOpen(false);
+        setMoreOpen(false);
+      }
     };
 
     document.addEventListener('mousedown', onPointerDown);
@@ -56,7 +72,7 @@ export default function Navbar() {
       document.removeEventListener('mousedown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [userMenuOpen]);
+  }, [userMenuOpen, moreOpen]);
 
   /**
    * A link is current when the path matches exactly, or sits beneath it. The
@@ -68,7 +84,7 @@ export default function Navbar() {
   const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(' ');
 
   return (
-    <nav className="bg-primary-500 text-white shadow-raised sticky top-0 z-50" aria-label="Main">
+    <nav className="bg-primary-500 text-white shadow-raised sticky top-0 z-50 print:hidden" aria-label="Main">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-2">
           <Link href="/" className="flex items-center gap-2 shrink-0 rounded-md" aria-label="EESA home">
@@ -77,7 +93,7 @@ export default function Navbar() {
             <span className="font-heading font-bold text-xl hidden sm:block">EESA</span>
           </Link>
 
-          <div className="hidden md:flex items-center gap-0.5">
+          <div className="hidden lg:flex items-center gap-0.5">
             {NAV_LINKS.map((link) => {
               const current = isCurrent(link.href);
               return (
@@ -85,16 +101,50 @@ export default function Navbar() {
                   key={link.href}
                   href={link.href}
                   aria-current={current ? 'page' : undefined}
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors
+                  className={`px-2.5 xl:px-3 py-2 rounded-md text-sm font-medium transition-colors
                     ${current ? 'bg-white/15 text-white' : 'text-white/85 hover:bg-white/10 hover:text-white'}`}
                 >
                   {link.label}
                 </Link>
               );
             })}
+
+            <div className="relative" ref={moreRef}>
+              <button
+                type="button"
+                onClick={() => setMoreOpen((open) => !open)}
+                aria-expanded={moreOpen}
+                aria-haspopup="menu"
+                className={`px-2.5 xl:px-3 py-2 rounded-md text-sm font-medium transition-colors inline-flex items-center gap-1
+                  ${MORE_LINKS.some((link) => isCurrent(link.href)) ? 'bg-white/15 text-white' : 'text-white/85 hover:bg-white/10 hover:text-white'}`}
+              >
+                More
+                <HiChevronDown className={`w-4 h-4 transition-transform ${moreOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+              </button>
+
+              {moreOpen && (
+                <div role="menu" className="absolute right-0 mt-2 w-72 rounded-lg bg-surface-raised border border-line shadow-overlay py-1 animate-fade-in">
+                  {MORE_LINKS.map(({ href, label, description, icon: Icon }) => (
+                    <Link
+                      key={href}
+                      href={href}
+                      role="menuitem"
+                      aria-current={isCurrent(href) ? 'page' : undefined}
+                      className="flex items-start gap-3 px-4 py-2.5 hover:bg-muted transition-colors"
+                    >
+                      <Icon className="w-5 h-5 text-primary-500 dark:text-primary-300 mt-0.5 shrink-0" aria-hidden="true" />
+                      <span>
+                        <span className="block text-sm font-medium text-strong">{label}</span>
+                        <span className="block text-xs text-subtle">{description}</span>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="hidden md:flex items-center gap-2">
+          <div className="hidden lg:flex items-center gap-2">
             <ThemeToggle />
 
             {loading ? (
@@ -162,7 +212,7 @@ export default function Navbar() {
             )}
           </div>
 
-          <div className="flex md:hidden items-center gap-1">
+          <div className="flex lg:hidden items-center gap-1">
             <ThemeToggle />
             <button
               type="button"
@@ -178,7 +228,7 @@ export default function Navbar() {
         </div>
 
         {menuOpen && (
-          <div id="mobile-menu" className="md:hidden pb-4 animate-fade-in">
+          <div id="mobile-menu" className="lg:hidden pb-4 animate-fade-in max-h-[calc(100vh-4rem)] overflow-y-auto">
             {user && (
               <div className="flex items-center gap-3 px-3 py-3 mb-2 rounded-lg bg-white/10">
                 <Avatar src={user.avatar} name={fullName} size="md" tone="onBrand" />
@@ -204,6 +254,22 @@ export default function Navbar() {
                   </Link>
                 );
               })}
+            </div>
+
+            <p className="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-white/60">More</p>
+            <div className="mt-1 space-y-0.5">
+              {MORE_LINKS.map(({ href, label, icon: Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={isCurrent(href) ? 'page' : undefined}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-base font-medium transition-colors
+                    ${isCurrent(href) ? 'bg-white/15 text-white' : 'text-white/85 hover:bg-white/10'}`}
+                >
+                  <Icon className="w-5 h-5 text-white/70" aria-hidden="true" />
+                  {label}
+                </Link>
+              ))}
             </div>
 
             <div className="mt-4 pt-4 border-t border-white/20 space-y-2">

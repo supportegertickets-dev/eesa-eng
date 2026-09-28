@@ -24,6 +24,28 @@ const contactSchema = new mongoose.Schema({
     required: [true, 'Message is required'],
     maxlength: 3000
   },
+  // Partnership enquiries come from the Partner with us page and carry the
+  // organisation's details.
+  category: {
+    type: String,
+    enum: ['general', 'partnership'],
+    default: 'general'
+  },
+  organization: {
+    type: String,
+    trim: true,
+    maxlength: 150
+  },
+  phone: {
+    type: String,
+    trim: true,
+    maxlength: 30
+  },
+  interest: {
+    type: String,
+    trim: true,
+    maxlength: 60
+  },
   isRead: {
     type: Boolean,
     default: false

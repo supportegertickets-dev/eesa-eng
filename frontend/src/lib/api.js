@@ -455,4 +455,53 @@ export const deleteAlbumPhotos = (id, photoIds) => api.post(`/gallery/albums/${i
 export const updatePhoto = (id, data) => api.patch(`/gallery/photos/${id}`, data);
 export const deletePhoto = (id) => api.delete(`/gallery/photos/${id}`);
 
+/* ------------------------------------------------------------------ *
+ * Membership card
+ * ------------------------------------------------------------------ */
+export const getMembershipCard = () => api.get('/membership/card');
+export const uploadPassportPhoto = (formData, onProgress) => api.upload('/membership/photo', formData, onProgress);
+export const getPassportPhotos = (params = '') => api.get(`/membership/photos${params}`);
+export const reviewPassportPhoto = (id, data) => api.put(`/membership/photos/${id}/review`, data);
+export const verifyMembership = (number) => api.get(`/membership/verify/${encodeURIComponent(number)}`);
+// Administrators: every member's card, one member's card, and adding a photo for them.
+export const getMemberCards = (params = '') => api.get(`/membership/cards${params}`);
+export const getMemberCard = (userId) => api.get(`/membership/cards/${userId}`);
+export const uploadMemberPhoto = (userId, formData, onProgress) => api.upload(`/membership/cards/${userId}/photo`, formData, onProgress);
+
+/* ------------------------------------------------------------------ *
+ * Merchandise
+ * ------------------------------------------------------------------ */
+export const getShopSettings = () => api.get('/merchandise/settings');
+export const getProducts = (params = '') => api.get(`/merchandise/products${params}`);
+export const getProduct = (key) => api.get(`/merchandise/products/${encodeURIComponent(key)}`);
+export const createProduct = (formData, onProgress) => api.upload('/merchandise/products', formData, onProgress);
+export const updateProduct = (id, formData, onProgress) => api.upload(`/merchandise/products/${id}`, formData, onProgress, 'PUT');
+export const deleteProduct = (id) => api.delete(`/merchandise/products/${id}`);
+
+export const placeOrder = (data) => api.post('/merchandise/orders', data);
+export const getMyOrders = () => api.get('/merchandise/orders/my');
+export const getOrder = (id) => api.get(`/merchandise/orders/${id}`);
+export const payOrderMpesa = (id, phone) => api.post(`/merchandise/orders/${id}/mpesa`, { phone });
+export const payOrderManual = (id, formData) => api.post(`/merchandise/orders/${id}/manual`, formData);
+export const cancelOrder = (id, reason) => api.post(`/merchandise/orders/${id}/cancel`, reason ? { reason } : {});
+export const getAllOrders = (params = '') => api.get(`/merchandise/orders${params}`);
+export const getShopSummary = () => api.get('/merchandise/summary');
+export const reviewOrderPayment = (id, data) => api.put(`/merchandise/orders/${id}/payment`, data);
+export const setOrderStatus = (id, data) => api.put(`/merchandise/orders/${id}/status`, data);
+
+/* ------------------------------------------------------------------ *
+ * Constitution
+ * ------------------------------------------------------------------ */
+export const getConstitution = () => api.get('/constitution');
+export const getConstitutionVersion = (id) => api.get(`/constitution/versions/${id}`);
+export const getConstitutionVersions = () => api.get('/constitution/admin');
+export const createConstitution = (formData, onProgress) => api.upload('/constitution', formData, onProgress);
+export const updateConstitution = (id, data) =>
+  (data instanceof FormData ? api.upload(`/constitution/${id}`, data, undefined, 'PUT') : api.put(`/constitution/${id}`, data));
+export const publishConstitution = (id) => api.post(`/constitution/${id}/publish`);
+export const deleteConstitution = (id) => api.delete(`/constitution/${id}`);
+/** The original document; a plain link, since published versions are public. */
+export const constitutionFileUrl = (id, { download = false } = {}) =>
+  `${API_URL}/constitution/versions/${id}/file${download ? '?download=1' : ''}`;
+
 export default api;

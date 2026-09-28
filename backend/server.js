@@ -10,6 +10,7 @@ const mongoose = require('mongoose');
 
 const connectDB = require('./config/db');
 const { advanceAcademicYears } = require('./utils/academicYear');
+const { expireStaleOrders } = require('./utils/merchandise');
 const { mongoSanitize } = require('./utils/sanitize');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
@@ -50,6 +51,13 @@ connectDB().then(() => {
   // Backstop for a long-lived process with no traffic; the routine is
   // internally throttled so this cannot double-apply.
   setInterval(runRollover, 24 * 60 * 60 * 1000).unref();
+
+  // Unpaid shop orders release their stock after the hold period. Shop
+  // requests also trigger this; the interval covers a quiet shop.
+  const runOrderExpiry = () =>
+    expireStaleOrders({ force: true }).catch((error) => console.error('Order expiry failed:', error.message));
+  runOrderExpiry();
+  setInterval(runOrderExpiry, 60 * 60 * 1000).unref();
 });
 
 /* ------------------------------------------------------------------ *
@@ -156,6 +164,9 @@ app.use('/api/sponsors', require('./routes/sponsors'));
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/gallery', require('./routes/gallery'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/membership', require('./routes/membership'));
+app.use('/api/merchandise', require('./routes/merchandise'));
+app.use('/api/constitution', require('./routes/constitution'));
 
 /**
  * Health check. Reports database connectivity so a failed Mongo connection

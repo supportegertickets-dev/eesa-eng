@@ -3,6 +3,10 @@
 import { useEffect, useId, useRef } from 'react';
 import { HiX } from 'react-icons/hi';
 
+// Dialogs open on top of each other (a form opened from inside a dialog), so
+// Escape closes only the topmost one, and the page stays locked until the last closes.
+const openDialogs = [];
+
 const SIZES = {
   sm: 'sm:max-w-md',
   md: 'sm:max-w-lg',
@@ -40,17 +44,20 @@ export default function Modal({
     if (!open) return undefined;
 
     const previouslyFocused = document.activeElement;
+    const token = {};
+    openDialogs.push(token);
     panelRef.current?.focus();
     document.body.classList.add('overflow-hidden');
 
     const onKeyDown = (event) => {
-      if (event.key === 'Escape' && !busyRef.current) closeRef.current?.();
+      if (event.key === 'Escape' && openDialogs[openDialogs.length - 1] === token && !busyRef.current) closeRef.current?.();
     };
     document.addEventListener('keydown', onKeyDown);
 
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      document.body.classList.remove('overflow-hidden');
+      openDialogs.splice(openDialogs.indexOf(token), 1);
+      if (!openDialogs.length) document.body.classList.remove('overflow-hidden');
       previouslyFocused?.focus?.();
     };
   }, [open]);

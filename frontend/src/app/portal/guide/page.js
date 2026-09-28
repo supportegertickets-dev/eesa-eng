@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { HiAcademicCap, HiBookOpen, HiCalendar, HiCash, HiClipboardList, HiInformationCircle, HiLightBulb, HiPhotograph, HiUser, HiUsers, HiBell, HiArrowRight } from 'react-icons/hi';
+import { HiAcademicCap, HiBookOpen, HiCalendar, HiCash, HiClipboardList, HiInformationCircle, HiLightBulb, HiPhotograph, HiUser, HiUsers, HiBell, HiArrowRight, HiIdentification, HiShoppingBag, HiScale } from 'react-icons/hi';
 
 const sections = [
   {
@@ -68,8 +68,23 @@ const sections = [
     link: ['/portal/payments', 'Open Payments']
   },
   {
+    icon: HiIdentification,
+    title: '6. Get your membership card',
+    description: 'Paid-up members get an official EESA card with a QR code that anyone can scan to check it.',
+    steps: [
+      'Pay your semester subscription first. New members pay registration; returning members pay renewal.',
+      'Once the payment is verified, open Membership Card and upload a passport photo: a recent, clear photo of your face on a plain background.',
+      'An administrator checks the photo. You get a notification when it is approved, or the reason if you need to upload another.',
+      'Download your card as an image, or print it (or save it as a PDF) at bank-card size.',
+      'Your card shows as valid until your subscription ends. Renew and the same card becomes valid again.',
+      'To check someone else\'s card, scan its QR code or enter the member number at Verify a membership card on the website.',
+      'Admin and Chairperson: the Members\' cards tab lists every member\'s card. Mark a member paid after a cash payment, add their photo to issue the card at once, and tick ready cards to print them on A4 or download them together.'
+    ],
+    link: ['/portal/card', 'Open Membership Card']
+  },
+  {
     icon: HiBell,
-    title: '6. Read notifications',
+    title: '7. Read notifications',
     description: 'Use notifications for announcements, approvals, and important EESA updates.',
     steps: [
       'Open Notifications from the portal menu.',
@@ -80,7 +95,7 @@ const sections = [
   },
   {
     icon: HiPhotograph,
-    title: '7. Explore the gallery',
+    title: '8. Explore the gallery',
     description: 'Browse photo albums from EESA events and activities. Office holders can also create albums and upload photos.',
     steps: [
       'Open Gallery from the portal menu, then search, filter by category or sort to find an album.',
@@ -91,7 +106,7 @@ const sections = [
   },
   {
     icon: HiLightBulb,
-    title: '8. Discover projects',
+    title: '9. Discover projects',
     description: 'Learn about engineering projects and find opportunities to participate.',
     steps: [
       'Open Projects from the main website navigation.',
@@ -102,7 +117,7 @@ const sections = [
   },
   {
     icon: HiUsers,
-    title: '9. Connect with members',
+    title: '10. Connect with members',
     description: 'Browse the EESA membership directory, find colleagues and see what they contribute.',
     steps: [
       'Open Members from the portal menu.',
@@ -114,7 +129,7 @@ const sections = [
   },
   {
     icon: HiAcademicCap,
-    title: '10. Understand your academic status',
+    title: '11. Understand your academic status',
     description: 'Your academic year is maintained by the system across the five-year course.',
     steps: [
       'Your year advances automatically after an academic year passes.',
@@ -123,6 +138,30 @@ const sections = [
       'Contact an administrator if your academic information needs correction.'
     ],
     link: ['/portal/profile', 'Check Status']
+  },
+  {
+    icon: HiShoppingBag,
+    title: '12. Order official merchandise',
+    description: 'Buy EESA hoodies, T-shirts and more online, pay by M-Pesa and collect on campus.',
+    steps: [
+      'Open Shop on the website and choose an item, its size and colour, then add it to your cart.',
+      'Open the cart and select Place order. Your items are set aside while you pay.',
+      'Pay with an M-Pesa prompt to your phone, or pay another way and enter the M-Pesa code.',
+      'Follow the order under My Orders. You are notified when it is ready to collect.',
+      'Unpaid orders are cancelled automatically after a few days, so pay soon after ordering.'
+    ],
+    link: ['/portal/orders', 'Open My Orders']
+  },
+  {
+    icon: HiScale,
+    title: '13. Read the constitution',
+    description: 'The constitution sets out how EESA is run: membership, office bearers, elections and finances.',
+    steps: [
+      'Open Constitution from the More menu on the website.',
+      'Use the contents list to jump to an article, or search for a word such as quorum or subscription.',
+      'Download the original document or print the constitution from the top of the page.'
+    ],
+    link: ['/constitution', 'Read the Constitution']
   }
 ];
 

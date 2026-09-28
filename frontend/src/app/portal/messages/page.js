@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { HiInbox, HiMail, HiMailOpen, HiReply, HiTrash } from 'react-icons/hi';
+import { HiInbox, HiMail, HiMailOpen, HiReply, HiTrash, HiOfficeBuilding, HiPhone } from 'react-icons/hi';
 import { deleteContactMessage, getContactMessages, markContactRead } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 import { formatDateTime, relativeTime } from '@/lib/dates';
@@ -20,6 +20,13 @@ const STATUS_FILTERS = [
   { id: '', label: 'All' },
   { id: 'unread', label: 'Unread' },
   { id: 'read', label: 'Read' },
+];
+
+// Enquiries from the Partner with us page arrive in the same inbox.
+const CATEGORY_FILTERS = [
+  { id: '', label: 'All messages' },
+  { id: 'general', label: 'Contact form' },
+  { id: 'partnership', label: 'Partnership enquiries' },
 ];
 
 /** A reply opens in the administrator's own mail app, already addressed and titled. */
@@ -46,9 +53,11 @@ function Messages() {
   // The view lives in the URL, so the admin overview can link straight to unread messages.
   const requestedStatus = searchParams.get('status') || '';
   const status = STATUS_FILTERS.some((filter) => filter.id === requestedStatus) ? requestedStatus : '';
+  const requestedCategory = searchParams.get('category') || '';
+  const category = CATEGORY_FILTERS.some((filter) => filter.id === requestedCategory) ? requestedCategory : '';
   const page = Math.max(1, Number(searchParams.get('page')) || 1);
 
-  const [data, setData] = useState({ messages: [], total: 0, totalPages: 1, unread: 0 });
+  const [data, setData] = useState({ messages: [], total: 0, totalPages: 1, unread: 0, unreadPartnerships: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openId, setOpenId] = useState(null);
@@ -71,13 +80,14 @@ function Messages() {
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
       if (status) params.set('status', status);
+      if (category) params.set('category', category);
       setData(await getContactMessages(`?${params}`));
     } catch (err) {
       setError(err);
     } finally {
       setLoading(false);
     }
-  }, [status, page]);
+  }, [status, category, page]);
 
   useEffect(() => { if (isAdmin) load(); }, [isAdmin, load]);
 
@@ -101,6 +111,9 @@ function Messages() {
       setData((current) => ({
         ...current,
         unread: Math.max(0, current.unread + (isRead ? -1 : 1)),
+        unreadPartnerships: message.category === 'partnership'
+          ? Math.max(0, (current.unreadPartnerships || 0) + (isRead ? -1 : 1))
+          : current.unreadPartnerships,
         messages: current.messages.map((m) => (m._id === message._id ? { ...m, isRead } : m)),
       }));
     } catch (err) {
@@ -138,16 +151,23 @@ function Messages() {
   };
 
   const chips = STATUS_FILTERS.map((filter) => (filter.id === 'unread' ? { ...filter, count: data.unread } : filter));
+  const categoryChips = CATEGORY_FILTERS.map((filter) => (filter.id === 'partnership' && data.unreadPartnerships ? { ...filter, count: data.unreadPartnerships } : filter));
 
   return (
     <div>
       <div className="mb-6">
         <p className="text-primary-600 dark:text-primary-300 text-sm font-semibold uppercase tracking-wide">Administration</p>
         <h1 className="page-title mt-1">Messages</h1>
-        <p className="text-muted-fg mt-1">Messages sent through the public contact page.</p>
+        <p className="text-muted-fg mt-1">Messages sent through the contact page and partnership enquiries from the Partner with us page.</p>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 space-y-2">
+        <FilterChips
+          label="Show messages of type"
+          options={categoryChips}
+          value={category}
+          onChange={(id) => { setOpenId(null); updateQuery({ category: id, page: '' }); }}
+        />
         <FilterChips
           label="Show messages"
           options={chips}
@@ -203,13 +223,33 @@ function Messages() {
                           {relativeTime(message.createdAt)}
                         </time>
                       </span>
-                      <span className="block text-sm text-subtle truncate">{message.name} · {message.email}</span>
+                      <span className="block text-sm text-subtle truncate">
+                        {message.category === 'partnership' && <span className="badge-brand mr-1.5">Partnership</span>}
+                        {message.organization ? `${message.organization} · ` : ''}{message.name} · {message.email}
+                      </span>
                       {!open && <span className="block text-sm text-muted-fg truncate mt-0.5">{message.message}</span>}
                     </span>
                   </button>
 
                   {open && (
                     <div className="px-4 pb-4 sm:pl-16">
+                      {message.category === 'partnership' && (
+                        <dl className="mb-3 grid gap-1 text-sm sm:grid-cols-3">
+                          <div className="flex items-center gap-1.5 text-body">
+                            <HiOfficeBuilding className="w-4 h-4 text-faint" aria-hidden="true" />
+                            <dt className="sr-only">Organisation</dt><dd>{message.organization}</dd>
+                          </div>
+                          {message.phone && (
+                            <div className="flex items-center gap-1.5">
+                              <HiPhone className="w-4 h-4 text-faint" aria-hidden="true" />
+                              <dt className="sr-only">Phone</dt><dd><a href={`tel:${message.phone}`} className="text-primary-500 dark:text-primary-300 hover:underline">{message.phone}</a></dd>
+                            </div>
+                          )}
+                          {message.interest && (
+                            <div className="text-body"><dt className="inline text-subtle">Interested in: </dt><dd className="inline">{message.interest}</dd></div>
+                          )}
+                        </dl>
+                      )}
                       <p className="text-sm text-body whitespace-pre-wrap break-words">{message.message}</p>
                       <div className="flex flex-wrap gap-2 mt-4">
                         <a href={replyHref(message)} className="btn-primary btn-sm">

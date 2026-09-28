@@ -32,9 +32,13 @@ export const LEADERSHIP_ROLES = [
 /** May approve content, verify payments and manage members. */
 export const POWER_ROLES = ['admin', 'chairperson'];
 
+/** Run the merchandise shop: products, orders and their payments. */
+export const MERCHANDISE_ROLES = ['admin', 'chairperson', 'treasurer'];
+
 export const roleLabel = (role) => ROLE_LABELS[role] || role;
 export const isLeadership = (role) => LEADERSHIP_ROLES.includes(role);
 export const isPower = (role) => POWER_ROLES.includes(role);
+export const isMerchandise = (role) => MERCHANDISE_ROLES.includes(role);
 
 export const DEPARTMENTS = [
   'Civil Engineering',

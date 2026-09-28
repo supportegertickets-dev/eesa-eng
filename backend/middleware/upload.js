@@ -47,6 +47,24 @@ const imageFilter = (req, file, cb) => {
   }
 };
 
+// Formal documents such as the constitution: the formats the browser can read
+// text out of, plus legacy Word for keeping the original on file.
+const DOCUMENT_TYPES = [
+  TYPES_BY_EXTENSION['.pdf'],
+  TYPES_BY_EXTENSION['.docx'],
+  TYPES_BY_EXTENSION['.doc'],
+  TYPES_BY_EXTENSION['.txt']
+];
+
+const documentFilter = (req, file, cb) => {
+  if (GENERIC_TYPES.includes(file.mimetype)) {
+    const inferred = TYPES_BY_EXTENSION[path.extname(file.originalname || '').toLowerCase()];
+    if (inferred) file.mimetype = inferred;
+  }
+  if (DOCUMENT_TYPES.includes(file.mimetype)) cb(null, true);
+  else cb(new Error('File type not supported'), false);
+};
+
 const uploadFile = multer({
   storage,
   fileFilter,
@@ -59,4 +77,12 @@ const uploadImage = multer({
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB
 });
 
-module.exports = { uploadFile, uploadImage };
+const uploadDocument = multer({
+  storage,
+  fileFilter: documentFilter,
+  // The document's articles travel alongside it as a text field, which
+  // multer would otherwise cap at 1MB.
+  limits: { fileSize: 20 * 1024 * 1024, fieldSize: 2 * 1024 * 1024 } // 20MB file, 2MB text
+});
+
+module.exports = { uploadFile, uploadImage, uploadDocument };

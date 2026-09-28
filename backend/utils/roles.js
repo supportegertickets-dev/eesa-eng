@@ -39,6 +39,9 @@ const LEADERSHIP_ROLES = [
 /** Roles allowed to approve content, verify payments and manage members. */
 const POWER_ROLES = [ROLES.ADMIN, ROLES.CHAIRPERSON];
 
+/** Roles that run the merchandise shop: products, orders and their payments. */
+const MERCHANDISE_ROLES = [ROLES.ADMIN, ROLES.CHAIRPERSON, ROLES.TREASURER];
+
 /** Human-readable labels, shared with the frontend via GET /api/auth/roles. */
 const ROLE_LABELS = {
   [ROLES.MEMBER]: 'Member',
@@ -56,9 +59,10 @@ const ROLE_LABELS = {
 
 const isLeadership = (role) => LEADERSHIP_ROLES.includes(role);
 const isPower = (role) => POWER_ROLES.includes(role);
+const isMerchandise = (role) => MERCHANDISE_ROLES.includes(role);
 const labelFor = (role) => ROLE_LABELS[role] || role;
 
 module.exports = {
-  ROLES, ALL_ROLES, LEADERSHIP_ROLES, POWER_ROLES, ROLE_LABELS,
-  isLeadership, isPower, labelFor
+  ROLES, ALL_ROLES, LEADERSHIP_ROLES, POWER_ROLES, MERCHANDISE_ROLES, ROLE_LABELS,
+  isLeadership, isPower, isMerchandise, labelFor
 };

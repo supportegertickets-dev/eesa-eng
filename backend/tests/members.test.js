@@ -234,6 +234,28 @@ describe('manual membership', () => {
     assert.equal(String(payments[0].verifiedBy), chair.id);
   });
 
+  test('marking a member paid tells them, and says what their card still needs', async () => {
+    const admin = await makeUser('admin');
+    const noPhoto = await makeUser();
+    const withPhoto = await makeUser('member', { passportPhoto: 'https://res.cloudinary.com/demo/image/upload/v1/p.jpg' });
+    const Notification = mongoose.model('Notification');
+
+    for (const subject of [noPhoto, withPhoto]) {
+      const res = await request(app).patch(`/api/users/${subject.id}/membership`).set(admin.auth).send({ membershipPaid: true });
+      assert.equal(res.status, 200, res.body.message);
+    }
+
+    const toNew = await Notification.findOne({ targetUsers: noPhoto.id, title: 'Membership active' }).lean();
+    assert.match(toNew.message, /paid until/);
+    assert.match(toNew.message, /Upload a passport photo/);
+    const toCardHolder = await Notification.findOne({ targetUsers: withPhoto.id, title: 'Membership active' }).lean();
+    assert.match(toCardHolder.message, /card is valid/);
+
+    // Marking someone unpaid sends nothing.
+    await request(app).patch(`/api/users/${noPhoto.id}/membership`).set(admin.auth).send({ membershipPaid: false });
+    assert.equal(await Notification.countDocuments({ targetUsers: noPhoto.id }), 1);
+  });
+
   test('marking a membership unpaid clears its expiry', async () => {
     const admin = await makeUser('admin');
     const subject = await makeUser('member', { membershipPaid: true, membershipExpiry: new Date(Date.now() + 30 * DAY) });

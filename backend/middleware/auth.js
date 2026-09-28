@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { advanceAcademicYears } = require('../utils/academicYear');
-const { LEADERSHIP_ROLES, POWER_ROLES, ROLES } = require('../utils/roles');
+const { LEADERSHIP_ROLES, POWER_ROLES, MERCHANDISE_ROLES, ROLES } = require('../utils/roles');
 
 /**
  * Resolve a bearer token to a user document.
@@ -115,7 +115,10 @@ const adminRoleOnly = requireRole([ROLES.ADMIN], 'Admin role');
 /** Any elected or appointed office holder: content management. */
 const leadershipOnly = requireRole(LEADERSHIP_ROLES, 'Leadership');
 
+/** The treasurer, admins and the chairperson: the merchandise shop. */
+const merchandiseOnly = requireRole(MERCHANDISE_ROLES, 'Shop managers');
+
 module.exports = {
-  protect, optionalAuth, adminOnly, adminRoleOnly, leadershipOnly, requireRole,
-  LEADERSHIP_ROLES, POWER_ROLES
+  protect, optionalAuth, adminOnly, adminRoleOnly, leadershipOnly, merchandiseOnly, requireRole,
+  LEADERSHIP_ROLES, POWER_ROLES, MERCHANDISE_ROLES
 };

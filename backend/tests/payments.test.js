@@ -342,6 +342,8 @@ describe('manual payments', () => {
     assert.equal(res.body.status, 'verified');
     assert.equal(String(res.body.verifiedBy._id), chairperson.id);
     assert.equal((await User.findById(member.id).lean()).membershipPaid, true);
+    const notice = await mongoose.model('Notification').findOne({ targetUsers: member.id, title: 'Membership active' }).lean();
+    assert.ok(notice, 'the member is told their membership is active');
 
     const stats = await request(app).get('/api/payments/stats').set(chairperson.auth);
     assert.deepEqual(stats.body, { total: 2, pending: 1, verified: 1, rejected: 0, totalAmount: 500 });

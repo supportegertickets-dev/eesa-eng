@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import {
   HiArrowLeft, HiBell, HiBookOpen, HiCalendar, HiCash, HiClipboardList, HiEye,
-  HiPencil, HiPhotograph, HiShieldCheck, HiUserAdd, HiUserRemove,
+  HiIdentification, HiPencil, HiPhotograph, HiShieldCheck, HiUserAdd, HiUserRemove,
 } from 'react-icons/hi';
 import { getAdminMember, setUserStatus } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
@@ -18,6 +18,7 @@ import {
 import EditMemberDialog from '@/components/members/EditMemberDialog';
 import MemberHeader from '@/components/members/MemberHeader';
 import MembershipDialog from '@/components/members/MembershipDialog';
+import MemberCardDialog from '@/components/membership/MemberCardDialog';
 import NotifyMemberDialog from '@/components/members/NotifyMemberDialog';
 import RoleDialog from '@/components/members/RoleDialog';
 import ActionMenu from '@/components/ui/ActionMenu';
@@ -286,6 +287,43 @@ export default function AdminMemberProfilePage({ params }) {
             </dl>
           </Section>
 
+          <Section
+            title="Membership card"
+            icon={HiIdentification}
+            action={member.isActive && (
+              <button type="button" className="btn-ghost btn-sm whitespace-nowrap" onClick={() => setDialog('card')}>
+                {membership.id === 'current' && member.passportPhoto ? 'Open card' : 'Set up'}
+              </button>
+            )}
+          >
+            <div className="flex items-center gap-3">
+              {member.passportPhoto ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={member.passportPhoto} alt="" className="w-12 aspect-[7/9] object-cover rounded-md border border-line" />
+              ) : (
+                <span className="w-12 aspect-[7/9] rounded-md bg-muted flex items-center justify-center">
+                  <HiPhotograph className="w-5 h-5 text-faint" aria-hidden="true" />
+                </span>
+              )}
+              <div className="text-sm min-w-0">
+                {!member.isActive ? (
+                  <p className="text-danger">Withdrawn: the account is deactivated</p>
+                ) : membership.id === 'current' && member.passportPhoto ? (
+                  <>
+                    <span className="badge-success">Card ready</span>
+                    {member.memberNumber && <p className="font-medium text-strong mt-1 break-all">{member.memberNumber}</p>}
+                  </>
+                ) : (
+                  <p className="text-muted-fg">
+                    {membership.id !== 'current'
+                      ? 'No card until the membership is paid up.'
+                      : 'Paid up. Add a passport photo to issue the card.'}
+                  </p>
+                )}
+              </div>
+            </div>
+          </Section>
+
           <Section title="About">
             {member.bio
               ? <p className="text-sm text-body whitespace-pre-line break-words">{member.bio}</p>
@@ -446,6 +484,7 @@ export default function AdminMemberProfilePage({ params }) {
 
       <EditMemberDialog open={dialog === 'edit'} member={member} onClose={closeDialog} onSaved={refresh} />
       <MembershipDialog open={dialog === 'membership'} member={member} onClose={closeDialog} onSaved={refresh} />
+      {dialog === 'card' && <MemberCardDialog userId={member._id} onClose={closeDialog} onChanged={refresh} />}
       <NotifyMemberDialog open={dialog === 'notify'} member={member} onClose={closeDialog} />
       <RoleDialog open={dialog === 'role'} member={member} onClose={closeDialog} onSaved={refresh} />
       <ConfirmDialog
