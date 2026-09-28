@@ -26,8 +26,13 @@ const router = express.Router();
 const PRODUCT_FOLDER = 'eesa/merchandise';
 const PROOF_FOLDER = 'eesa/order-payments';
 const PICKUP_LOCATION = process.env.SHOP_PICKUP_LOCATION || 'the EESA office';
-// Where to send money for a manual payment, such as "Paybill 123456, account:
-// your order number". Shown to members beside the manual payment form.
+// Where members send money for an order they pay outside the app: the
+// association's bank paybill. Shown step by step beside the manual payment form.
+const PAYBILL = {
+  businessNumber: process.env.SHOP_PAYBILL || '522522',
+  accountNumber: process.env.SHOP_ACCOUNT || '1286744210'
+};
+// Anything else members should know when paying, shown under the paybill steps.
 const PAYMENT_INSTRUCTIONS = process.env.SHOP_PAYMENT_INSTRUCTIONS || '';
 
 const ORDER_USER_FIELDS = 'firstName lastName email phone regNumber department avatar';
@@ -131,6 +136,7 @@ router.get('/settings', (req, res) => {
     mpesa: mpesaConfigured(),
     holdHours: ORDER_HOLD_HOURS,
     pickupLocation: PICKUP_LOCATION,
+    paybill: PAYBILL,
     paymentInstructions: PAYMENT_INSTRUCTIONS,
     categories: PRODUCT_CATEGORIES
   });
@@ -349,6 +355,7 @@ router.get('/orders/:id', protect, [idParam, validate], asyncHandler(async (req,
     order: await populateOrder(order._id).lean(),
     mpesa: mpesaConfigured(),
     pickupLocation: PICKUP_LOCATION,
+    paybill: PAYBILL,
     paymentInstructions: PAYMENT_INSTRUCTIONS
   });
 }));

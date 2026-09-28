@@ -146,7 +146,9 @@ RENEWAL_FEE=500
 
 # Merchandise shop (optional)
 SHOP_PICKUP_LOCATION=the EESA office
-SHOP_PAYMENT_INSTRUCTIONS=         # e.g. Paybill 123456, account: your order number
+SHOP_PAYBILL=522522                # paybill for payments made outside the app
+SHOP_ACCOUNT=1286744210            # its account number
+SHOP_PAYMENT_INSTRUCTIONS=         # any extra note shown under the paybill steps
 ORDER_HOLD_HOURS=72                # unpaid orders are cancelled after this
 ```
 
@@ -234,7 +236,7 @@ Members are notified when their membership becomes active, whether an administra
 
 1. The treasurer, chairperson or admin adds products in Portal › Merchandise, with photos, sizes, colours and optional stock.
 2. Anyone can browse `/merchandise`; ordering needs an account. The server prices every order from the catalogue, and placing it holds the stock.
-3. The member pays on the order's page: an M-Pesa prompt to their phone, or an M-Pesa code for money sent another way (`SHOP_PAYMENT_INSTRUCTIONS` says where to send it).
+3. The member pays on the order's page: an M-Pesa prompt to their phone, or through Pay Bill to the association's account (Paybill 522 522, account 1286744210, set by `SHOP_PAYBILL` and `SHOP_ACCOUNT`), then enters the M-Pesa code.
 4. M-Pesa payments confirm automatically through the existing callback URL (no new Daraja setup). Codes wait under Payments to check.
 5. The treasurer marks the order ready, with optional collection details, and the member is notified. Then it is marked collected.
 6. Unpaid orders are cancelled after `ORDER_HOLD_HOURS` and their stock is returned. Members can cancel an unpaid order themselves; only the shop can cancel a paid one.
@@ -322,7 +324,9 @@ Gallery photos upload one request per file and have their own rate limit, `GALLE
 | `REGISTRATION_FEE` | Render | `500` (whole shillings) |
 | `RENEWAL_FEE` | Render | `500` (whole shillings) |
 | `SHOP_PICKUP_LOCATION` | Render | Where orders are collected (optional) |
-| `SHOP_PAYMENT_INSTRUCTIONS` | Render | Where to send manual shop payments (optional) |
+| `SHOP_PAYBILL` | Render | `522522` (the default) |
+| `SHOP_ACCOUNT` | Render | `1286744210` (the default) |
+| `SHOP_PAYMENT_INSTRUCTIONS` | Render | Extra note for manual shop payments (optional) |
 | `ORDER_HOLD_HOURS` | Render | `72` (optional) |
 | `NEXT_PUBLIC_API_URL` | Vercel | `https://your-backend.onrender.com/api` |
 | `NEXT_PUBLIC_SITE_URL` | Vercel | `https://eesa-en.vercel.app` |

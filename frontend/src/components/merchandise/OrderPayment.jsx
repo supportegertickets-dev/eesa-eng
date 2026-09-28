@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { HiCheckCircle, HiClock, HiDeviceMobile, HiReceiptTax, HiXCircle } from 'react-icons/hi';
+import { HiCheckCircle, HiClipboardCopy, HiClock, HiDeviceMobile, HiReceiptTax, HiXCircle } from 'react-icons/hi';
 import { getOrder, payOrderManual, payOrderMpesa } from '@/lib/api';
 import { formatKES } from '@/lib/merchandise';
 import { relativeTime } from '@/lib/dates';
@@ -10,11 +10,35 @@ import { relativeTime } from '@/lib/dates';
 const POLL_MS = 5000;
 const POLL_LIMIT = 24; // Two minutes: Safaricom times an unanswered prompt out before then.
 
+/** "522522" -> "522 522", the way paybill numbers are usually written. */
+const groupDigits = (value) => String(value).replace(/(\d{3})(?=\d)/g, '$1 ');
+
+/** A number the member types into M-Pesa, with a button to copy it. */
+function CopyValue({ label, value, display = value }) {
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(String(value));
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error('Copying is not available here. Type the number instead.');
+    }
+  };
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="font-mono font-semibold text-strong tracking-wide">{display}</span>
+      <button type="button" onClick={copy} className="p-1 rounded text-subtle hover:text-strong hover:bg-muted-strong" aria-label={`Copy ${label.toLowerCase()} ${value}`}>
+        <HiClipboardCopy className="w-4 h-4" aria-hidden="true" />
+      </button>
+    </span>
+  );
+}
+
 /**
  * Paying for an order: an STK Push to the member's phone, or an M-Pesa code
- * for money sent another way. Either can be retried until one is confirmed.
+ * for money sent to the association's paybill. Either can be retried until
+ * one is confirmed.
  */
-export default function OrderPayment({ order, mpesaAvailable, paymentInstructions, defaultPhone, onChange }) {
+export default function OrderPayment({ order, mpesaAvailable, paybill, paymentInstructions, defaultPhone, onChange }) {
   const { payment = {} } = order;
   const waitingForMpesa = payment.status === 'pending' && payment.method === 'mpesa';
   const receiptInReview = payment.status === 'pending' && payment.method === 'manual';
@@ -161,11 +185,23 @@ export default function OrderPayment({ order, mpesaAvailable, paymentInstruction
         </form>
       ) : (
         <form onSubmit={submitReceipt} className="space-y-3">
-          <p className="text-sm text-body bg-muted rounded-lg p-3">
-            {paymentInstructions
-              ? <>Send <strong>{formatKES(order.total)}</strong> by M-Pesa: {paymentInstructions}. Use <span className="font-mono font-semibold">{order.orderNumber}</span> as the account or reference where asked.</>
-              : <>Send <strong>{formatKES(order.total)}</strong> to the EESA treasurer by M-Pesa, then enter the transaction code from the confirmation SMS.</>}
-          </p>
+          <div className="text-sm text-body bg-muted rounded-lg p-4">
+            {paybill?.businessNumber ? (
+              <>
+                <p className="font-medium text-strong">Pay {formatKES(order.total)} by M-Pesa Pay Bill</p>
+                <ol className="mt-2 space-y-1.5 list-decimal pl-5">
+                  <li>On M-Pesa, choose Lipa na M-Pesa, then Pay Bill.</li>
+                  <li>Business number: <CopyValue label="Business number" value={paybill.businessNumber} display={groupDigits(paybill.businessNumber)} /></li>
+                  {paybill.accountNumber && <li>Account number: <CopyValue label="Account number" value={paybill.accountNumber} /></li>}
+                  <li>Amount: <strong>{formatKES(order.total)}</strong>, then enter your M-Pesa PIN.</li>
+                  <li>Enter the transaction code from the confirmation SMS below.</li>
+                </ol>
+              </>
+            ) : (
+              <p>Send <strong>{formatKES(order.total)}</strong> to the EESA treasurer by M-Pesa, then enter the transaction code from the confirmation SMS.</p>
+            )}
+            {paymentInstructions && <p className="mt-2 text-muted-fg">{paymentInstructions}</p>}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <label htmlFor="pay-reference" className="form-label">M-Pesa transaction code</label>

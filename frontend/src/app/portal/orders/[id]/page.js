@@ -106,6 +106,7 @@ export default function OrderPage() {
             <OrderPayment
               order={order}
               mpesaAvailable={data.mpesa}
+              paybill={data.paybill}
               paymentInstructions={data.paymentInstructions}
               defaultPhone={order.contactPhone || user?.phone}
               onChange={setOrder}
