@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  HiAcademicCap, HiBadgeCheck, HiBan, HiChevronRight, HiDocumentText, HiDownload, HiPrinter, HiSearch,
+  HiAcademicCap, HiBadgeCheck, HiBan, HiChevronRight, HiDocumentText, HiDownload, HiPencil, HiPrinter, HiSearch,
 } from 'react-icons/hi';
 import { getCertificates, revokeCertificate } from '@/lib/api';
+import { useAuth } from '@/lib/AuthContext';
 import {
   CERTIFICATE_TITLES, certificateDate, certificateFileName, certificateSubject, printCertificates, renderCertificateImage,
 } from '@/lib/certificates';
 import { downloadZip } from '@/lib/print';
+import ActionMenu from '@/components/ui/ActionMenu';
 import EmptyState from '@/components/ui/EmptyState';
 import ErrorState from '@/components/ui/ErrorState';
 import FilterChips from '@/components/ui/FilterChips';
@@ -17,6 +19,7 @@ import Modal from '@/components/ui/Modal';
 import Pagination from '@/components/ui/Pagination';
 import { LoadingRegion, SkeletonList } from '@/components/ui/Skeleton';
 import CertificateDialog from '@/components/certificates/CertificateDialog';
+import CertificateEditDialog from '@/components/certificates/CertificateEditDialog';
 
 // Each filter is a kind of certificate and a status.
 const FILTERS = [
@@ -28,8 +31,9 @@ const FILTERS = [
 
 const PAGE_SIZE = 20;
 
-/** Every certificate issued: open, print or download them, and revoke one issued in error. */
+/** Every certificate issued: open, print or download them, correct their details, and revoke one issued in error. */
 export default function IssuedCertificatesPanel({ refreshKey }) {
+  const { user: currentUser } = useAuth();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
@@ -40,6 +44,7 @@ export default function IssuedCertificatesPanel({ refreshKey }) {
   const [working, setWorking] = useState(null); // null | { done, total }
   const [viewing, setViewing] = useState(null);
   const [revoking, setRevoking] = useState(null);
+  const [editing, setEditing] = useState(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -118,6 +123,18 @@ export default function IssuedCertificatesPanel({ refreshKey }) {
     setSelected((current) => {
       const next = new Map(current);
       next.delete(certificate._id);
+      return next;
+    });
+    load();
+  };
+
+  // A corrected certificate replaces the stale copy wherever it is held.
+  const onEdited = (certificate) => {
+    setViewing((current) => (current?._id === certificate._id ? certificate : current));
+    setSelected((current) => {
+      if (!current.has(certificate._id)) return current;
+      const next = new Map(current);
+      next.set(certificate._id, certificate);
       return next;
     });
     load();
@@ -209,9 +226,18 @@ export default function IssuedCertificatesPanel({ refreshKey }) {
                     <HiChevronRight className="w-5 h-5 text-faint shrink-0" aria-hidden="true" />
                   </button>
                   {certificate.status === 'valid' && (
-                    <button type="button" className="btn-ghost btn-sm mr-3 shrink-0 text-danger" onClick={() => setRevoking(certificate)}>
-                      <HiBan className="w-4 h-4" aria-hidden="true" /> Revoke
-                    </button>
+                    <span className="mr-3 shrink-0">
+                      <ActionMenu
+                        label={`Actions for ${certificate.recipientName}'s certificate`}
+                        actions={[
+                          // Nobody corrects their own certificate; another administrator does.
+                          ...(certificate.user !== currentUser?._id
+                            ? [{ label: 'Edit details', icon: HiPencil, onClick: () => setEditing(certificate) }]
+                            : []),
+                          { label: 'Revoke', icon: HiBan, danger: true, onClick: () => setRevoking(certificate) },
+                        ]}
+                      />
+                    </span>
                   )}
                 </li>
               );
@@ -222,7 +248,8 @@ export default function IssuedCertificatesPanel({ refreshKey }) {
       )}
 
       <RevokeDialog certificate={revoking} onClose={() => setRevoking(null)} onRevoked={onRevoked} />
-      <CertificateDialog certificate={viewing} onClose={() => setViewing(null)} />
+      <CertificateDialog certificate={viewing} onClose={() => setViewing(null)} editable onChanged={onEdited} />
+      {editing && <CertificateEditDialog certificate={editing} onClose={() => setEditing(null)} onSaved={onEdited} />}
     </div>
   );
 }

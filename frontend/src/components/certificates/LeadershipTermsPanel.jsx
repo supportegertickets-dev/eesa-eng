@@ -17,6 +17,7 @@ import FilterChips from '@/components/ui/FilterChips';
 import Pagination from '@/components/ui/Pagination';
 import { LoadingRegion, SkeletonList } from '@/components/ui/Skeleton';
 import CertificateDialog from '@/components/certificates/CertificateDialog';
+import CertificateEditDialog from '@/components/certificates/CertificateEditDialog';
 import TermFormDialog from '@/components/certificates/TermFormDialog';
 
 const FILTERS = [
@@ -45,6 +46,7 @@ export default function LeadershipTermsPanel({ onIssued }) {
   const [removing, setRemoving] = useState(null);
   const [busy, setBusy] = useState(false);
   const [viewing, setViewing] = useState(null);
+  const [editingCertificate, setEditingCertificate] = useState(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -134,6 +136,8 @@ export default function LeadershipTermsPanel({ onIssued }) {
               const actions = [];
               if (term.certificate) {
                 actions.push({ label: 'View certificate', icon: HiEye, onClick: () => setViewing(term.certificate) });
+                // The term's details now change through its certificate, which updates both.
+                if (!own) actions.push({ label: 'Edit certificate', icon: HiPencil, onClick: () => setEditingCertificate(term.certificate) });
               } else if (!own) {
                 actions.push({ label: 'Edit term', icon: HiPencil, onClick: () => setEditing({ term }) });
                 if (term.source === 'manual' || term.status === 'ended') {
@@ -221,7 +225,15 @@ export default function LeadershipTermsPanel({ onIssued }) {
         onCancel={() => setRemoving(null)}
       />
 
-      <CertificateDialog certificate={viewing} onClose={() => setViewing(null)} />
+      <CertificateDialog
+        certificate={viewing}
+        onClose={() => setViewing(null)}
+        editable
+        onChanged={(certificate) => { setViewing(certificate); load(); }}
+      />
+      {editingCertificate && (
+        <CertificateEditDialog certificate={editingCertificate} onClose={() => setEditingCertificate(null)} onSaved={load} />
+      )}
     </div>
   );
 }

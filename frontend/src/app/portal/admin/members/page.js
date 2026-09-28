@@ -4,13 +4,15 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { HiDownload, HiSearch, HiUserRemove, HiUsers, HiViewGrid } from 'react-icons/hi';
+import { HiBadgeCheck, HiDownload, HiSearch, HiUserRemove, HiUsers, HiViewGrid } from 'react-icons/hi';
 import { exportAdminMembers, getAdminMemberSummary, getAdminMembers, setUserStatus } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 import { formatDate, formatDateTime, relativeTime } from '@/lib/dates';
 import { MEMBERSHIP_FILTERS, adminMemberHref, fullName, membershipState, saveBlob, studyLabel } from '@/lib/members';
 import { ALL_ROLES, DEPARTMENTS, roleLabel } from '@/lib/roles';
 import MembershipDialog from '@/components/members/MembershipDialog';
+import BulkMembershipDialog from '@/components/members/BulkMembershipDialog';
+import MarkUnpaidDialog from '@/components/members/MarkUnpaidDialog';
 import Avatar from '@/components/ui/Avatar';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
@@ -78,6 +80,10 @@ function AdminMembers() {
   const [exporting, setExporting] = useState(false);
   const [pending, setPending] = useState(null);
   const [payingFor, setPayingFor] = useState(null);
+  const [expiryFor, setExpiryFor] = useState(null);
+  const [unpaying, setUnpaying] = useState(null); // members to mark not paid
+  const [bulk, setBulk] = useState(null); // { scope, description } for marking many paid
+  const [selected, setSelected] = useState(() => new Map()); // id -> member
   const [busy, setBusy] = useState(false);
 
   const replaceQuery = useCallback((params) => {
@@ -152,6 +158,8 @@ function AdminMembers() {
 
   useEffect(() => { if (isAdmin) load(); }, [isAdmin, load]);
   useEffect(() => { if (isAdmin) loadSummary(); }, [isAdmin, loadSummary]);
+  // Ticks belong to the list they were made in; new filters start afresh.
+  useEffect(() => { setSelected(new Map()); }, [apiQuery]);
 
   if (!isAdmin) {
     return (
@@ -162,6 +170,44 @@ function AdminMembers() {
   }
 
   const hasFilters = FILTER_KEYS.some((key) => filters[key]);
+
+  // Nobody changes their own membership, and deactivated accounts are left alone.
+  const tickable = data.users.filter((member) => member._id !== currentUser?._id && member.isActive);
+  const allOnPageTicked = tickable.length > 0 && tickable.every((member) => selected.has(member._id));
+  const toggle = (member) => setSelected((current) => {
+    const next = new Map(current);
+    if (next.has(member._id)) next.delete(member._id);
+    else next.set(member._id, member);
+    return next;
+  });
+  const togglePage = () => setSelected((current) => {
+    const next = new Map(current);
+    tickable.forEach((member) => (allOnPageTicked ? next.delete(member._id) : next.set(member._id, member)));
+    return next;
+  });
+
+  const afterMembershipChange = () => {
+    setSelected(new Map());
+    load();
+    loadSummary();
+  };
+
+  const markSelectedPaid = () => setBulk({
+    scope: { ids: [...selected.keys()] },
+    description: `The ${selected.size === 1 ? 'member' : `${selected.size} members`} you ticked.`,
+  });
+
+  const markAllPaid = () => {
+    // Exactly the list on screen: the same filters, without paging or sorting.
+    const filter = Object.fromEntries(new URLSearchParams(apiQuery));
+    delete filter.sort;
+    setBulk({
+      scope: { filter },
+      description: hasFilters
+        ? `Everyone matching the current filters (${data.total} member${data.total === 1 ? '' : 's'}).`
+        : `Every active member (${data.total}). Filter the list first to mark only some, for example Not paid up.`,
+    });
+  };
 
   const handleExport = async () => {
     setExporting(true);
@@ -258,14 +304,32 @@ function AdminMembers() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 mb-3 min-h-8">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3 min-h-8">
         <p className="text-sm text-muted-fg" aria-live="polite">
           {loading ? 'Loading members…' : `${data.total} member${data.total === 1 ? '' : 's'}`}
         </p>
-        {hasFilters && (
-          <button type="button" onClick={() => showView({})} className="btn-ghost btn-sm">Clear filters</button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {hasFilters && (
+            <button type="button" onClick={() => showView({})} className="btn-ghost btn-sm">Clear filters</button>
+          )}
+          {!loading && data.total > 0 && (
+            <button type="button" onClick={markAllPaid} className="btn-outline btn-sm">
+              <HiBadgeCheck className="w-4 h-4" aria-hidden="true" /> Mark all {data.total} paid
+            </button>
+          )}
+        </div>
       </div>
+
+      {selected.size > 0 && (
+        <div className="card p-3 mb-3 flex flex-wrap items-center gap-2 sticky top-20 z-20 shadow-overlay" role="region" aria-label="Ticked members">
+          <p className="text-sm font-medium text-strong flex-1">{selected.size} ticked</p>
+          <button type="button" className="btn-ghost btn-sm" onClick={() => setSelected(new Map())}>Clear</button>
+          <button type="button" className="btn-outline btn-sm" onClick={() => setUnpaying([...selected.values()])}>Mark not paid</button>
+          <button type="button" className="btn-primary btn-sm" onClick={markSelectedPaid}>
+            <HiBadgeCheck className="w-4 h-4" aria-hidden="true" /> Mark paid
+          </button>
+        </div>
+      )}
 
       {error ? (
         <ErrorState error={error} onRetry={load} />
@@ -285,6 +349,16 @@ function AdminMembers() {
             <table className="w-full text-sm">
               <thead className="bg-muted/60 text-left text-subtle">
                 <tr>
+                  <th scope="col" className="pl-4 pr-0 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      className="rounded border-line-strong"
+                      checked={allOnPageTicked}
+                      disabled={!tickable.length}
+                      onChange={togglePage}
+                      aria-label="Tick every member on this page"
+                    />
+                  </th>
                   <th scope="col" className="px-4 py-3 font-medium">Member</th>
                   <th scope="col" className="px-4 py-3 font-medium hidden md:table-cell">Reg. no.</th>
                   <th scope="col" className="px-4 py-3 font-medium hidden lg:table-cell">Department</th>
@@ -305,6 +379,17 @@ function AdminMembers() {
 
                   return (
                     <tr key={member._id} className="hover:bg-muted/40 transition-colors">
+                      <td className="pl-4 pr-0 py-3">
+                        {!isSelf && member.isActive && (
+                          <input
+                            type="checkbox"
+                            className="rounded border-line-strong"
+                            checked={selected.has(member._id)}
+                            onChange={() => toggle(member)}
+                            aria-label={`Tick ${name}`}
+                          />
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3 min-w-0">
                           <Avatar src={member.avatar} name={name} size="sm" />
@@ -347,6 +432,17 @@ function AdminMembers() {
                           >
                             Mark paid<span className="sr-only"> for {name}</span>
                           </button>
+                        )}
+                        {/* Put right a mistake: the wrong expiry, or the wrong person marked paid. */}
+                        {membership.id === 'current' && !isSelf && (
+                          <span className="flex flex-wrap gap-x-3 mt-1 text-xs font-medium">
+                            <button type="button" onClick={() => setExpiryFor(member)} className="text-primary-600 dark:text-primary-300 hover:underline">
+                              Change expiry<span className="sr-only"> for {name}</span>
+                            </button>
+                            <button type="button" onClick={() => setUnpaying([member])} className="text-subtle hover:text-danger hover:underline">
+                              Mark not paid<span className="sr-only">: {name}</span>
+                            </button>
+                          </span>
                         )}
                       </td>
                       <td className="px-4 py-3 hidden xl:table-cell text-subtle whitespace-nowrap">
@@ -397,6 +493,25 @@ function AdminMembers() {
         onClose={() => setPayingFor(null)}
         onSaved={() => { load(); loadSummary(); }}
       />
+
+      <MembershipDialog
+        open={Boolean(expiryFor)}
+        member={expiryFor}
+        title="Change membership expiry"
+        onClose={() => setExpiryFor(null)}
+        onSaved={() => { load(); loadSummary(); }}
+      />
+
+      <MarkUnpaidDialog members={unpaying} onClose={() => setUnpaying(null)} onDone={afterMembershipChange} />
+
+      {bulk && (
+        <BulkMembershipDialog
+          scope={bulk.scope}
+          description={bulk.description}
+          onClose={() => setBulk(null)}
+          onDone={afterMembershipChange}
+        />
+      )}
 
       <ConfirmDialog
         open={Boolean(pending)}

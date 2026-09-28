@@ -232,6 +232,8 @@ Administrators (admin and chairperson) can also produce cards themselves, from P
 
 - See every active member's card status: ready to print, needs a photo, photo waiting for review, or not paid up.
 - Mark an unpaid member as paid, for example after a cash payment at a meeting, optionally recording the payment. The same **Mark paid** action is in the Manage Members list. Nobody can change their own membership.
+- Put right a mistake on a paid member: **Change expiry** sets a different paid-until date, and **Mark not paid** returns them to unpaid (payment history is not changed).
+- Mark many members paid at once with one expiry date: tick them in Manage Members and select **Mark paid**, or select **Mark all N paid** to cover everyone matching the current filters (for example Not paid up, Year 2). Members' cards has **Mark all paid** in its Not paid up and All members views. A preview shows who will change before anything is saved; nobody already paid for longer is shortened, and deactivated accounts and your own are left alone. Tick **Record a cash payment for each** to save the standard fee as a verified payment: `REGISTRATION_FEE` for members paying for the first time, `RENEWAL_FEE` for returning ones. Ticked members can also be marked not paid together.
 - Add a member's passport photo; it is approved at once and the card is issued if the membership is current.
 - Open, download or print any member's card, or select several and print them on A4 (eight to a page, with cutting guides) or download them as a ZIP.
 
@@ -251,7 +253,7 @@ Every certificate is an A4 landscape page drawn in the browser, like the members
 
 **Signatories.** Up to three people sign each kind of certificate, in the order set under Signatories. Signature images are uploaded as a photo or scan; the browser makes the paper transparent and crops to the signature. Nothing can be issued until someone signs that kind of certificate.
 
-**Correcting a mistake.** Revoke the certificate under Issued, with a reason (the holder is notified), then correct the term and issue a new one. A member whose membership certificate was revoked can get a new one while still eligible. The verification page reports a revoked certificate as withdrawn without naming the holder, and administrators see it marked REVOKED.
+**Correcting a mistake.** The admin or chairperson opens the certificate under Issued (or Leadership terms) and selects **Edit details** to correct the name, registration number, department, office and dates or academic year, or issue date, or to replace the signatures with the current signatories. The certificate keeps its number, so its QR code keeps working and verification shows the corrected details. Every edit is logged on the certificate with who made it and each value before and after, a leadership term is corrected along with its certificate, and the holder is told to download the new copy. Nobody edits their own certificate. To withdraw a certificate altogether, revoke it with a reason (the holder is notified); a member whose membership certificate was revoked can get a new one while still eligible. The verification page reports a revoked certificate as withdrawn without naming the holder, and administrators see it marked REVOKED.
 
 ## How the shop works
 

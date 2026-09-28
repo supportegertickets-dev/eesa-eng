@@ -377,7 +377,7 @@ describe('leadership certificates', () => {
     assert.equal((await issue(admin, term._id)).status, 409);
     const edit = await request(app).put(`/api/certificates/terms/${term._id}`).set(admin.auth).send({ endDate: '2025-07-31' });
     assert.equal(edit.status, 409);
-    assert.match(edit.body.message, /Revoke it first/);
+    assert.match(edit.body.message, /Edit details on the certificate/);
 
     const revoked = await request(app).post(`/api/certificates/${first.body.certificate._id}/revoke`).set(admin.auth).send({ reason: 'Wrong end date' });
     assert.equal(revoked.status, 200, revoked.body.message);
@@ -650,5 +650,153 @@ describe('issued certificates and verification', () => {
     const { certificate } = (await issue(admin, term._id)).body;
     const res = await request(app).post(`/api/certificates/${certificate._id}/revoke`).set(admin.auth).send({ reason: ' ' });
     assert.equal(res.status, 400);
+  });
+});
+
+describe('editing a certificate', () => {
+  const editCertificate = (admin, id, body) => request(app).put(`/api/certificates/${id}`).set(admin.auth).send(body);
+
+  test('an administrator corrects a leadership certificate; it keeps its number, the term follows, and the holder is told', async () => {
+    const admin = await makeUser({ role: 'chairperson' });
+    await resetSignatories(admin);
+    const member = await makeUser();
+    const term = await finishedTerm(admin, member);
+    const { certificate } = (await issue(admin, term._id)).body;
+
+    const res = await editCertificate(admin, certificate._id, {
+      recipientName: 'Brian Kiprotich Mutua',
+      office: 'Treasurer and Acting Secretary',
+      endDate: '2025-07-31',
+      regNumber: 'c13/0999/26',
+      department: ''
+    });
+    assert.equal(res.status, 200, res.body.message);
+    assert.equal(res.body.changed, true);
+    const edited = res.body.certificate;
+    assert.equal(edited.number, certificate.number, 'the number, and so the QR code, stays the same');
+    assert.equal(edited.recipientName, 'Brian Kiprotich Mutua');
+    assert.equal(edited.office, 'Treasurer and Acting Secretary');
+    assert.equal(edited.endDate.slice(0, 10), '2025-07-31');
+    assert.equal(edited.regNumber, 'C13/0999/26');
+    assert.equal(edited.department, '');
+
+    assert.equal(edited.edits.length, 1);
+    const [entry] = edited.edits;
+    assert.ok(entry.editedBy.name.startsWith('Cert'));
+    const byField = Object.fromEntries(entry.changes.map((c) => [c.field, c]));
+    assert.deepEqual(Object.keys(byField).sort(), ['department', 'endDate', 'office', 'recipientName', 'regNumber']);
+    assert.equal(byField.recipientName.from, member.name);
+    assert.equal(byField.office.from, 'Treasurer');
+    assert.equal(byField.department.from, 'Civil Engineering');
+
+    const stored = await LeadershipTerm.findById(term._id).lean();
+    assert.equal(stored.office, 'Treasurer and Acting Secretary');
+    assert.equal(stored.endDate.toISOString().slice(0, 10), '2025-07-31');
+    assert.equal(stored.name, member.name, "a member's term keeps the profile name");
+
+    const notice = await Notification.findOne({ targetUsers: member.id, title: 'Your certificate was updated' }).lean();
+    assert.match(notice.message, /The name, registration number, department, office and end date on your leadership certificate .* were corrected/);
+
+    const verified = await request(app).get(`/api/certificates/verify/${certificate.number}`);
+    assert.equal(verified.body.recipientName, 'Brian Kiprotich Mutua');
+    assert.equal(verified.body.office, 'Treasurer and Acting Secretary');
+  });
+
+  test('the name typed for a leader without an account follows into the term', async () => {
+    const admin = await makeUser({ role: 'admin' });
+    await resetSignatories(admin);
+    const created = await request(app).post('/api/certificates/terms').set(admin.auth).send({
+      name: 'Jon Mwangi', office: 'Treasurer', startDate: '2017-09-01', endDate: '2018-08-31'
+    });
+    const { certificate } = (await issue(admin, created.body.term._id)).body;
+    assert.equal((await editCertificate(admin, certificate._id, { recipientName: 'John Mwangi' })).status, 200);
+    assert.equal((await LeadershipTerm.findById(created.body.term._id).lean()).name, 'John Mwangi');
+  });
+
+  test('a membership certificate can move to another academic year, unless that year already has one', async () => {
+    const admin = await makeUser({ role: 'admin' });
+    await resetSignatories(admin);
+    const member = await makeUser({ paid: true });
+    await Payment.create({ user: member.id, type: 'renewal', amount: 500, status: 'verified', verifiedAt: new Date('2025-02-10T09:00:00Z') });
+    const current = (await request(app).post('/api/certificates/membership').set(member.auth).send({})).body.certificate;
+    const earlier = (await request(app).post('/api/certificates/membership').set(member.auth).send({ academicYear: '2024/2025' })).body.certificate;
+
+    const clash = await editCertificate(admin, earlier._id, { academicYear: current.academicYear });
+    assert.equal(clash.status, 409);
+    assert.match(clash.body.message, /already has a membership certificate/);
+
+    const moved = await editCertificate(admin, earlier._id, { academicYear: '2023/2024' });
+    assert.equal(moved.status, 200, moved.body.message);
+    assert.equal(moved.body.certificate.academicYear, '2023/2024');
+
+    // Fields that belong to the other kind of certificate are ignored.
+    const ignored = await editCertificate(admin, moved.body.certificate._id, { office: 'Chairperson' });
+    assert.equal(ignored.body.changed, false);
+  });
+
+  test('signatures can be brought up to date with the current signatories', async () => {
+    const admin = await makeUser({ role: 'admin' });
+    await resetSignatories(admin);
+    const term = await finishedTerm(admin, await makeUser());
+    const { certificate } = (await issue(admin, term._id)).body;
+    await addSignatory(admin, { name: 'Dr. Kamau', title: 'Patron' });
+
+    const res = await editCertificate(admin, certificate._id, { refreshSignatories: true });
+    assert.equal(res.status, 200, res.body.message);
+    assert.deepEqual(res.body.certificate.signatories.map((s) => s.title), ['Chairperson', 'Patron']);
+    const change = res.body.certificate.edits[0].changes[0];
+    assert.equal(change.field, 'signatories');
+    assert.equal(change.to, 'Jane Wanjiru (Chairperson), Dr. Kamau (Patron)');
+
+    const again = await editCertificate(admin, certificate._id, { refreshSignatories: true });
+    assert.equal(again.body.changed, false, 'already up to date');
+    assert.equal(again.body.certificate.edits.length, 1);
+  });
+
+  test('saving without a change records nothing', async () => {
+    const admin = await makeUser({ role: 'admin' });
+    await resetSignatories(admin);
+    const term = await finishedTerm(admin, await makeUser());
+    const { certificate } = (await issue(admin, term._id)).body;
+    const res = await editCertificate(admin, certificate._id, { recipientName: certificate.recipientName, startDate: '2024-09-01' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.changed, false);
+    assert.equal(res.body.certificate.edits.length, 0);
+  });
+
+  test('impossible dates are refused', async () => {
+    const admin = await makeUser({ role: 'admin' });
+    await resetSignatories(admin);
+    const term = await finishedTerm(admin, await makeUser());
+    const { certificate } = (await issue(admin, term._id)).body;
+
+    const backwards = await editCertificate(admin, certificate._id, { endDate: '2024-01-01' });
+    assert.equal(backwards.status, 400);
+    assert.match(backwards.body.message, /end after it starts/);
+
+    const future = await editCertificate(admin, certificate._id, { issuedAt: new Date(Date.now() + 10 * DAY).toISOString() });
+    assert.equal(future.status, 400);
+
+    assert.equal((await editCertificate(admin, certificate._id, { recipientName: '  ' })).status, 400);
+    const unchanged = await Certificate.findById(certificate._id).lean();
+    assert.equal(unchanged.edits.length, 0);
+  });
+
+  test('nobody edits their own certificate, a revoked one, or edits without being admin or chairperson', async () => {
+    const admin = await makeUser({ role: 'admin' });
+    await resetSignatories(admin);
+    const chair = await makeUser({ role: 'chairperson' });
+    const own = (await issue(admin, (await finishedTerm(admin, chair, 'Treasurer'))._id)).body.certificate;
+    const res = await editCertificate(chair, own._id, { recipientName: 'Someone Grander' });
+    assert.equal(res.status, 403);
+    assert.match(res.body.message, /your own certificate/);
+
+    const other = (await issue(admin, (await finishedTerm(admin, await makeUser()))._id)).body.certificate;
+    const treasurer = await makeUser({ role: 'treasurer' });
+    assert.equal((await editCertificate(treasurer, other._id, { recipientName: 'X' })).status, 403);
+
+    await request(app).post(`/api/certificates/${other._id}/revoke`).set(admin.auth).send({ reason: 'Duplicate' });
+    const revoked = await editCertificate(admin, other._id, { recipientName: 'X' });
+    assert.equal(revoked.status, 409);
   });
 });

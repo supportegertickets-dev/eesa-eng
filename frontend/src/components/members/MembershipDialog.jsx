@@ -30,7 +30,7 @@ const initialForm = (member) => {
  * Set a member's membership by hand, for example after a cash payment at a
  * meeting, and optionally record that payment so the history stays complete.
  */
-export default function MembershipDialog({ open, member, onClose, onSaved }) {
+export default function MembershipDialog({ open, member, onClose, onSaved, title = 'Update membership' }) {
   const [form, setForm] = useState(() => initialForm(member));
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
@@ -80,7 +80,7 @@ export default function MembershipDialog({ open, member, onClose, onSaved }) {
   return (
     <Modal
       open={open}
-      title="Update membership"
+      title={title}
       description={`Set ${member?.firstName || 'this member'}'s membership status directly. Online payments are still verified from the Payments page.`}
       onClose={onClose}
       busy={saving}

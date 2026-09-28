@@ -78,7 +78,9 @@ const sections = [
       'Download your card as an image, or print it (or save it as a PDF) at bank-card size.',
       'Your card shows as valid until your subscription ends. Renew and the same card becomes valid again.',
       'To check someone else\'s card, scan its QR code or enter the member number at Verify a card or certificate on the website.',
-      'Admin and Chairperson: the Members\' cards tab lists every member\'s card. Mark a member paid after a cash payment, add their photo to issue the card at once, and tick ready cards to print them on A4 or download them together.'
+      'Admin and Chairperson: the Members\' cards tab lists every member\'s card. Mark a member paid after a cash payment, add their photo to issue the card at once, and tick ready cards to print them on A4 or download them together.',
+      'Admin and Chairperson: to mark many members paid at once, tick them in Manage Members and select Mark paid, or filter the list (for example Not paid up) and select Mark all paid. Choose the paid-until date, and tick Record a cash payment for each to save the standard fee. A preview shows who will change first.',
+      'Admin and Chairperson: made a mistake? On a paid member, Change expiry sets a different date and Mark not paid returns them to unpaid. Tick several to mark them not paid together.'
     ],
     link: ['/portal/card', 'Open Membership Card']
   },
@@ -91,7 +93,7 @@ const sections = [
       'Office holders: your term is recorded from the day you are given the office. At the end of the term the administrator issues your certificate of leadership, and you are notified.',
       'Download a certificate as an image, or print it on A4 (choose Save as PDF in the print dialog for a PDF).',
       'Every certificate has a number and a QR code. Anyone, such as an employer, can scan it or enter the number at Verify a card or certificate to confirm it is genuine.',
-      'Admin and Chairperson: Leadership terms lists every term. Enter missing dates, add leaders from before the platform, and issue each finished term its certificate. Signatories holds the signatures printed on certificates (up to three). Issued lists every certificate for printing in bulk or revoking one issued in error.'
+      'Admin and Chairperson: Leadership terms lists every term. Enter missing dates, add leaders from before the platform, and issue each finished term its certificate. Signatories holds the signatures printed on certificates (up to three). Issued lists every certificate: select Edit details to correct a name, office, dates, year or signatures (the number and QR code stay the same, every change is logged and the holder is notified), print several at once, or revoke one issued in error.'
     ],
     link: ['/portal/certificates', 'Open Certificates']
   },
