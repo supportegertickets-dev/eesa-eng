@@ -29,6 +29,9 @@ export const LEADERSHIP_ROLES = [
   '1st_cohort_rep', 'treasurer',
 ];
 
+/** The association's offices: leadership roles other than admin. Their terms earn leadership certificates. */
+export const OFFICE_ROLES = LEADERSHIP_ROLES.filter((role) => role !== 'admin');
+
 /** May approve content, verify payments and manage members. */
 export const POWER_ROLES = ['admin', 'chairperson'];
 

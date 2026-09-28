@@ -167,6 +167,7 @@ app.use('/api/admin', require('./routes/admin'));
 app.use('/api/membership', require('./routes/membership'));
 app.use('/api/merchandise', require('./routes/merchandise'));
 app.use('/api/constitution', require('./routes/constitution'));
+app.use('/api/certificates', require('./routes/certificates'));
 
 /**
  * Health check. Reports database connectivity so a failed Mongo connection

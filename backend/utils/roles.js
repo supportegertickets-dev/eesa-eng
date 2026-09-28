@@ -36,6 +36,13 @@ const LEADERSHIP_ROLES = [
   ROLES.TREASURER
 ];
 
+/**
+ * The association's offices: every leadership role except admin, which is a
+ * system role rather than an office. Terms in these offices are recorded, and
+ * their holders can be given leadership certificates.
+ */
+const OFFICE_ROLES = LEADERSHIP_ROLES.filter((role) => role !== ROLES.ADMIN);
+
 /** Roles allowed to approve content, verify payments and manage members. */
 const POWER_ROLES = [ROLES.ADMIN, ROLES.CHAIRPERSON];
 
@@ -58,11 +65,12 @@ const ROLE_LABELS = {
 };
 
 const isLeadership = (role) => LEADERSHIP_ROLES.includes(role);
+const isOffice = (role) => OFFICE_ROLES.includes(role);
 const isPower = (role) => POWER_ROLES.includes(role);
 const isMerchandise = (role) => MERCHANDISE_ROLES.includes(role);
 const labelFor = (role) => ROLE_LABELS[role] || role;
 
 module.exports = {
-  ROLES, ALL_ROLES, LEADERSHIP_ROLES, POWER_ROLES, MERCHANDISE_ROLES, ROLE_LABELS,
-  isLeadership, isPower, isMerchandise, labelFor
+  ROLES, ALL_ROLES, LEADERSHIP_ROLES, OFFICE_ROLES, POWER_ROLES, MERCHANDISE_ROLES, ROLE_LABELS,
+  isLeadership, isOffice, isPower, isMerchandise, labelFor
 };

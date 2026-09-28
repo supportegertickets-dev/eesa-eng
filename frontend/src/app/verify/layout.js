@@ -1,6 +1,6 @@
 export const metadata = {
-  title: 'Verify a membership card',
-  description: 'Check whether an EESA membership card is genuine and current by scanning its QR code or entering its member number.',
+  title: 'Verify a card or certificate',
+  description: 'Check whether an EESA membership card or certificate is genuine by scanning its QR code or entering its number.',
   alternates: { canonical: '/verify' },
 };
 

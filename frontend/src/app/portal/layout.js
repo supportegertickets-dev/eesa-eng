@@ -11,7 +11,7 @@ import { SkeletonList } from '@/components/ui/Skeleton';
 import {
   HiHome, HiUser, HiCalendar, HiUsers, HiCog, HiLogout, HiCash, HiBookOpen,
   HiBell, HiPhotograph, HiClipboardList, HiStar, HiInformationCircle,
-  HiDotsHorizontal, HiX, HiUserGroup, HiMail, HiIdentification, HiShoppingBag, HiTag, HiScale,
+  HiDotsHorizontal, HiX, HiUserGroup, HiMail, HiIdentification, HiShoppingBag, HiTag, HiScale, HiAcademicCap,
 } from 'react-icons/hi';
 
 // How often the unread badge re-checks. The count was previously fetched once
@@ -105,6 +105,7 @@ export default function PortalLayout({ children }) {
         label: 'Membership Card',
         badge: POWER_ROLES.includes(user.role) ? pendingPhotos : 0,
       },
+      { href: '/portal/certificates', icon: HiAcademicCap, label: 'Certificates' },
       { href: '/portal/library', icon: HiBookOpen, label: 'Library' },
       { href: '/portal/notifications', icon: HiBell, label: 'Notifications', badge: unreadCount },
       { href: '/portal/gallery', icon: HiPhotograph, label: 'Gallery' },

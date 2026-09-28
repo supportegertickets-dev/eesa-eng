@@ -17,7 +17,10 @@ const PRESETS = {
   // Membership card photos: the 35 x 45 mm passport ratio, centred on the face.
   passport: [{ width: 420, height: 540, crop: 'fill', gravity: 'face', quality: 'auto' }],
   // Shop photos: capped, not cropped; the shop crops to a square when it displays them.
-  product: [{ width: 1200, height: 1200, crop: 'limit', quality: 'auto' }]
+  product: [{ width: 1200, height: 1200, crop: 'limit', quality: 'auto' }],
+  // Signatures for certificates: capped only. The browser has already made the
+  // paper transparent and saved a PNG, which must stay lossless to keep that.
+  signature: [{ width: 1200, height: 480, crop: 'limit' }]
 };
 
 /**

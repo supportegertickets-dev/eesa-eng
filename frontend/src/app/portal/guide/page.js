@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { HiAcademicCap, HiBookOpen, HiCalendar, HiCash, HiClipboardList, HiInformationCircle, HiLightBulb, HiPhotograph, HiUser, HiUsers, HiBell, HiArrowRight, HiIdentification, HiShoppingBag, HiScale } from 'react-icons/hi';
+import { HiAcademicCap, HiBookOpen, HiCalendar, HiCash, HiClipboardList, HiInformationCircle, HiLightBulb, HiPhotograph, HiUser, HiUsers, HiBell, HiArrowRight, HiIdentification, HiShoppingBag, HiScale, HiBadgeCheck } from 'react-icons/hi';
 
 const sections = [
   {
@@ -77,14 +77,27 @@ const sections = [
       'An administrator checks the photo. You get a notification when it is approved, or the reason if you need to upload another.',
       'Download your card as an image, or print it (or save it as a PDF) at bank-card size.',
       'Your card shows as valid until your subscription ends. Renew and the same card becomes valid again.',
-      'To check someone else\'s card, scan its QR code or enter the member number at Verify a membership card on the website.',
+      'To check someone else\'s card, scan its QR code or enter the member number at Verify a card or certificate on the website.',
       'Admin and Chairperson: the Members\' cards tab lists every member\'s card. Mark a member paid after a cash payment, add their photo to issue the card at once, and tick ready cards to print them on A4 or download them together.'
     ],
     link: ['/portal/card', 'Open Membership Card']
   },
   {
+    icon: HiBadgeCheck,
+    title: '7. Get your certificates',
+    description: 'A certificate of membership for each academic year you pay, and a certificate of leadership for each term you serve in an office.',
+    steps: [
+      'Open Certificates in the portal menu. Each academic year you paid your subscription in is listed with a Get certificate button.',
+      'Office holders: your term is recorded from the day you are given the office. At the end of the term the administrator issues your certificate of leadership, and you are notified.',
+      'Download a certificate as an image, or print it on A4 (choose Save as PDF in the print dialog for a PDF).',
+      'Every certificate has a number and a QR code. Anyone, such as an employer, can scan it or enter the number at Verify a card or certificate to confirm it is genuine.',
+      'Admin and Chairperson: Leadership terms lists every term. Enter missing dates, add leaders from before the platform, and issue each finished term its certificate. Signatories holds the signatures printed on certificates (up to three). Issued lists every certificate for printing in bulk or revoking one issued in error.'
+    ],
+    link: ['/portal/certificates', 'Open Certificates']
+  },
+  {
     icon: HiBell,
-    title: '7. Read notifications',
+    title: '8. Read notifications',
     description: 'Use notifications for announcements, approvals, and important EESA updates.',
     steps: [
       'Open Notifications from the portal menu.',
@@ -95,7 +108,7 @@ const sections = [
   },
   {
     icon: HiPhotograph,
-    title: '8. Explore the gallery',
+    title: '9. Explore the gallery',
     description: 'Browse photo albums from EESA events and activities. Office holders can also create albums and upload photos.',
     steps: [
       'Open Gallery from the portal menu, then search, filter by category or sort to find an album.',
@@ -106,7 +119,7 @@ const sections = [
   },
   {
     icon: HiLightBulb,
-    title: '9. Discover projects',
+    title: '10. Discover projects',
     description: 'Learn about engineering projects and find opportunities to participate.',
     steps: [
       'Open Projects from the main website navigation.',
@@ -117,7 +130,7 @@ const sections = [
   },
   {
     icon: HiUsers,
-    title: '10. Connect with members',
+    title: '11. Connect with members',
     description: 'Browse the EESA membership directory, find colleagues and see what they contribute.',
     steps: [
       'Open Members from the portal menu.',
@@ -129,7 +142,7 @@ const sections = [
   },
   {
     icon: HiAcademicCap,
-    title: '11. Understand your academic status',
+    title: '12. Understand your academic status',
     description: 'Your academic year is maintained by the system across the five-year course.',
     steps: [
       'Your year advances automatically after an academic year passes.',
@@ -141,7 +154,7 @@ const sections = [
   },
   {
     icon: HiShoppingBag,
-    title: '12. Order official merchandise',
+    title: '13. Order official merchandise',
     description: 'Buy EESA hoodies, T-shirts and more online, pay by M-Pesa and collect on campus.',
     steps: [
       'Open Shop on the website and choose an item, its size and colour, then add it to your cart.',
@@ -154,7 +167,7 @@ const sections = [
   },
   {
     icon: HiScale,
-    title: '13. Read the constitution',
+    title: '14. Read the constitution',
     description: 'The constitution sets out how EESA is run: membership, office bearers, elections and finances.',
     steps: [
       'Open Constitution from the More menu on the website.',

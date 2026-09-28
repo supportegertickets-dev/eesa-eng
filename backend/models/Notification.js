@@ -14,7 +14,7 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['general', 'event', 'payment', 'election', 'resource', 'announcement', 'membership', 'merchandise'],
+    enum: ['general', 'event', 'payment', 'election', 'resource', 'announcement', 'membership', 'merchandise', 'certificate'],
     default: 'general'
   },
   target: {

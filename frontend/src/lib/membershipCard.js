@@ -8,6 +8,8 @@
  */
 import { cloudinaryImage } from '@/lib/images';
 import { formatDate } from '@/lib/dates';
+import { drawCover, drawQr, fitText, fontStack, loadImage, roundedRect, verifyHost } from '@/lib/canvas';
+import { escapeTitle, printDocument } from '@/lib/print';
 
 export const CARD_WIDTH_MM = 85.6;
 export const CARD_HEIGHT_MM = 54;
@@ -24,72 +26,6 @@ const COLORS = {
   line: '#e5e7eb',
   cream: '#faf6ee',
   white: '#ffffff',
-};
-
-/**
- * The page's fonts are self-hosted by next/font under generated family names,
- * which canvas cannot reach through CSS variables. Read the resolved names.
- */
-const fontStack = (variable, fallback) => {
-  if (typeof window === 'undefined') return fallback;
-  const value = getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
-  return value ? `${value}, ${fallback}` : fallback;
-};
-
-const loadImage = (src, { crossOrigin = false } = {}) => new Promise((resolve) => {
-  if (!src) return resolve(null);
-  const image = new Image();
-  // Without this, a Cloudinary photo would taint the canvas and block the download.
-  if (crossOrigin) image.crossOrigin = 'anonymous';
-  image.onload = () => resolve(image);
-  image.onerror = () => resolve(null);
-  image.src = src;
-});
-
-const roundedRect = (ctx, x, y, w, h, r) => {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
-};
-
-/** Shrink the font until the text fits, so a long name never runs off the card. */
-const fitText = (ctx, text, { maxWidth, size, minSize = 18, weight = '700', family }) => {
-  let current = size;
-  ctx.font = `${weight} ${current}px ${family}`;
-  while (current > minSize && ctx.measureText(text).width > maxWidth) {
-    current -= 1;
-    ctx.font = `${weight} ${current}px ${family}`;
-  }
-  return current;
-};
-
-/** Cover-fit an image into a box, as CSS object-fit: cover would. */
-const drawCover = (ctx, image, x, y, w, h) => {
-  const scale = Math.max(w / image.width, h / image.height);
-  const sw = w / scale;
-  const sh = h / scale;
-  ctx.drawImage(image, (image.width - sw) / 2, (image.height - sh) / 2, sw, sh, x, y, w, h);
-};
-
-const drawQr = async (ctx, text, x, y, size) => {
-  const { default: QRCode } = await import('qrcode');
-  const qr = QRCode.create(text, { errorCorrectionLevel: 'M' });
-  const count = qr.modules.size;
-  const cell = size / count;
-
-  ctx.fillStyle = COLORS.white;
-  ctx.fillRect(x - 8, y - 8, size + 16, size + 16);
-  ctx.fillStyle = COLORS.ink;
-  for (let row = 0; row < count; row += 1) {
-    for (let col = 0; col < count; col += 1) {
-      // Slight overlap stops hairline gaps between cells on some screens.
-      if (qr.modules.get(row, col)) ctx.fillRect(x + col * cell, y + row * cell, cell + 0.5, cell + 0.5);
-    }
-  }
 };
 
 const studyLabel = (card) => (card.academicStatus === 'alumni' ? 'Alumni' : card.yearOfStudy ? `Year ${card.yearOfStudy}` : '—');
@@ -223,14 +159,7 @@ export async function renderMembershipCard(card, { verifyUrl }) {
   ctx.textAlign = 'right';
   ctx.fillStyle = COLORS.label;
   ctx.font = `500 15px ${body}`;
-  let host = verifyUrl;
-  try {
-    const url = new URL(verifyUrl);
-    host = `${url.host}/verify`;
-  } catch {
-    // Keep the full link.
-  }
-  ctx.fillText(`Verify at ${host}`, W - 48, 594);
+  ctx.fillText(`Verify at ${verifyHost(verifyUrl)}`, W - 48, 594);
 
   ctx.restore();
   return { canvas, photoLoaded: Boolean(photo) };
@@ -246,36 +175,6 @@ export async function renderCardImage(card) {
   const { canvas, photoLoaded } = await renderMembershipCard(card, { verifyUrl: cardVerifyUrl(card.memberNumber) });
   return { dataUrl: canvas.toDataURL('image/png'), photoLoaded };
 }
-
-/**
- * Print a document through a hidden frame rather than a popup, which browsers
- * may block. Printing waits until every image in it has loaded. "Save as PDF"
- * in the print dialog gives a PDF.
- */
-const printDocument = (html) => {
-  const frame = document.createElement('iframe');
-  frame.setAttribute('aria-hidden', 'true');
-  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
-  document.body.appendChild(frame);
-
-  const doc = frame.contentDocument;
-  doc.open();
-  doc.write(html);
-  doc.close();
-
-  const cleanUp = () => setTimeout(() => frame.remove(), 1000);
-  const images = [...doc.images];
-  Promise.all(images.map((image) => (image.complete ? null : new Promise((resolve) => {
-    image.onload = resolve;
-    image.onerror = resolve;
-  })))).then(() => {
-    frame.contentWindow.focus();
-    frame.contentWindow.print();
-    cleanUp();
-  });
-};
-
-const escapeTitle = (title) => title.replace(/</g, '&lt;');
 
 /** Print one card at its real size. */
 export function printImage(dataUrl, { widthMm = CARD_WIDTH_MM, heightMm = CARD_HEIGHT_MM, title = 'EESA membership card' } = {}) {
