@@ -4,11 +4,13 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { HiBadgeCheck, HiDownload, HiSearch, HiUserRemove, HiUsers, HiViewGrid } from 'react-icons/hi';
-import { exportAdminMembers, getAdminMemberSummary, getAdminMembers, setUserStatus } from '@/lib/api';
+import { HiBadgeCheck, HiCheck, HiDownload, HiSearch, HiUserAdd, HiUserRemove, HiUsers, HiViewGrid } from 'react-icons/hi';
+import {
+  approveMembers, deleteMemberAccount, exportAdminMembers, getAdminMemberSummary, getAdminMembers, setUserStatus,
+} from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 import { formatDate, formatDateTime, relativeTime } from '@/lib/dates';
-import { MEMBERSHIP_FILTERS, adminMemberHref, fullName, membershipState, saveBlob, studyLabel } from '@/lib/members';
+import { MEMBERSHIP_FILTERS, accountState, adminMemberHref, fullName, membershipState, saveBlob, studyLabel } from '@/lib/members';
 import { ALL_ROLES, DEPARTMENTS, roleLabel } from '@/lib/roles';
 import MembershipDialog from '@/components/members/MembershipDialog';
 import BulkMembershipDialog from '@/components/members/BulkMembershipDialog';
@@ -28,6 +30,7 @@ const FILTER_KEYS = ['search', 'active', 'membership', 'role', 'department', 'ye
 
 const ACCOUNT_OPTIONS = [
   { value: '', label: 'Active accounts' },
+  { value: 'pending', label: 'Awaiting approval' },
   { value: 'false', label: 'Deactivated' },
   { value: 'all', label: 'All accounts' },
 ];
@@ -79,6 +82,7 @@ function AdminMembers() {
   const [error, setError] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [pending, setPending] = useState(null);
+  const [deleting, setDeleting] = useState(null);
   const [payingFor, setPayingFor] = useState(null);
   const [expiryFor, setExpiryFor] = useState(null);
   const [unpaying, setUnpaying] = useState(null); // members to mark not paid
@@ -120,7 +124,7 @@ function AdminMembers() {
   const apiQuery = useMemo(() => {
     const params = new URLSearchParams();
     if (filters.search) params.set('search', filters.search);
-    if (filters.active !== 'all') params.set('active', filters.active === 'false' ? 'false' : 'true');
+    if (filters.active !== 'all') params.set('active', ['false', 'pending'].includes(filters.active) ? filters.active : 'true');
     ['membership', 'role', 'department', 'sort'].forEach((key) => {
       if (filters[key]) params.set(key, filters[key]);
     });
@@ -170,9 +174,14 @@ function AdminMembers() {
   }
 
   const hasFilters = FILTER_KEYS.some((key) => filters[key]);
+  // The approval queue: its ticks approve sign-ups rather than change memberships.
+  const approvalView = filters.active === 'pending';
 
   // Nobody changes their own membership, and deactivated accounts are left alone.
-  const tickable = data.users.filter((member) => member._id !== currentUser?._id && member.isActive);
+  const isTickable = (member) => (approvalView
+    ? member.pendingApproval
+    : member._id !== currentUser?._id && member.isActive);
+  const tickable = data.users.filter(isTickable);
   const allOnPageTicked = tickable.length > 0 && tickable.every((member) => selected.has(member._id));
   const toggle = (member) => setSelected((current) => {
     const next = new Map(current);
@@ -218,6 +227,36 @@ function AdminMembers() {
       toast.error(err.message);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const approve = async (members) => {
+    setBusy(true);
+    try {
+      const result = await approveMembers(members.map((member) => member._id));
+      toast.success(result?.message || 'Approved.');
+      afterMembershipChange();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyDelete = async () => {
+    if (!deleting) return;
+    setBusy(true);
+    try {
+      const result = await deleteMemberAccount(deleting._id);
+      toast.success(result?.message || 'Account deleted.');
+      setDeleting(null);
+      afterMembershipChange();
+    } catch (err) {
+      // An account with history cannot be deleted; the message says what it has.
+      toast.error(err.message, { duration: 8000 });
+      setDeleting(null);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -268,6 +307,17 @@ function AdminMembers() {
         </div>
       </div>
 
+      {summary?.pending > 0 && !approvalView && (
+        <div className="card p-4 mb-4 flex flex-wrap items-center gap-3 border-warning/40 bg-warning-soft" role="status">
+          <HiUserAdd className="w-5 h-5 text-warning shrink-0" aria-hidden="true" />
+          <p className="text-sm text-strong flex-1 min-w-0">
+            <span className="font-semibold">{summary.pending} sign-up{summary.pending === 1 ? ' is' : 's are'} waiting for approval.</span>{' '}
+            Check each name and registration number before letting them in.
+          </p>
+          <button type="button" className="btn-primary btn-sm" onClick={() => showView({ active: 'pending' })}>Review</button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         {SUMMARY_TILES.map((tile) => (
           <button
@@ -312,7 +362,7 @@ function AdminMembers() {
           {hasFilters && (
             <button type="button" onClick={() => showView({})} className="btn-ghost btn-sm">Clear filters</button>
           )}
-          {!loading && data.total > 0 && (
+          {!loading && data.total > 0 && !approvalView && (
             <button type="button" onClick={markAllPaid} className="btn-outline btn-sm">
               <HiBadgeCheck className="w-4 h-4" aria-hidden="true" /> Mark all {data.total} paid
             </button>
@@ -324,10 +374,18 @@ function AdminMembers() {
         <div className="card p-3 mb-3 flex flex-wrap items-center gap-2 sticky top-20 z-20 shadow-overlay" role="region" aria-label="Ticked members">
           <p className="text-sm font-medium text-strong flex-1">{selected.size} ticked</p>
           <button type="button" className="btn-ghost btn-sm" onClick={() => setSelected(new Map())}>Clear</button>
-          <button type="button" className="btn-outline btn-sm" onClick={() => setUnpaying([...selected.values()])}>Mark not paid</button>
-          <button type="button" className="btn-primary btn-sm" onClick={markSelectedPaid}>
-            <HiBadgeCheck className="w-4 h-4" aria-hidden="true" /> Mark paid
-          </button>
+          {approvalView ? (
+            <button type="button" className="btn-primary btn-sm" disabled={busy} onClick={() => approve([...selected.values()])}>
+              <HiCheck className="w-4 h-4" aria-hidden="true" /> Approve {selected.size}
+            </button>
+          ) : (
+            <>
+              <button type="button" className="btn-outline btn-sm" onClick={() => setUnpaying([...selected.values()])}>Mark not paid</button>
+              <button type="button" className="btn-primary btn-sm" onClick={markSelectedPaid}>
+                <HiBadgeCheck className="w-4 h-4" aria-hidden="true" /> Mark paid
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -338,8 +396,10 @@ function AdminMembers() {
       ) : data.users.length === 0 ? (
         <EmptyState
           icon={HiUsers}
-          title="No members match"
-          description={hasFilters ? 'Try a different search or loosen the filters.' : 'Members will appear here once they register.'}
+          title={approvalView ? 'No sign-ups waiting' : 'No members match'}
+          description={approvalView
+            ? 'New registrations appear here until an administrator approves them.'
+            : hasFilters ? 'Try a different search or loosen the filters.' : 'Members will appear here once they register.'}
           action={hasFilters ? 'Clear filters' : undefined}
           onAction={() => showView({})}
         />
@@ -362,9 +422,16 @@ function AdminMembers() {
                   <th scope="col" className="px-4 py-3 font-medium">Member</th>
                   <th scope="col" className="px-4 py-3 font-medium hidden md:table-cell">Reg. no.</th>
                   <th scope="col" className="px-4 py-3 font-medium hidden lg:table-cell">Department</th>
-                  <th scope="col" className="px-4 py-3 font-medium hidden lg:table-cell">Role</th>
-                  <th scope="col" className="px-4 py-3 font-medium">Membership</th>
-                  <th scope="col" className="px-4 py-3 font-medium hidden xl:table-cell">Last sign-in</th>
+                  {/* A sign-up has no role, membership or sign-in yet; when it registered matters instead. */}
+                  {approvalView ? (
+                    <th scope="col" className="px-4 py-3 font-medium">Registered</th>
+                  ) : (
+                    <>
+                      <th scope="col" className="px-4 py-3 font-medium hidden lg:table-cell">Role</th>
+                      <th scope="col" className="px-4 py-3 font-medium">Membership</th>
+                      <th scope="col" className="px-4 py-3 font-medium hidden xl:table-cell">Last sign-in</th>
+                    </>
+                  )}
                   <th scope="col" className="px-4 py-3 font-medium hidden sm:table-cell">Account</th>
                   <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>
                 </tr>
@@ -373,6 +440,7 @@ function AdminMembers() {
                 {data.users.map((member) => {
                   const name = fullName(member);
                   const membership = membershipState(member);
+                  const account = accountState(member);
                   const isSelf = member._id === currentUser?._id;
                   // Mirrors the API: only a full admin may act on another admin's account.
                   const canAct = !isSelf && (member.role !== 'admin' || isFullAdmin);
@@ -380,7 +448,7 @@ function AdminMembers() {
                   return (
                     <tr key={member._id} className="hover:bg-muted/40 transition-colors">
                       <td className="pl-4 pr-0 py-3">
-                        {!isSelf && member.isActive && (
+                        {isTickable(member) && (
                           <input
                             type="checkbox"
                             className="rounded border-line-strong"
@@ -411,52 +479,68 @@ function AdminMembers() {
                         <p className="text-body">{member.department}</p>
                         <p className="text-xs text-subtle">{studyLabel(member)}</p>
                       </td>
-                      <td className="px-4 py-3 hidden lg:table-cell">
-                        {member.role === 'member'
-                          ? <span className="text-subtle">Member</span>
-                          : <span className="badge-brand whitespace-nowrap">{roleLabel(member.role)}</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={membership.badge}>{membership.label}</span>
-                        {membership.id !== 'none' && member.membershipExpiry && (
-                          <p className="text-xs text-subtle mt-1 whitespace-nowrap">
-                            {membership.id === 'expired' ? 'Ended' : 'Until'} {formatDate(member.membershipExpiry)}
-                          </p>
-                        )}
-                        {/* A cash payment at a meeting, say. Nobody marks their own membership. */}
-                        {membership.id !== 'current' && !isSelf && member.isActive && (
+                      {approvalView ? (
+                        <td className="px-4 py-3 text-subtle whitespace-nowrap">
+                          <time dateTime={member.createdAt} title={formatDateTime(member.createdAt)}>{relativeTime(member.createdAt)}</time>
+                        </td>
+                      ) : (
+                        <>
+                          <td className="px-4 py-3 hidden lg:table-cell">
+                            {member.role === 'member'
+                              ? <span className="text-subtle">Member</span>
+                              : <span className="badge-brand whitespace-nowrap">{roleLabel(member.role)}</span>}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={membership.badge}>{membership.label}</span>
+                            {membership.id !== 'none' && member.membershipExpiry && (
+                              <p className="text-xs text-subtle mt-1 whitespace-nowrap">
+                                {membership.id === 'expired' ? 'Ended' : 'Until'} {formatDate(member.membershipExpiry)}
+                              </p>
+                            )}
+                            {/* A cash payment at a meeting, say. Nobody marks their own membership. */}
+                            {membership.id !== 'current' && !isSelf && member.isActive && (
+                              <button
+                                type="button"
+                                onClick={() => setPayingFor(member)}
+                                className="block mt-1 text-xs font-medium text-primary-600 dark:text-primary-300 hover:underline"
+                              >
+                                Mark paid<span className="sr-only"> for {name}</span>
+                              </button>
+                            )}
+                            {/* Put right a mistake: the wrong expiry, or the wrong person marked paid. */}
+                            {membership.id === 'current' && !isSelf && (
+                              <span className="flex flex-wrap gap-x-3 mt-1 text-xs font-medium">
+                                <button type="button" onClick={() => setExpiryFor(member)} className="text-primary-600 dark:text-primary-300 hover:underline">
+                                  Change expiry<span className="sr-only"> for {name}</span>
+                                </button>
+                                <button type="button" onClick={() => setUnpaying([member])} className="text-subtle hover:text-danger hover:underline">
+                                  Mark not paid<span className="sr-only">: {name}</span>
+                                </button>
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 hidden xl:table-cell text-subtle whitespace-nowrap">
+                            {member.lastLoginAt
+                              ? <time dateTime={member.lastLoginAt} title={formatDateTime(member.lastLoginAt)}>{relativeTime(member.lastLoginAt)}</time>
+                              : 'Never'}
+                          </td>
+                        </>
+                      )}
+                      <td className="px-4 py-3 hidden sm:table-cell">
+                        <span className={`${account.badge} whitespace-nowrap`}>{account.label}</span>
+                        {/* Only accounts that are not in use can go; the server keeps any with history. */}
+                        {canAct && account.id !== 'active' && (
                           <button
                             type="button"
-                            onClick={() => setPayingFor(member)}
-                            className="block mt-1 text-xs font-medium text-primary-600 dark:text-primary-300 hover:underline"
+                            onClick={() => setDeleting(member)}
+                            className="block mt-1 text-xs font-medium text-subtle hover:text-danger hover:underline"
                           >
-                            Mark paid<span className="sr-only"> for {name}</span>
+                            Delete<span className="sr-only"> {name}&apos;s account</span>
                           </button>
                         )}
-                        {/* Put right a mistake: the wrong expiry, or the wrong person marked paid. */}
-                        {membership.id === 'current' && !isSelf && (
-                          <span className="flex flex-wrap gap-x-3 mt-1 text-xs font-medium">
-                            <button type="button" onClick={() => setExpiryFor(member)} className="text-primary-600 dark:text-primary-300 hover:underline">
-                              Change expiry<span className="sr-only"> for {name}</span>
-                            </button>
-                            <button type="button" onClick={() => setUnpaying([member])} className="text-subtle hover:text-danger hover:underline">
-                              Mark not paid<span className="sr-only">: {name}</span>
-                            </button>
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 hidden xl:table-cell text-subtle whitespace-nowrap">
-                        {member.lastLoginAt
-                          ? <time dateTime={member.lastLoginAt} title={formatDateTime(member.lastLoginAt)}>{relativeTime(member.lastLoginAt)}</time>
-                          : 'Never'}
-                      </td>
-                      <td className="px-4 py-3 hidden sm:table-cell">
-                        <span className={member.isActive ? 'badge-success' : 'badge-danger'}>
-                          {member.isActive ? 'Active' : 'Deactivated'}
-                        </span>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {canAct && (member.isActive ? (
+                        {canAct && account.id === 'active' && (
                           <button
                             type="button"
                             onClick={() => setPending(member)}
@@ -466,11 +550,17 @@ function AdminMembers() {
                           >
                             <HiUserRemove className="w-4 h-4" aria-hidden="true" />
                           </button>
-                        ) : (
+                        )}
+                        {canAct && account.id === 'pending' && (
+                          <button type="button" onClick={() => approve([member])} disabled={busy} className="btn-primary btn-sm">
+                            Approve<span className="sr-only"> {name}</span>
+                          </button>
+                        )}
+                        {canAct && account.id === 'deactivated' && (
                           <button type="button" onClick={() => setPending(member)} className="btn-outline btn-sm">
                             Restore
                           </button>
-                        ))}
+                        )}
                       </td>
                     </tr>
                   );
@@ -512,6 +602,19 @@ function AdminMembers() {
           onDone={afterMembershipChange}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        destructive
+        title={`Delete ${deleting ? fullName(deleting) : ''}'s account?`}
+        description={deleting?.pendingApproval
+          ? 'The registration is removed for good, which frees its email address and registration number. Nothing is sent to them.'
+          : 'The account is removed for good. An account with payments, orders, uploads or any other history cannot be deleted and stays deactivated.'}
+        confirmLabel="Delete for good"
+        busy={busy}
+        onConfirm={applyDelete}
+        onCancel={() => setDeleting(null)}
+      />
 
       <ConfirmDialog
         open={Boolean(pending)}

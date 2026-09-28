@@ -16,6 +16,7 @@ delete process.env.SMTP_HOST;
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const request = require('supertest');
+const { registerApproved } = require('./helpers');
 
 let mongod;
 let app;
@@ -55,20 +56,12 @@ after(async () => {
   if (mongod) await mongod.stop();
 });
 
-let counter = 0;
 const makeUser = async (role = 'member', fields = {}) => {
-  counter += 1;
-  const res = await request(app).post('/api/auth/register').send({
-    firstName: `Member${counter}`,
-    lastName: 'Test',
-    email: `members${counter}-${Date.now()}@example.com`,
-    password: 'Str0ngPass1'
-  });
-  assert.equal(res.status, 201, res.body.message);
+  const user = await registerApproved(app);
   if (role !== 'member' || Object.keys(fields).length) {
-    await User.updateOne({ _id: res.body._id }, { role, ...fields });
+    await User.updateOne({ _id: user.id }, { role, ...fields });
   }
-  return { id: res.body._id, auth: { Authorization: `Bearer ${res.body.token}` } };
+  return user;
 };
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -479,5 +472,169 @@ describe('marking members paid together', () => {
     assert.equal((await bulk(admin, { membershipPaid: true, membershipExpiry: inDays(30).toISOString() })).status, 400);
     assert.equal((await bulk(treasurer, { membershipPaid: true, ids: [subject.id], membershipExpiry: inDays(30).toISOString() })).status, 403);
     assert.equal((await stored(subject)).membershipPaid, false);
+  });
+});
+
+describe('sign-up approval', () => {
+  let applications = 0;
+  /** Submit the registration form, leaving an account awaiting approval. */
+  const apply = async (fields = {}) => {
+    applications += 1;
+    const payload = {
+      firstName: 'Nekesa',
+      lastName: 'Barasa',
+      email: `applicant${applications}-${Date.now()}@example.com`,
+      password: 'Str0ngPass1',
+      regNumber: `B30/${String(applications).padStart(5, '0')}/26`,
+      department: 'Electrical Engineering',
+      ...fields
+    };
+    const res = await request(app).post('/api/auth/register').send(payload);
+    assert.equal(res.status, 201, res.body.message);
+    const user = await User.findOne({ email: payload.email }).lean();
+    return { id: String(user._id), ...payload };
+  };
+  const approve = (actor, ids) => request(app).post('/api/users/admin/approve').set(actor.auth).send({ ids });
+  const listed = async (admin, applicant, active) => {
+    const res = await request(app).get(`/api/users/admin/list?active=${active}&search=${encodeURIComponent(applicant.regNumber)}`).set(admin.auth);
+    assert.equal(res.status, 200, res.body.message);
+    return res.body.users.map((u) => u._id);
+  };
+
+  test('administrators are told, and the applicant is listed only under awaiting approval', async () => {
+    const admin = await makeUser('admin');
+    const chair = await makeUser('chairperson');
+    const member = await makeUser();
+    const applicant = await apply();
+    const Notification = mongoose.model('Notification');
+
+    const notice = await Notification.findOne({ title: 'New member awaiting approval', createdBy: applicant.id }).lean();
+    const told = notice.targetUsers.map(String);
+    assert.ok(told.includes(admin.id) && told.includes(chair.id), 'admins and the chairperson are told');
+    assert.ok(!told.includes(member.id), 'ordinary members are not');
+    assert.match(notice.message, new RegExp(`Nekesa Barasa \\(${applicant.regNumber}, Electrical Engineering\\)`));
+
+    assert.deepEqual(await listed(admin, applicant, 'pending'), [applicant.id]);
+    assert.deepEqual(await listed(admin, applicant, 'false'), [], 'not counted as deactivated');
+    assert.deepEqual(await listed(admin, applicant, 'true'), []);
+
+    const summary = await request(app).get('/api/users/admin/summary').set(admin.auth);
+    assert.ok(summary.body.pending >= 1);
+  });
+
+  test('approving lets the applicant sign in and welcomes them', async () => {
+    const chair = await makeUser('chairperson');
+    const applicant = await apply();
+
+    const res = await approve(chair, [applicant.id]);
+    assert.equal(res.status, 200, res.body.message);
+    assert.equal(res.body.approved, 1);
+    assert.match(res.body.message, /Nekesa Barasa is approved/);
+
+    const stored = await User.findById(applicant.id).lean();
+    assert.equal(stored.isActive, true);
+    assert.equal(stored.pendingApproval, undefined);
+    assert.equal(String(stored.approvedBy), chair.id);
+
+    const signIn = await request(app).post('/api/auth/login').send({ identifier: applicant.email, password: applicant.password });
+    assert.equal(signIn.status, 200, signIn.body.message);
+    assert.ok(signIn.body.token);
+
+    const welcome = await mongoose.model('Notification').findOne({ title: 'Welcome to EESA', targetUsers: applicant.id }).lean();
+    assert.ok(welcome, 'the new member is welcomed in the portal');
+
+    assert.equal((await approve(chair, [applicant.id])).status, 400, 'already approved');
+  });
+
+  test('several can be approved at once; accounts not waiting are left alone', async () => {
+    const admin = await makeUser('admin');
+    const first = await apply();
+    const second = await apply();
+    const existing = await makeUser();
+
+    const res = await approve(admin, [first.id, second.id, existing.id]);
+    assert.equal(res.status, 200, res.body.message);
+    assert.equal(res.body.approved, 2);
+    assert.match(res.body.message, /2 accounts approved\. They can now sign in\. 1 other was not waiting for approval\./);
+  });
+
+  test('only administrators approve, and restoring cannot skip approval', async () => {
+    const admin = await makeUser('admin');
+    const member = await makeUser();
+    const treasurer = await makeUser('treasurer');
+    const applicant = await apply();
+
+    assert.equal((await approve(member, [applicant.id])).status, 403);
+    assert.equal((await approve(treasurer, [applicant.id])).status, 403);
+
+    const restore = await request(app).patch(`/api/users/${applicant.id}/status`).set(admin.auth).send({ isActive: true });
+    assert.equal(restore.status, 400);
+    assert.match(restore.body.message, /waiting for approval/);
+    assert.equal((await User.findById(applicant.id).lean()).isActive, false);
+  });
+});
+
+describe('deleting junk accounts', () => {
+  const remove = (actor, id) => request(app).delete(`/api/users/admin/${id}`).set(actor.auth);
+
+  test('a junk sign-up is deleted, with the notice about it', async () => {
+    const admin = await makeUser('admin');
+    const email = `junk${Date.now()}@example.com`;
+    const reg = await request(app).post('/api/auth/register').send({
+      firstName: 'Brian', lastName: 'Otieno', email, password: 'Str0ngPass1', regNumber: 'B31/00001/26'
+    });
+    assert.equal(reg.status, 201, reg.body.message);
+    const junk = await User.findOne({ email }).lean();
+
+    const res = await remove(admin, junk._id);
+    assert.equal(res.status, 200, res.body.message);
+    assert.match(res.body.message, /Brian Otieno's account has been deleted/);
+    assert.equal(await User.findById(junk._id), null);
+    assert.equal(await mongoose.model('Notification').countDocuments({ createdBy: junk._id }), 0);
+
+    // The registration number is free again for its real owner.
+    const again = await request(app).post('/api/auth/register').send({
+      firstName: 'Brian', lastName: 'Otieno', email: `real${Date.now()}@example.com`, password: 'Str0ngPass1', regNumber: 'B31/00001/26'
+    });
+    assert.equal(again.status, 201, again.body.message);
+  });
+
+  test('an active account must be deactivated first; one with history is kept', async () => {
+    const admin = await makeUser('admin');
+    const member = await makeUser();
+    const Notification = mongoose.model('Notification');
+
+    const active = await remove(admin, member.id);
+    assert.equal(active.status, 400);
+    assert.match(active.body.message, /Deactivate .* before deleting/);
+
+    await User.updateOne({ _id: member.id }, { isActive: false });
+    await Payment.create({ user: member.id, type: 'registration', amount: 500, status: 'rejected' });
+    const paid = await remove(admin, member.id);
+    assert.equal(paid.status, 409);
+    assert.match(paid.body.message, /has payments, so it cannot be deleted/);
+    assert.ok(await User.findById(member.id));
+
+    // With nothing but a read announcement, the account goes and the announcement stays.
+    const quiet = await makeUser('member', { isActive: false });
+    const announcement = await Notification.create({ title: 'AGM', message: 'Friday.', target: 'all', readBy: [quiet.id], createdBy: admin.id });
+    assert.equal((await remove(admin, quiet.id)).status, 200);
+    assert.deepEqual((await Notification.findById(announcement._id).lean()).readBy, []);
+  });
+
+  test('office holders are kept, and nobody deletes themselves or an account above them', async () => {
+    const admin = await makeUser('admin');
+    const chair = await makeUser('chairperson');
+    const member = await makeUser();
+    const treasurer = await makeUser('treasurer', { isActive: false });
+    const otherAdmin = await makeUser('admin', { isActive: false });
+
+    const office = await remove(admin, treasurer.id);
+    assert.equal(office.status, 409);
+    assert.match(office.body.message, /the Treasurer role/);
+
+    assert.equal((await remove(admin, admin.id)).status, 400);
+    assert.equal((await remove(chair, otherAdmin.id)).status, 403);
+    assert.equal((await remove(member, treasurer.id)).status, 403);
   });
 });

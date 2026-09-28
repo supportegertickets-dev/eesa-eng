@@ -16,9 +16,11 @@ const { toCsv } = require('../utils/csv');
 const { ALL_ROLES, LEADERSHIP_ROLES, ROLES, labelFor } = require('../utils/roles');
 const { DEPARTMENTS } = require('../models/User');
 const {
-  membershipClause, membershipActivatedNotice, membershipActivatedNotices, membershipFee, isMembershipCurrent
+  membershipClause, membershipActivatedNotice, membershipActivatedNotices, membershipFee, isMembershipCurrent, notifyUsers
 } = require('../utils/membership');
 const { recordRoleChange } = require('../utils/certificates');
+const { accountHistory, deleteAccount } = require('../utils/accounts');
+const { sendEmail, renderLayout, html } = require('../utils/email');
 
 const router = express.Router();
 
@@ -26,7 +28,7 @@ const router = express.Router();
 // and registration number.
 const DIRECTORY_FIELDS = 'firstName lastName username department yearOfStudy academicStatus role avatar bio createdAt';
 
-const ADMIN_LIST_FIELDS = 'firstName lastName email username regNumber memberNumber phone department yearOfStudy academicStatus role avatar isActive membershipPaid membershipExpiry lastPaymentDate lastLoginAt createdAt';
+const ADMIN_LIST_FIELDS = 'firstName lastName email username regNumber memberNumber phone department yearOfStudy academicStatus role avatar isActive pendingApproval membershipPaid membershipExpiry lastPaymentDate lastLoginAt createdAt';
 
 // Matches the term applied when a submitted payment is verified.
 const MEMBERSHIP_TERM_MS = 180 * 24 * 60 * 60 * 1000;
@@ -128,10 +130,20 @@ const membershipLabel = (user, now = new Date()) => {
   return user.membershipExpiry && user.membershipExpiry <= now ? 'Expired' : 'Paid';
 };
 
+// The account filter: 'true' is active, 'false' deactivated, 'pending' the
+// sign-ups awaiting approval. Awaiting approval is inactive too, but is not
+// counted or listed as deactivated.
+const ACCOUNT_STATES = ['true', 'false', 'pending'];
+const accountClause = (state) => ({
+  true: { isActive: true },
+  false: { isActive: false, pendingApproval: { $ne: true } },
+  pending: { pendingApproval: true }
+}[state] || null);
+
 const adminListRules = [
   query('search').optional({ values: 'falsy' }).trim().isLength({ max: 80 }),
   query('role').optional({ values: 'falsy' }).isIn(ALL_ROLES),
-  query('active').optional({ values: 'falsy' }).isIn(['true', 'false']),
+  query('active').optional({ values: 'falsy' }).isIn(ACCOUNT_STATES),
   query('department').optional({ values: 'falsy' }).isIn(DEPARTMENTS).withMessage('Unknown department'),
   query('year').optional({ values: 'falsy' }).isInt({ min: 1, max: 5 }).toInt(),
   query('status').optional({ values: 'falsy' }).isIn(['student', 'alumni']),
@@ -143,7 +155,7 @@ const adminListRules = [
 const buildAdminFilter = (q) => {
   const clauses = [];
   if (q.role) clauses.push({ role: q.role });
-  if (q.active) clauses.push({ isActive: q.active === 'true' });
+  if (q.active) clauses.push(accountClause(q.active));
   if (q.department) clauses.push({ department: q.department });
   if (q.year) clauses.push({ yearOfStudy: q.year });
   if (q.status) clauses.push({ academicStatus: q.status });
@@ -187,15 +199,16 @@ router.get('/admin/summary', protect, adminOnly, asyncHandler(async (req, res) =
   const now = new Date();
   const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  const [total, active, deactivated, paid, joinedLast30Days] = await Promise.all([
+  const [total, active, deactivated, pending, paid, joinedLast30Days] = await Promise.all([
     User.countDocuments(),
-    User.countDocuments({ isActive: true }),
-    User.countDocuments({ isActive: false }),
+    User.countDocuments(accountClause('true')),
+    User.countDocuments(accountClause('false')),
+    User.countDocuments(accountClause('pending')),
     User.countDocuments({ $and: [{ isActive: true }, membershipClause('current', now)] }),
     User.countDocuments({ createdAt: { $gte: monthAgo } })
   ]);
 
-  res.json({ total, active, deactivated, paid, unpaid: active - paid, joinedLast30Days });
+  res.json({ total, active, deactivated, pending, paid, unpaid: active - paid, joinedLast30Days });
 }));
 
 // GET /api/users/admin/export - the filtered member list as CSV
@@ -221,7 +234,7 @@ router.get('/admin/export', protect, adminOnly, [...adminListRules, validate], a
     { label: 'Role', value: (u) => labelFor(u.role) },
     { label: 'Membership', value: (u) => membershipLabel(u, now) },
     { label: 'Membership expires', value: (u) => day(u.membershipExpiry) },
-    { label: 'Account', value: (u) => (u.isActive ? 'Active' : 'Deactivated') },
+    { label: 'Account', value: (u) => (u.pendingApproval ? 'Awaiting approval' : u.isActive ? 'Active' : 'Deactivated') },
     { label: 'Joined', value: (u) => day(u.createdAt) },
     { label: 'Last sign-in', value: (u) => day(u.lastLoginAt) }
   ];
@@ -381,6 +394,11 @@ router.patch('/:id/status', protect, adminOnly, [
   if (!target) throw new ApiError(404, 'Member not found.');
   assertCanManage(req.user, target);
 
+  // Restoring would skip the approval, which also emails the applicant.
+  if (target.pendingApproval) {
+    throw new ApiError(400, `${target.firstName} is waiting for approval. Approve or delete the account instead.`);
+  }
+
   if (!isActive && target.role === ROLES.ADMIN) {
     await assertNotLastAdmin(target._id, 'deactivated');
   }
@@ -394,6 +412,96 @@ router.patch('/:id/status', protect, adminOnly, [
       : `${target.firstName}'s account has been deactivated.`,
     user: target.toJSON()
   });
+}));
+
+/* ------------------------------------------------------------------ *
+ * Sign-up approval and junk accounts
+ * ------------------------------------------------------------------ */
+
+const APPROVE_LIMIT = 200;
+const EMAIL_BATCH = 10;
+
+/** Welcome approved members by email, a few at a time. Failures are logged; the approval stands. */
+const sendApprovalEmails = async (members) => {
+  const baseUrl = (process.env.FRONTEND_URL || '').split(',')[0].trim() || 'http://localhost:3000';
+  for (let i = 0; i < members.length; i += EMAIL_BATCH) {
+    await Promise.all(members.slice(i, i + EMAIL_BATCH).map((member) => sendEmail(
+      member.email,
+      'Your EESA account is approved',
+      renderLayout({
+        heading: 'Welcome to EESA',
+        bodyHtml: html`
+          <p style="color:#555;">Hello ${member.firstName},</p>
+          <p style="color:#555;">Your EESA account has been approved. You can now sign in with the email address and password you registered with.</p>`,
+        ctaLabel: 'Sign in',
+        ctaUrl: `${baseUrl}/login`,
+        footerNote: 'Once you are signed in, pay the membership fee under Payments to get your membership card.'
+      })
+    ).catch((error) => console.warn(`Approval email to ${member.email} failed:`, error.message))));
+  }
+};
+
+// POST /api/users/admin/approve - let sign-ups awaiting approval in
+router.post('/admin/approve', protect, adminOnly, [
+  body('ids').isArray({ min: 1, max: APPROVE_LIMIT }).withMessage(`Choose between 1 and ${APPROVE_LIMIT} accounts.`),
+  body('ids.*').isMongoId().withMessage('One of the chosen accounts could not be found.'),
+  validate
+], asyncHandler(async (req, res) => {
+  const applicants = await User.find({ _id: { $in: req.body.ids }, pendingApproval: true })
+    .select('firstName lastName email')
+    .lean();
+  if (!applicants.length) throw new ApiError(400, 'None of those accounts is waiting for approval.');
+
+  const ids = applicants.map((applicant) => applicant._id);
+  await User.updateMany(
+    { _id: { $in: ids }, pendingApproval: true },
+    { $set: { isActive: true, approvedAt: new Date(), approvedBy: req.user._id }, $unset: { pendingApproval: 1 } }
+  );
+  await notifyUsers(ids, {
+    title: 'Welcome to EESA',
+    message: 'Your account has been approved. Pay the membership fee under Payments, then upload a passport photo under Membership Card to get your card.',
+    type: 'membership',
+    createdBy: req.user._id
+  });
+  // Not awaited: a slow mail provider must not hold up the administrator.
+  sendApprovalEmails(applicants);
+
+  const skipped = req.body.ids.length - applicants.length;
+  const done = applicants.length === 1
+    ? `${applicants[0].firstName} ${applicants[0].lastName} is approved and can now sign in.`
+    : `${plural(applicants.length, 'account')} approved. They can now sign in.`;
+  res.json({
+    approved: applicants.length,
+    message: skipped ? `${done} ${plural(skipped, 'other')} ${skipped === 1 ? 'was' : 'were'} not waiting for approval.` : done
+  });
+}));
+
+const listOf = (items) => (items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}` : items[0]);
+
+// DELETE /api/users/admin/:id - permanently remove a junk account
+// Only an account with no history can go. Anyone who paid, bought, uploaded,
+// voted or held office is deactivated instead, so the records stay whole.
+router.delete('/admin/:id', protect, adminOnly, [idParam, validate], asyncHandler(async (req, res) => {
+  if (sameId(req.params.id, req.user._id)) {
+    throw new ApiError(400, 'You cannot delete your own account.');
+  }
+
+  const target = await User.findById(req.params.id);
+  if (!target) throw new ApiError(404, 'Member not found.');
+  assertCanManage(req.user, target);
+
+  // Two steps for an active member, so one mistaken click cannot delete them.
+  if (target.isActive) {
+    throw new ApiError(400, `Deactivate ${target.firstName}'s account before deleting it.`);
+  }
+
+  const history = await accountHistory(target);
+  if (history.length) {
+    throw new ApiError(409, `${target.firstName}'s account has ${listOf(history)}, so it cannot be deleted. Leave it deactivated instead.`);
+  }
+
+  await deleteAccount(target);
+  res.json({ message: `${target.firstName} ${target.lastName}'s account has been deleted.` });
 }));
 
 // PATCH /api/users/:id - correct a member's details on their behalf
@@ -528,7 +636,7 @@ const readListFilter = (filter) => {
   };
   if (filter.search) q.search = String(filter.search).slice(0, 80);
   pick('role', (v) => ALL_ROLES.includes(v));
-  pick('active', (v) => ['true', 'false'].includes(v));
+  pick('active', (v) => ACCOUNT_STATES.includes(v));
   pick('department', (v) => DEPARTMENTS.includes(v));
   pick('status', (v) => ['student', 'alumni'].includes(v));
   pick('membership', (v) => MEMBERSHIP_STATES.includes(v));

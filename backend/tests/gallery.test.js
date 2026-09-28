@@ -16,6 +16,7 @@ delete process.env.SMTP_HOST;
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const request = require('supertest');
+const { registerApproved } = require('./helpers');
 
 const cloudinary = require('../config/cloudinary');
 
@@ -73,18 +74,10 @@ after(async () => {
   if (mongod) await mongod.stop();
 });
 
-let counter = 0;
 const makeUser = async (role = 'member') => {
-  counter += 1;
-  const res = await request(app).post('/api/auth/register').send({
-    firstName: `User${counter}`,
-    lastName: 'Test',
-    email: `gallery${counter}-${Date.now()}@example.com`,
-    password: 'Str0ngPass1'
-  });
-  assert.equal(res.status, 201, res.body.message);
-  if (role !== 'member') await User.updateOne({ _id: res.body._id }, { role });
-  return { id: res.body._id, auth: { Authorization: `Bearer ${res.body.token}` } };
+  const user = await registerApproved(app);
+  if (role !== 'member') await User.updateOne({ _id: user.id }, { role });
+  return user;
 };
 
 const createAlbum = (user, fields = {}) => request(app).post('/api/gallery/albums').set(user.auth).send({
@@ -117,7 +110,7 @@ describe('albums', () => {
     assert.equal(res.status, 201, res.body.message);
     assert.equal(res.body.slug, 'field-trip-olkaria');
     assert.equal(res.body.photoCount, 0);
-    assert.equal(res.body.createdBy.firstName.startsWith('User'), true);
+    assert.equal(`${res.body.createdBy.firstName} ${res.body.createdBy.lastName}`, leader.name);
   });
 
   test('albums with the same title get distinct URLs', async () => {

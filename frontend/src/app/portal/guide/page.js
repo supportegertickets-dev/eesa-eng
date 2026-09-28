@@ -10,7 +10,7 @@ const sections = [
     description: 'Keep your membership details current so EESA can identify and support you.',
     steps: [
       'Open Profile from the portal menu.',
-      'Add or update your name, department, year of study, phone number, and biography.',
+      'Add or update your name, department, year of study, phone number, and biography. Use your real name as it appears on your student ID: offensive or made-up names are refused.',
       'Upload a clear profile picture using Change profile picture.',
       'Select Save Changes when finished.',
       'Use Change Password to update your password. Enter your current password, a new password, and confirm it.'
@@ -138,7 +138,9 @@ const sections = [
       'Open Members from the portal menu.',
       'Search by name or use the department filters to narrow the directory.',
       'Select a member to open their profile: bio, leadership role, projects and approved library uploads.',
-      'Contact details stay private. Only administrators can see email addresses, phone numbers and registration numbers.'
+      'Contact details stay private. Only administrators can see email addresses, phone numbers and registration numbers.',
+      'Admin and Chairperson: every new registration waits for approval, and you are notified of each one. In Manage Members, select Review on the notice (or choose Awaiting approval) and check each name and registration number. Select Approve to let a real student in (they are emailed and can then sign in), or tick several and select Approve. Delete a fake registration with the bin icon.',
+      'Admin and Chairperson: a deactivated account can be deleted for good with the bin icon, as long as it has no history. An account with payments, orders, uploads, votes or an office stays deactivated instead.'
     ],
     link: ['/portal/members', 'View Members']
   },

@@ -58,6 +58,7 @@ EESA2/
 - Search engine support: `/sitemap.xml`, `/robots.txt`, a canonical link and description on every public page, and noindex on private ones
 
 ### Member Portal
+- Sign-up approval: new accounts need a real name and an engineering registration number, and wait for an administrator to approve them before they can sign in
 - Dashboard with stats and upcoming events
 - Profile management
 - Elections: self-nomination with admin approval, secret ballot, automatic scheduling, results published when voting closes
@@ -208,6 +209,14 @@ cd backend
 npm test
 ```
 
+## How sign-ups are checked
+
+1. The registration form turns away obvious junk: names with profanity (English, Swahili and Sheng), keyboard mashing, placeholder names such as Test, or the same name typed twice; offensive usernames; temporary inboxes such as Mailinator; and registration numbers that are not an engineering number like `B12/12345/21` (letter case, spaces and hyphens are tidied up). The rules live in `backend/utils/identity.js` and also apply when a member edits their profile.
+2. A registration that passes is saved as **Awaiting approval**. It cannot sign in and is left out of the directory, member counts and email broadcasts. The applicant sees a confirmation and is told they will be emailed.
+3. Admins and the chairperson get a notification for each one, and Manage Members and the admin overview show how many are waiting. They check the name and registration number, then select **Approve** (or tick several and approve them together). The member is emailed and can sign in.
+4. A fake registration is removed with **Delete**, which frees its email address and registration number.
+5. Any deactivated account can also be deleted for good if it has no history. An account with payments, orders, uploads, votes, certificates or an office stays deactivated instead, so the association's records stay complete.
+
 ## How elections work
 
 1. An admin or the chairperson creates an election with its positions, an optional nomination deadline, and voting open and close times.
@@ -286,6 +295,7 @@ The script is idempotent, so running it twice is safe. Other changes to be aware
 - Passwords now need at least 8 characters, including a letter and a number. Existing passwords keep working until they are next changed.
 - Changing a password signs the member out of every other device.
 - The member directory API now requires a signed-in member.
+- Registration no longer signs the new member in. Their account waits for an administrator's approval, and the registration number is required and must be an engineering number. Existing accounts are unaffected and count as approved.
 - Only the `admin` role can change roles; the chairperson can still deactivate and restore ordinary members.
 - `JWT_SECRET` must be at least 32 characters when `NODE_ENV=production`.
 - M-Pesa payments charge `REGISTRATION_FEE` or `RENEWAL_FEE` instead of an amount the member types, and a fee that is not set cannot be paid by M-Pesa. Set both before deploying.

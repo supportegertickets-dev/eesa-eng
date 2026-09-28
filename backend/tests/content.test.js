@@ -16,6 +16,7 @@ delete process.env.SMTP_HOST;
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const mongoose = require('mongoose');
 const request = require('supertest');
+const { registerApproved } = require('./helpers');
 
 let mongod;
 let app;
@@ -50,18 +51,10 @@ after(async () => {
   if (mongod) await mongod.stop();
 });
 
-let counter = 0;
 const makeUser = async (role = 'member') => {
-  counter += 1;
-  const res = await request(app).post('/api/auth/register').send({
-    firstName: `Reader${counter}`,
-    lastName: 'Test',
-    email: `content${counter}-${Date.now()}@example.com`,
-    password: 'Str0ngPass1'
-  });
-  assert.equal(res.status, 201, res.body.message);
-  if (role !== 'member') await User.updateOne({ _id: res.body._id }, { role });
-  return { id: res.body._id, auth: { Authorization: `Bearer ${res.body.token}` } };
+  const user = await registerApproved(app);
+  if (role !== 'member') await User.updateOne({ _id: user.id }, { role });
+  return user;
 };
 
 describe('news articles', () => {
