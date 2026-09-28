@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { register } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
+import { pausedFeature, usePlatform } from '@/lib/PlatformContext';
 import { REG_NUMBER_EXAMPLE, REG_NUMBER_PATTERN, normalizeRegNumber } from '@/lib/members';
 import toast from 'react-hot-toast';
-import { HiCheckCircle, HiEye, HiEyeOff } from 'react-icons/hi';
+import { HiCheckCircle, HiClock, HiEye, HiEyeOff } from 'react-icons/hi';
 
 export default function RegisterPage() {
   const [form, setForm] = useState({
@@ -28,6 +29,7 @@ export default function RegisterPage() {
   // rather than signing the applicant in.
   const [received, setReceived] = useState(null);
   const { user, loading } = useAuth();
+  const paused = pausedFeature(usePlatform().status, 'registration');
   const router = useRouter();
 
   // A signed-in member has no reason to see the registration form.
@@ -89,6 +91,24 @@ export default function RegisterPage() {
           <p className="text-sm text-subtle mt-3">
             Nothing arrived after a few days? Check your spam folder, or{' '}
             <Link href="/contact" className="text-primary-500 dark:text-primary-300 font-medium hover:underline">contact the committee</Link>.
+          </p>
+          <Link href="/" className="btn-primary mt-6 inline-flex">Back to the home page</Link>
+        </div>
+      </div>
+    );
+  }
+
+  // Sign-ups switched off by the platform superadmin. The API refuses them too.
+  if (paused) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-canvas py-12 px-4">
+        <div className="max-w-lg w-full card text-center" role="status">
+          <HiClock className="w-14 h-14 text-warning mx-auto" aria-hidden="true" />
+          <h1 className="font-heading text-2xl font-bold text-strong mt-4">Sign-ups are paused</h1>
+          <p className="text-muted-fg mt-3">{paused.message}</p>
+          <p className="text-sm text-subtle mt-3">
+            Already a member?{' '}
+            <Link href="/login" className="text-primary-500 dark:text-primary-300 font-medium hover:underline">Sign in</Link>.
           </p>
           <Link href="/" className="btn-primary mt-6 inline-flex">Back to the home page</Link>
         </div>

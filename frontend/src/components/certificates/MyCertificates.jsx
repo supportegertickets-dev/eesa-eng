@@ -6,7 +6,7 @@ import toast from 'react-hot-toast';
 import { HiAcademicCap, HiBadgeCheck, HiChevronRight, HiIdentification } from 'react-icons/hi';
 import { claimMembershipCertificate, getMyCertificates } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
-import { isLeadership } from '@/lib/roles';
+import { isOffice } from '@/lib/roles';
 import { CERTIFICATE_TITLES, certificateDate, certificateSubject } from '@/lib/certificates';
 import ErrorState from '@/components/ui/ErrorState';
 import { LoadingRegion, SkeletonList } from '@/components/ui/Skeleton';
@@ -119,7 +119,7 @@ export default function MyCertificates() {
             ))}
           </ul>
         )}
-        {isLeadership(user?.role) && user?.role !== 'admin' && !hasLeadershipCertificate && (
+        {isOffice(user?.role) && !hasLeadershipCertificate && (
           <p className="mt-4 text-sm text-muted-fg">
             Office holders receive a certificate of leadership from the administrator at the end of their term. It will appear here and you will be notified.
           </p>

@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { HiAcademicCap, HiBookOpen, HiCalendar, HiCash, HiClipboardList, HiInformationCircle, HiLightBulb, HiPhotograph, HiUser, HiUsers, HiBell, HiArrowRight, HiIdentification, HiShoppingBag, HiScale, HiBadgeCheck } from 'react-icons/hi';
+import { HiAcademicCap, HiBookOpen, HiCalendar, HiCash, HiClipboardList, HiInformationCircle, HiLightBulb, HiPhotograph, HiUser, HiUsers, HiBell, HiArrowRight, HiIdentification, HiShoppingBag, HiScale, HiBadgeCheck, HiServer } from 'react-icons/hi';
+import { useAuth } from '@/lib/AuthContext';
 
 const sections = [
   {
@@ -182,7 +183,27 @@ const sections = [
   }
 ];
 
+// Shown to the superadmin only.
+const superadminSection = {
+  icon: HiServer,
+  title: '15. Run the platform (superadmin)',
+  description: 'Platform Control holds the kill switch and the maintenance tools. Changes that can lock people out ask for your password again, and every change is recorded in the audit log.',
+  steps: [
+    'Maintenance mode closes the whole site for everyone but you, admins included. Read-only mode lets people browse and sign in but blocks every change.',
+    'Feature switches turn off one thing at a time, such as sign-ups, payments, voting or uploads, while the rest keeps working.',
+    'Schedule maintenance ahead: everyone sees a notice, and the site closes and reopens by itself. Post a site announcement for anything else people should know.',
+    'Sign everyone out if you suspect a breach. Switch off sign-ins as well to keep people out while you investigate.',
+    'Check System health for the database, outside services and recent server errors, and the Audit log for who did what.',
+    'Under Admins & accounts, make or remove admins, unlock accounts locked by wrong passwords, and run background jobs now.',
+    'Locked out? On the server, set MAINTENANCE_OVERRIDE=off to reopen the site, or run npm run superadmin -- reset-password <email> for a new password.'
+  ],
+  link: ['/portal/platform', 'Open Platform Control']
+};
+
 export default function GuidePage() {
+  const { user } = useAuth();
+  const shown = user?.role === 'superadmin' ? [...sections, superadminSection] : sections;
+
   return (
     <div className="max-w-5xl mx-auto">
       <div className="bg-primary-600 text-white rounded-2xl p-6 sm:p-8 mb-8">
@@ -199,7 +220,7 @@ export default function GuidePage() {
       </div>
 
       <div className="space-y-6">
-        {sections.map((section) => {
+        {shown.map((section) => {
           const Icon = section.icon;
           return (
             <section key={section.title} className="card">

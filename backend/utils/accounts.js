@@ -35,6 +35,7 @@ const announceApplicant = async (applicant) => {
 // How each collection reads in "Their account has …, so it cannot be deleted".
 const HISTORY_LABELS = {
   Album: 'gallery albums',
+  AuditLog: 'audit log entries',
   Certificate: 'certificates',
   Constitution: 'constitution edits',
   Election: 'election records',
@@ -45,6 +46,7 @@ const HISTORY_LABELS = {
   PassportPhoto: 'passport photos',
   Payment: 'payments',
   Photo: 'gallery photos',
+  PlatformSetting: 'platform settings changes',
   Product: 'shop products',
   Project: 'projects',
   Resource: 'library uploads',

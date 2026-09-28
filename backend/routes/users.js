@@ -13,7 +13,7 @@ const { validate } = require('../middleware/validate');
 const { asyncHandler, ApiError } = require('../utils/asyncHandler');
 const { buildSearchRegex } = require('../utils/sanitize');
 const { toCsv } = require('../utils/csv');
-const { ALL_ROLES, LEADERSHIP_ROLES, ROLES, labelFor } = require('../utils/roles');
+const { ALL_ROLES, LEADERSHIP_ROLES, ROLES, isFullAdmin, labelFor } = require('../utils/roles');
 const { DEPARTMENTS } = require('../models/User');
 const {
   membershipClause, membershipActivatedNotice, membershipActivatedNotices, membershipFee, isMembershipCurrent, notifyUsers
@@ -21,6 +21,7 @@ const {
 const { recordRoleChange } = require('../utils/certificates');
 const { accountHistory, deleteAccount } = require('../utils/accounts');
 const { sendEmail, renderLayout, html } = require('../utils/email');
+const { recordAudit, userTarget, nameOf } = require('../utils/audit');
 
 const router = express.Router();
 
@@ -42,6 +43,10 @@ const idParam = param('id').isMongoId().withMessage('That identifier is not vali
 
 const sameId = (a, b) => String(a) === String(b);
 
+// The superadmin runs the platform and is not a member of the association, so
+// it is left out of everything members and the public see.
+const NOT_SUPERADMIN = { $ne: ROLES.SUPERADMIN };
+
 // GET /api/users - member directory
 // Requires a session: the directory is personal data about students and was
 // previously readable by anyone who could reach the API.
@@ -58,7 +63,7 @@ router.get('/', protect, [
   const limit = req.query.limit || 20;
   const skip = (page - 1) * limit;
 
-  const filter = { isActive: true };
+  const filter = { isActive: true, role: NOT_SUPERADMIN };
   if (req.query.department) filter.department = req.query.department;
   if (req.query.year) filter.yearOfStudy = req.query.year;
   if (req.query.status) filter.academicStatus = req.query.status;
@@ -80,7 +85,7 @@ router.get('/', protect, [
 
 // GET /api/users/leaders - leadership team, shown on the public About page
 router.get('/leaders', asyncHandler(async (req, res) => {
-  const leaders = await User.find({ role: { $in: LEADERSHIP_ROLES }, isActive: true })
+  const leaders = await User.find({ role: { $in: LEADERSHIP_ROLES, ...NOT_SUPERADMIN }, isActive: true })
     .select('firstName lastName department role avatar bio')
     .lean();
 
@@ -93,17 +98,18 @@ router.get('/leaders', asyncHandler(async (req, res) => {
 
 // GET /api/users/stats - aggregate membership figures for the public home page
 router.get('/stats', asyncHandler(async (req, res) => {
+  const listed = { isActive: true, role: NOT_SUPERADMIN };
   const [total, students, alumni, byDepartment, byYear] = await Promise.all([
-    User.countDocuments({ isActive: true }),
-    User.countDocuments({ isActive: true, academicStatus: 'student' }),
-    User.countDocuments({ isActive: true, academicStatus: 'alumni' }),
+    User.countDocuments(listed),
+    User.countDocuments({ ...listed, academicStatus: 'student' }),
+    User.countDocuments({ ...listed, academicStatus: 'alumni' }),
     User.aggregate([
-      { $match: { isActive: true } },
+      { $match: listed },
       { $group: { _id: '$department', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]),
     User.aggregate([
-      { $match: { isActive: true, academicStatus: 'student' } },
+      { $match: { ...listed, academicStatus: 'student' } },
       { $group: { _id: '$yearOfStudy', count: { $sum: 1 } } },
       { $sort: { _id: 1 } }
     ])
@@ -340,9 +346,20 @@ const assertNotLastAdmin = async (userId, action) => {
   }
 };
 
+/**
+ * Superadmin accounts are managed only by scripts/superadmin.js on the server,
+ * so no website session, however privileged, can change or remove one.
+ */
+const assertNotSuperadmin = (target) => {
+  if (target.role === ROLES.SUPERADMIN) {
+    throw new ApiError(403, 'The superadmin account is managed on the server and cannot be changed here.');
+  }
+};
+
 /** Only a full admin may change another admin's account. */
 const assertCanManage = (actor, target) => {
-  if (target.role === ROLES.ADMIN && actor.role !== ROLES.ADMIN) {
+  assertNotSuperadmin(target);
+  if (target.role === ROLES.ADMIN && !isFullAdmin(actor.role)) {
     throw new ApiError(403, 'Only an admin can change another admin account.');
   }
 };
@@ -356,6 +373,10 @@ router.put('/:id/role', protect, adminRoleOnly, [
 ], asyncHandler(async (req, res) => {
   const { role } = req.body;
 
+  if (role === ROLES.SUPERADMIN) {
+    throw new ApiError(403, 'The superadmin role can only be given on the server.');
+  }
+
   // Self-demotion is the most common way to lose access by accident.
   if (sameId(req.params.id, req.user._id)) {
     throw new ApiError(400, 'You cannot change your own role. Ask another admin to do it.');
@@ -363,6 +384,7 @@ router.put('/:id/role', protect, adminRoleOnly, [
 
   const target = await User.findById(req.params.id);
   if (!target) throw new ApiError(404, 'Member not found.');
+  assertNotSuperadmin(target);
 
   if (target.role === ROLES.ADMIN && role !== ROLES.ADMIN) {
     await assertNotLastAdmin(target._id, 'demoted');
@@ -373,6 +395,14 @@ router.put('/:id/role', protect, adminRoleOnly, [
   await target.save({ validateBeforeSave: false });
   // Offices are recorded as terms, which leadership certificates are issued from.
   await recordRoleChange(target, previousRole, role, req.user);
+  if (previousRole !== role) {
+    await recordAudit(req, {
+      action: 'members.role',
+      summary: `${nameOf(req.user)} changed ${nameOf(target)}'s role from ${labelFor(previousRole)} to ${labelFor(role)}.`,
+      target: userTarget(target),
+      details: { from: previousRole, to: role }
+    });
+  }
 
   res.json({ message: `${target.firstName} ${target.lastName} is now ${labelFor(role)}.`, user: target.toJSON() });
 }));
@@ -403,8 +433,16 @@ router.patch('/:id/status', protect, adminOnly, [
     await assertNotLastAdmin(target._id, 'deactivated');
   }
 
+  const wasActive = target.isActive;
   target.isActive = isActive;
   await target.save({ validateBeforeSave: false });
+  if (wasActive !== isActive) {
+    await recordAudit(req, {
+      action: isActive ? 'members.restored' : 'members.deactivated',
+      summary: `${nameOf(req.user)} ${isActive ? 'restored' : 'deactivated'} ${nameOf(target)}'s account.`,
+      target: userTarget(target)
+    });
+  }
 
   res.json({
     message: isActive
@@ -465,6 +503,14 @@ router.post('/admin/approve', protect, adminOnly, [
   });
   // Not awaited: a slow mail provider must not hold up the administrator.
   sendApprovalEmails(applicants);
+  await recordAudit(req, {
+    action: 'members.approved',
+    summary: applicants.length === 1
+      ? `${nameOf(req.user)} approved ${nameOf(applicants[0])}'s sign-up.`
+      : `${nameOf(req.user)} approved ${plural(applicants.length, 'sign-up')}.`,
+    target: applicants.length === 1 ? userTarget(applicants[0]) : { type: 'users', label: plural(applicants.length, 'account') },
+    details: { accounts: applicants.map((a) => ({ id: a._id, name: nameOf(a), email: a.email })) }
+  });
 
   const skipped = req.body.ids.length - applicants.length;
   const done = applicants.length === 1
@@ -501,8 +547,19 @@ router.delete('/admin/:id', protect, adminOnly, [idParam, validate], asyncHandle
   }
 
   await deleteAccount(target);
+  await recordAudit(req, {
+    action: 'members.deleted',
+    summary: `${nameOf(req.user)} permanently deleted ${nameOf(target)}'s account.`,
+    target: userTarget(target),
+    details: { regNumber: target.regNumber, pendingApproval: Boolean(target.pendingApproval) }
+  });
   res.json({ message: `${target.firstName} ${target.lastName}'s account has been deleted.` });
 }));
+
+const DETAIL_LABELS = {
+  firstName: 'first name', lastName: 'last name', regNumber: 'registration number',
+  department: 'department', yearOfStudy: 'year of study', academicStatus: 'academic status'
+};
 
 // PATCH /api/users/:id - correct a member's details on their behalf
 router.patch('/:id', protect, adminOnly, [
@@ -548,6 +605,16 @@ router.patch('/:id', protect, adminOnly, [
   if (Object.keys(unset).length) update.$unset = unset;
 
   const user = await User.findByIdAndUpdate(target._id, update, { new: true, runValidators: true });
+  const changed = [...Object.keys(set), ...Object.keys(unset)]
+    .filter((field) => field !== 'academicYearStartedAt' && String(target[field] ?? '') !== String(user[field] ?? ''));
+  if (changed.length) {
+    await recordAudit(req, {
+      action: 'members.details',
+      summary: `${nameOf(req.user)} corrected ${nameOf(user)}'s ${listOf(changed.map((field) => DETAIL_LABELS[field] || field))}.`,
+      target: userTarget(user),
+      details: Object.fromEntries(changed.map((field) => [field, { from: target[field] ?? null, to: user[field] ?? null }]))
+    });
+  }
   res.json({ message: `${user.firstName}'s details have been updated.`, user: user.toJSON() });
 }));
 
@@ -569,6 +636,7 @@ router.patch('/:id/membership', protect, adminOnly, [
 
   const target = await User.findById(req.params.id);
   if (!target) throw new ApiError(404, 'Member not found.');
+  assertNotSuperadmin(target);
 
   const { membershipPaid, membershipExpiry } = req.body;
   const cash = req.body.payment?.amount ? req.body.payment : null;
@@ -608,6 +676,14 @@ router.patch('/:id/membership', protect, adminOnly, [
 
   await target.save({ validateBeforeSave: false });
   if (membershipPaid) await membershipActivatedNotice(target, req.user._id);
+  await recordAudit(req, {
+    action: 'members.membership',
+    summary: membershipPaid
+      ? `${nameOf(req.user)} marked ${nameOf(target)}'s membership as paid until ${longDay(target.membershipExpiry)}${payment ? `, recording KSh ${payment.amount.toLocaleString('en-KE')} received` : ''}.`
+      : `${nameOf(req.user)} marked ${nameOf(target)}'s membership as not paid.`,
+    target: userTarget(target),
+    details: { membershipPaid, membershipExpiry: target.membershipExpiry, payment: payment ? { id: payment._id, amount: payment.amount, type: payment.type, reference: payment.reference } : undefined }
+  });
 
   res.json({
     message: !membershipPaid
@@ -671,7 +747,7 @@ router.post('/admin/membership', protect, adminOnly, [
     if (membershipExpiry <= now) throw new ApiError(400, 'The expiry date must be in the future.');
   }
 
-  const scope = ids ? { _id: { $in: ids } } : buildAdminFilter(readListFilter(filter));
+  const scope = { $and: [ids ? { _id: { $in: ids } } : buildAdminFilter(readListFilter(filter)), { role: NOT_SUPERADMIN }] };
   const candidates = await User.find(scope)
     .select('firstName lastName isActive membershipPaid membershipExpiry lastPaymentDate passportPhoto')
     .limit(BULK_MEMBERSHIP_LIMIT + 1)
@@ -748,6 +824,22 @@ router.post('/admin/membership', protect, adminOnly, [
   const done = membershipPaid
     ? `${plural(targets.length, 'member')} marked as paid until ${longDay(membershipExpiry)}.`
     : `${plural(targets.length, 'member')} marked as not paid.`;
+  if (targets.length) {
+    await recordAudit(req, {
+      action: 'members.membership_bulk',
+      summary: membershipPaid
+        ? `${nameOf(req.user)} marked ${plural(targets.length, 'member')} as paid until ${longDay(membershipExpiry)}${payments ? `, recording KSh ${payments.total.toLocaleString('en-KE')} received` : ''}.`
+        : `${nameOf(req.user)} marked ${plural(targets.length, 'member')} as not paid.`,
+      target: { type: 'users', label: plural(targets.length, 'member') },
+      details: {
+        membershipPaid,
+        membershipExpiry,
+        byFilter: Boolean(filter),
+        paymentsTotal: payments?.total,
+        members: targets.map((t) => ({ id: t._id, name: nameOf(t) }))
+      }
+    });
+  }
   const notes = [
     skipped.unchanged && (membershipPaid ? `${skipped.unchanged} already paid until then or later` : `${skipped.unchanged} already not paid`),
     skipped.inactive && `${skipped.inactive} deactivated`,
@@ -765,14 +857,23 @@ router.delete('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
 
   const target = await User.findById(req.params.id);
   if (!target) throw new ApiError(404, 'Member not found.');
+  assertNotSuperadmin(target);
 
   if (target.role === ROLES.ADMIN) {
-    if (req.user.role !== ROLES.ADMIN) throw new ApiError(403, 'Only an admin can deactivate another admin account.');
+    if (!isFullAdmin(req.user.role)) throw new ApiError(403, 'Only an admin can deactivate another admin account.');
     await assertNotLastAdmin(target._id, 'deactivated');
   }
 
+  const wasActive = target.isActive;
   target.isActive = false;
   await target.save({ validateBeforeSave: false });
+  if (wasActive) {
+    await recordAudit(req, {
+      action: 'members.deactivated',
+      summary: `${nameOf(req.user)} deactivated ${nameOf(target)}'s account.`,
+      target: userTarget(target)
+    });
+  }
 
   res.json({ message: `${target.firstName}'s account has been deactivated.` });
 }));
@@ -781,7 +882,7 @@ router.delete('/:id', protect, adminOnly, asyncHandler(async (req, res) => {
 // Registered last so it cannot shadow the named routes above. Contact details,
 // payments and account state are left out; administrators use /admin/:id.
 router.get('/:id', protect, [idParam, validate], asyncHandler(async (req, res) => {
-  const user = await User.findOne({ _id: req.params.id, isActive: true }).select(DIRECTORY_FIELDS).lean();
+  const user = await User.findOne({ _id: req.params.id, isActive: true, role: NOT_SUPERADMIN }).select(DIRECTORY_FIELDS).lean();
   if (!user) throw new ApiError(404, 'Member not found.');
 
   const resourceFilter = { uploadedBy: user._id, status: 'approved' };

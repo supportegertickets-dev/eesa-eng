@@ -1,6 +1,7 @@
 import { Inter, Playfair_Display, Poppins } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/lib/AuthContext';
+import { PlatformProvider } from '@/lib/PlatformContext';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import { themeInitScript } from '@/lib/themeScript';
 import { SITE_URL, TITLE_TEMPLATE } from '@/lib/site';
@@ -8,6 +9,8 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import ToastHost from '@/components/ToastHost';
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar';
+import PlatformGate from '@/components/platform/PlatformGate';
+import PlatformBanner from '@/components/platform/PlatformBanner';
 
 /*
  * Fonts are self-hosted by next/font. globals.css previously used
@@ -113,12 +116,18 @@ export default function RootLayout({ children }) {
         <a href="#main-content" className="skip-link">Skip to main content</a>
 
         <ThemeProvider>
-          <AuthProvider>
-            <Navbar />
-            <main id="main-content" className="flex-1">{children}</main>
-            <Footer />
-            <ToastHost />
-          </AuthProvider>
+          <PlatformProvider>
+            <AuthProvider>
+              {/* In maintenance mode, everyone but the superadmin sees a maintenance page instead. */}
+              <PlatformGate>
+                <Navbar />
+                <PlatformBanner />
+                <main id="main-content" className="flex-1">{children}</main>
+                <Footer />
+              </PlatformGate>
+              <ToastHost />
+            </AuthProvider>
+          </PlatformProvider>
         </ThemeProvider>
 
         <ServiceWorkerRegistrar />

@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { HiEye, HiEyeOff } from 'react-icons/hi';
 import { login } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
+import { pausedFeature, usePlatform } from '@/lib/PlatformContext';
 
 /**
  * Accept only same-site relative paths as a post-login destination, so the
@@ -28,7 +29,12 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const { user, loading, loginUser } = useAuth();
+  const { status } = usePlatform();
   const router = useRouter();
+  // The form stays, so the superadmin can still sign in.
+  const closedNotice = status?.mode === 'maintenance'
+    ? 'EESA is closed for maintenance. Only the platform superadmin can sign in right now.'
+    : pausedFeature(status, 'login')?.message;
 
   // A signed-in member has no reason to see this form.
   useEffect(() => {
@@ -64,6 +70,11 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-5" noValidate={false}>
+          {closedNotice && (
+            <div role="status" className="rounded-lg bg-warning-soft text-strong text-sm px-4 py-3">
+              {closedNotice}
+            </div>
+          )}
           {error && (
             <div role="alert" className="rounded-lg bg-danger-soft text-danger text-sm px-4 py-3">
               {error}

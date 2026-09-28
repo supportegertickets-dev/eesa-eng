@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
+import { isPower } from '@/lib/roles';
 import { getEvents, getProjects, getUserStats } from '@/lib/api';
 import { HiCalendar, HiLightBulb, HiUserGroup, HiArrowRight } from 'react-icons/hi';
 
@@ -108,7 +109,7 @@ export default function PortalDashboard() {
       </div>
 
       {/* Quick Actions */}
-      {['admin', 'chairperson'].includes(user?.role) && (
+      {isPower(user?.role) && (
         <div className="mt-8">
           <h2 className="font-heading text-lg font-semibold mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

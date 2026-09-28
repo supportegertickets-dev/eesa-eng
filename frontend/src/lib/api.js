@@ -4,6 +4,20 @@ const TOKEN_KEY = 'eesa_token';
 const DEFAULT_TIMEOUT_MS = 30000;
 
 /**
+ * Fired on window when the API refuses a request because of the platform's
+ * kill switch (maintenance, read-only or a switched-off feature), so the
+ * platform status can be re-read at once rather than at the next poll.
+ */
+export const PLATFORM_EVENT = 'eesa:platform-changed';
+const PLATFORM_CODES = ['maintenance', 'read_only', 'feature_disabled'];
+
+const signalPlatform = (status, code) => {
+  if (status === 503 && PLATFORM_CODES.includes(code) && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(PLATFORM_EVENT));
+  }
+};
+
+/**
  * An error carrying the HTTP status and any per-field validation detail, so
  * callers can distinguish "your session expired" from "that email is taken"
  * from "the network is down".
@@ -149,6 +163,7 @@ class ApiClient {
       if (response.status === 401 && this.onUnauthorized) {
         this.onUnauthorized(data?.code);
       }
+      signalPlatform(response.status, data?.code);
 
       throw new ApiError(data?.message || this.statusMessage(response.status), {
         status: response.status,
@@ -233,6 +248,7 @@ class ApiClient {
         }
 
         if (xhr.status === 401 && this.onUnauthorized) this.onUnauthorized(data?.code);
+        signalPlatform(xhr.status, data?.code);
 
         reject(new ApiError(data?.message || this.statusMessage(xhr.status), {
           status: xhr.status,
@@ -292,6 +308,25 @@ export const changePassword = (data) => api.put('/auth/change-password', data);
 export const forgotPassword = (email) => api.post('/auth/forgot-password', { email });
 export const resetPassword = (data) => api.post('/auth/reset-password', data);
 export const getRoleCatalog = () => api.get('/auth/roles');
+
+/* ------------------------------------------------------------------ *
+ * Platform: the kill switch and maintenance tools (superadmin only,
+ * apart from the status)
+ * ------------------------------------------------------------------ */
+export const getPlatformStatus = () => api.get('/platform/status', { timeout: 15000 });
+export const getPlatformOverview = () => api.get('/platform/overview');
+export const setPlatformMode = (data) => api.put('/platform/mode', data);
+export const setPlatformFeatures = (disabled, password) => api.put('/platform/features', { disabled, password });
+export const setMaintenanceSchedule = (data) => api.put('/platform/schedule', data);
+export const setPlatformAnnouncement = (data) => api.put('/platform/announcement', data);
+export const revokeAllSessions = (password) => api.post('/platform/sessions/revoke', { password });
+export const getPlatformHealth = () => api.get('/platform/health');
+export const getAuditLog = (params = '') => api.get(`/platform/audit${params}`);
+export const getPlatformAdmins = () => api.get('/platform/admins');
+export const getLockedAccounts = () => api.get('/platform/accounts/locked');
+export const unlockAccount = (id) => api.post(`/platform/accounts/${id}/unlock`);
+export const getPlatformJobs = () => api.get('/platform/jobs');
+export const runPlatformJob = (job) => api.post(`/platform/jobs/${job}`);
 
 /* ------------------------------------------------------------------ *
  * Events

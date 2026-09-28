@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
+import { isPower } from '@/lib/roles';
 import { getNotifications, createNotification, markNotificationRead, markAllNotificationsRead, deleteNotification } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { HiAcademicCap, HiBell, HiPlus, HiCheck, HiCheckCircle, HiTrash, HiSpeakerphone, HiCash, HiClipboardList, HiBookOpen, HiCalendar, HiIdentification, HiShoppingBag } from 'react-icons/hi';
@@ -24,7 +25,7 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const isAdmin = ['admin', 'chairperson'].includes(user?.role);
+  const isAdmin = isPower(user?.role);
 
   useEffect(() => { loadNotifications(); }, []);
 

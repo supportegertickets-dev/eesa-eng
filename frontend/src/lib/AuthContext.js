@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import api, { getProfile } from '@/lib/api';
-import { LEADERSHIP_ROLES, POWER_ROLES } from '@/lib/roles';
+import { LEADERSHIP_ROLES, POWER_ROLES, isFullAdmin } from '@/lib/roles';
 
 const AuthContext = createContext(null);
 
@@ -129,7 +129,8 @@ export function AuthProvider({ children }) {
     isAuthenticated: Boolean(user),
     isLeadership: Boolean(user && LEADERSHIP_ROLES.includes(user.role)),
     isAdmin: Boolean(user && POWER_ROLES.includes(user.role)),
-    isFullAdmin: user?.role === 'admin',
+    isFullAdmin: isFullAdmin(user?.role),
+    isSuperadmin: user?.role === 'superadmin',
   }), [user, loading, loginUser, logout, updateUser, refreshUser]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
