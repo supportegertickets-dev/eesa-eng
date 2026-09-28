@@ -177,10 +177,11 @@ function AdminMembers() {
   // The approval queue: its ticks approve sign-ups rather than change memberships.
   const approvalView = filters.active === 'pending';
 
-  // Nobody changes their own membership, and deactivated accounts are left alone.
+  // Nobody changes their own membership, and deactivated and superadmin
+  // accounts are left alone.
   const isTickable = (member) => (approvalView
     ? member.pendingApproval
-    : member._id !== currentUser?._id && member.isActive);
+    : member._id !== currentUser?._id && member.isActive && member.role !== 'superadmin');
   const tickable = data.users.filter(isTickable);
   const allOnPageTicked = tickable.length > 0 && tickable.every((member) => selected.has(member._id));
   const toggle = (member) => setSelected((current) => {
@@ -442,8 +443,9 @@ function AdminMembers() {
                   const membership = membershipState(member);
                   const account = accountState(member);
                   const isSelf = member._id === currentUser?._id;
-                  // Mirrors the API: only a full admin may act on another admin's account.
-                  const canAct = !isSelf && (member.role !== 'admin' || isFullAdmin);
+                  // Mirrors the API: only a full admin may act on another admin's account,
+                  // and nobody can act on a superadmin's from the website.
+                  const canAct = !isSelf && member.role !== 'superadmin' && (member.role !== 'admin' || isFullAdmin);
 
                   return (
                     <tr key={member._id} className="hover:bg-muted/40 transition-colors">
@@ -498,7 +500,7 @@ function AdminMembers() {
                               </p>
                             )}
                             {/* A cash payment at a meeting, say. Nobody marks their own membership. */}
-                            {membership.id !== 'current' && !isSelf && member.isActive && (
+                            {membership.id !== 'current' && !isSelf && member.isActive && member.role !== 'superadmin' && (
                               <button
                                 type="button"
                                 onClick={() => setPayingFor(member)}

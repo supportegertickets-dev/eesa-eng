@@ -166,8 +166,10 @@ export default function AdminMemberProfilePage({ params }) {
   const { user: member, payments, paymentSummary, activity, nominations } = data;
   const name = fullName(member);
   const isSelf = currentUser?._id === member._id;
-  // Mirrors the API: only a full admin may act on another admin's account.
-  const canManage = !isSelf && (member.role !== 'admin' || isFullAdmin);
+  // Mirrors the API: only a full admin may act on another admin's account, and
+  // nobody can act on a superadmin's from the website.
+  const isSuperadminAccount = member.role === 'superadmin';
+  const canManage = !isSelf && !isSuperadminAccount && (member.role !== 'admin' || isFullAdmin);
   const membership = membershipState(member);
   const account = accountState(member);
   const awaitingApproval = account.id === 'pending';
@@ -216,7 +218,7 @@ export default function AdminMemberProfilePage({ params }) {
 
   const menuActions = [
     member.isActive && { label: 'View as members see it', icon: HiEye, onClick: () => router.push(memberHref(member._id)) },
-    isFullAdmin && !isSelf && { label: 'Change role', icon: HiShieldCheck, onClick: () => setDialog('role') },
+    isFullAdmin && !isSelf && !isSuperadminAccount && { label: 'Change role', icon: HiShieldCheck, onClick: () => setDialog('role') },
     // A sign-up is approved rather than restored, so the applicant is told.
     canManage && !awaitingApproval && {
       label: member.isActive ? 'Deactivate account' : 'Restore account',
@@ -318,7 +320,7 @@ export default function AdminMemberProfilePage({ params }) {
           <Section
             title="Membership"
             icon={HiCash}
-            action={!isSelf && !awaitingApproval && (
+            action={!isSelf && !awaitingApproval && !isSuperadminAccount && (
               <button type="button" className="btn-ghost btn-sm" onClick={() => setDialog('membership')}>Update</button>
             )}
           >

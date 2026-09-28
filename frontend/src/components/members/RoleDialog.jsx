@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { updateUserRole } from '@/lib/api';
-import { ALL_ROLES, isLeadership, isPower, roleLabel } from '@/lib/roles';
+import { ASSIGNABLE_ROLES, isLeadership, isPower, roleLabel } from '@/lib/roles';
 import Modal from '@/components/ui/Modal';
 
 const FORM_ID = 'member-role-form';
@@ -59,7 +59,7 @@ export default function RoleDialog({ open, member, onClose, onSaved }) {
       <form id={FORM_ID} onSubmit={handleSubmit}>
         <label htmlFor="member-role" className="form-label">Role</label>
         <select id="member-role" className="input-field" value={role} onChange={(event) => setRole(event.target.value)}>
-          {ALL_ROLES.map((option) => <option key={option} value={option}>{roleLabel(option)}</option>)}
+          {ASSIGNABLE_ROLES.map((option) => <option key={option} value={option}>{roleLabel(option)}</option>)}
         </select>
         <p className="form-hint">{describeRole(role)}</p>
       </form>

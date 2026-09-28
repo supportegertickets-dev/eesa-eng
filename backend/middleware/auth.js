@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { advanceAcademicYears } = require('../utils/academicYear');
-const { LEADERSHIP_ROLES, POWER_ROLES, MERCHANDISE_ROLES, ROLES } = require('../utils/roles');
+const { getPlatformSettings } = require('../utils/platform');
+const { LEADERSHIP_ROLES, POWER_ROLES, MERCHANDISE_ROLES, FULL_ADMIN_ROLES, ROLES } = require('../utils/roles');
 
 /**
  * Resolve a bearer token to a user document.
@@ -49,6 +50,16 @@ const resolveUser = async (token) => {
   const tokenVersion = decoded.pv || 0;
   if ((user.passwordVersion || 0) !== tokenVersion) {
     return { error: 'token_stale', message: 'Your password was changed. Please sign in again.' };
+  }
+
+  // "Sign everyone out" raises the session epoch; tokens carry the epoch they
+  // were issued under. Superadmins are exempt so the one who pressed it stays
+  // in. Tokens from before the claim existed count as epoch 0.
+  if (user.role !== ROLES.SUPERADMIN) {
+    const { sessionEpoch } = await getPlatformSettings();
+    if ((decoded.se || 0) < sessionEpoch) {
+      return { error: 'session_revoked', message: 'You have been signed out for security. Please sign in again.' };
+    }
   }
 
   return { user };
@@ -109,8 +120,11 @@ const requireRole = (roles, label) => (req, res, next) => {
 /** Admins and the chairperson: approvals, verification, member management. */
 const adminOnly = requireRole(POWER_ROLES, 'Administrators');
 
-/** The admin role alone: role changes, destructive operations. */
-const adminRoleOnly = requireRole([ROLES.ADMIN], 'Admin role');
+/** The admin role (and the superadmin): role changes, destructive operations. */
+const adminRoleOnly = requireRole(FULL_ADMIN_ROLES, 'Admin role');
+
+/** The superadmin alone: maintenance mode, feature switches, the audit log. */
+const superadminOnly = requireRole([ROLES.SUPERADMIN], 'Superadmin');
 
 /** Any elected or appointed office holder: content management. */
 const leadershipOnly = requireRole(LEADERSHIP_ROLES, 'Leadership');
@@ -119,6 +133,7 @@ const leadershipOnly = requireRole(LEADERSHIP_ROLES, 'Leadership');
 const merchandiseOnly = requireRole(MERCHANDISE_ROLES, 'Shop managers');
 
 module.exports = {
-  protect, optionalAuth, adminOnly, adminRoleOnly, leadershipOnly, merchandiseOnly, requireRole,
+  protect, optionalAuth, adminOnly, adminRoleOnly, superadminOnly, leadershipOnly, merchandiseOnly, requireRole,
+  resolveUser, readToken,
   LEADERSHIP_ROLES, POWER_ROLES, MERCHANDISE_ROLES
 };

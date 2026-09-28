@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/AuthContext';
+import { isPower } from '@/lib/roles';
 import { submitPayment, getMyPayments, getAllPayments, verifyPayment, getPaymentStats, deletePayment, initiateMpesaPayment, checkMpesaStatus, getPaymentFees } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { HiCash, HiPlus, HiCheckCircle, HiXCircle, HiClock, HiEye, HiTrash } from 'react-icons/hi';
@@ -15,7 +16,7 @@ export default function PaymentsPage() {
   const [fees, setFees] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const isAdmin = ['admin', 'chairperson'].includes(user?.role);
+  const isAdmin = isPower(user?.role);
 
   useEffect(() => { loadPayments(); }, [tab]);
 

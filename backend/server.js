@@ -13,6 +13,8 @@ const { advanceAcademicYears } = require('./utils/academicYear');
 const { expireStaleOrders } = require('./utils/merchandise');
 const { mongoSanitize } = require('./utils/sanitize');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
+const { platformGate } = require('./middleware/platform');
+const { trackServerErrors } = require('./utils/serverErrors');
 
 /* ------------------------------------------------------------------ *
  * Configuration checks
@@ -77,6 +79,9 @@ app.use(helmet({
 // largest payloads and compress by roughly an order of magnitude.
 app.use(compression());
 
+// Remember recent 5xx responses for the superadmin's health page.
+app.use(trackServerErrors);
+
 const allowedOrigins = [
   ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').map((u) => u.trim()) : []),
   'http://localhost:3000'
@@ -112,8 +117,9 @@ const isGalleryPhotoUpload = (req) => req.method === 'POST' && GALLERY_PHOTO_UPL
 const globalLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.RATE_LIMIT_MAX) || 600,
-  // Health checks come from uptime monitors and must never be throttled.
-  skip: (req) => req.path === '/health' || isGalleryPhotoUpload(req),
+  // Health checks come from uptime monitors and must never be throttled. Every
+  // open page polls the platform status, and a campus shares one address.
+  skip: (req) => req.path === '/health' || req.path === '/platform/status' || isGalleryPhotoUpload(req),
   message: 'Too many requests. Please slow down and try again shortly.'
 });
 
@@ -146,6 +152,10 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 // Strip Mongo operators from every request before any route reads them.
 app.use(mongoSanitize);
 
+// The kill switch: maintenance mode, read-only mode and feature switches.
+// Before every route, so nothing it closes can be reached.
+app.use('/api', platformGate);
+
 /* ------------------------------------------------------------------ *
  * Routes
  * ------------------------------------------------------------------ */
@@ -168,6 +178,7 @@ app.use('/api/membership', require('./routes/membership'));
 app.use('/api/merchandise', require('./routes/merchandise'));
 app.use('/api/constitution', require('./routes/constitution'));
 app.use('/api/certificates', require('./routes/certificates'));
+app.use('/api/platform', require('./routes/platform'));
 
 /**
  * Health check. Reports database connectivity so a failed Mongo connection

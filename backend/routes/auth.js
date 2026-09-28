@@ -15,7 +15,10 @@ const {
   nameValidator, usernameValidator, bioValidator, emailValidator
 } = require('../utils/identity');
 const { announceApplicant } = require('../utils/accounts');
-const { ROLE_LABELS, ALL_ROLES } = require('../utils/roles');
+const { ROLE_LABELS, ALL_ROLES, ASSIGNABLE_ROLES, ROLES } = require('../utils/roles');
+const { getPlatformSettings, effectiveState, isFeatureDisabled, unavailableError } = require('../utils/platform');
+const { featureByKey } = require('../utils/platformFeatures');
+const { recordAudit, userTarget, nameOf } = require('../utils/audit');
 const { DEPARTMENTS } = require('../models/User');
 const cloudinary = require('../config/cloudinary');
 
@@ -24,12 +27,16 @@ const router = express.Router();
 const MAX_FAILED_ATTEMPTS = 8;
 const LOCK_DURATION_MS = 15 * 60 * 1000;
 
-const generateToken = (user) =>
-  jwt.sign(
-    { id: user._id, pv: user.passwordVersion || 0 },
+// `se` is the session epoch the token was issued under; the superadmin's
+// "sign everyone out" raises it, and middleware/auth.js refuses older tokens.
+const generateToken = async (user) => {
+  const { sessionEpoch } = await getPlatformSettings();
+  return jwt.sign(
+    { id: user._id, pv: user.passwordVersion || 0, se: sessionEpoch },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
+};
 
 /**
  * The exact shape the frontend stores as the session user. Declared once so
@@ -188,11 +195,21 @@ router.post('/login', credentialLimiter, [
     // Per-account lockout complements the per-IP limiter above: it stops a
     // distributed attack on one account that never trips a single IP budget.
     user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
-    if (user.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) {
+    const locking = user.failedLoginAttempts >= MAX_FAILED_ATTEMPTS;
+    if (locking) {
       user.lockedUntil = new Date(Date.now() + LOCK_DURATION_MS);
       user.failedLoginAttempts = 0;
     }
     await user.save({ validateBeforeSave: false });
+    if (locking) {
+      // No actor: the person typing may not be the account's owner.
+      await recordAudit(req, {
+        action: 'security.locked',
+        summary: `${nameOf(user)}'s account was locked for ${LOCK_DURATION_MS / 60000} minutes after ${MAX_FAILED_ATTEMPTS} wrong passwords.`,
+        target: userTarget(user),
+        actor: null
+      });
+    }
     return invalid();
   }
 
@@ -205,12 +222,26 @@ router.post('/login', credentialLimiter, [
     throw new ApiError(403, 'This account has been deactivated. Contact an administrator.');
   }
 
+  // The kill switch lets superadmins through and nobody else. Checked after
+  // the password, so the notice cannot be used to probe accounts.
+  const isSuperadmin = user.role === ROLES.SUPERADMIN;
+  if (!isSuperadmin) {
+    const settings = await getPlatformSettings();
+    const state = effectiveState(settings);
+    if (state.mode === 'maintenance') throw unavailableError(state.message, 'maintenance');
+    if (isFeatureDisabled(settings, 'login')) throw unavailableError(featureByKey.get('login').message, 'feature_disabled');
+  }
+
   user.failedLoginAttempts = 0;
   user.lockedUntil = undefined;
   user.lastLoginAt = new Date();
   await user.save({ validateBeforeSave: false });
 
-  res.json({ ...publicUser(user), token: generateToken(user) });
+  if (isSuperadmin) {
+    await recordAudit(req, { action: 'security.superadmin_sign_in', summary: `${nameOf(user)} signed in as superadmin.`, actor: user });
+  }
+
+  res.json({ ...publicUser(user), token: await generateToken(user) });
 }));
 
 // POST /api/auth/forgot-password
@@ -309,7 +340,7 @@ router.get('/me', protect, (req, res) => {
 // GET /api/auth/roles - labels and departments, so the frontend stops hardcoding them
 router.get('/roles', (req, res) => {
   res.json({
-    roles: ALL_ROLES.map((value) => ({ value, label: ROLE_LABELS[value] })),
+    roles: ALL_ROLES.map((value) => ({ value, label: ROLE_LABELS[value], assignable: ASSIGNABLE_ROLES.includes(value) })),
     departments: DEPARTMENTS,
     passwordRules: RULES_TEXT
   });
@@ -398,7 +429,7 @@ router.put('/change-password', protect, credentialLimiter, [
   // a fresh one so the member who made the change stays signed in here.
   res.json({
     message: 'Password changed successfully. Other devices have been signed out.',
-    token: generateToken(user)
+    token: await generateToken(user)
   });
 }));
 

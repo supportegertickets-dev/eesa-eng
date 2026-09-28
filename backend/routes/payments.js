@@ -8,6 +8,7 @@ const cloudinary = require('../config/cloudinary');
 const { mpesaHost, mpesaConfigured, formatPhone, requestStkPush, receiptFrom } = require('../utils/mpesa');
 const { applyOrderMpesaResult } = require('../utils/merchandise');
 const { membershipActivatedNotice, membershipFee: feeFor } = require('../utils/membership');
+const { recordAudit, userTarget, nameOf } = require('../utils/audit');
 
 const { validate } = require('../middleware/validate');
 
@@ -272,14 +273,24 @@ router.put('/:id/verify', protect, adminOnly, [
     await payment.save();
 
     // If verified, update user's membership status
+    let member = null;
     if (status === 'verified') {
-      const member = await User.findByIdAndUpdate(payment.user, {
+      member = await User.findByIdAndUpdate(payment.user, {
         membershipPaid: true,
         membershipExpiry: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000), // ~6 months
         lastPaymentDate: new Date()
       }, { new: true });
       if (member) await membershipActivatedNotice(member, req.user._id);
     }
+
+    member = member || await User.findById(payment.user).select('firstName lastName email').lean();
+    await recordAudit(req, {
+      action: status === 'verified' ? 'payments.verified' : 'payments.rejected',
+      summary: `${nameOf(req.user)} ${status === 'verified' ? 'verified' : 'rejected'} a KSh ${Number(payment.amount).toLocaleString('en-KE')} ${payment.type} payment`
+        + `${member ? ` from ${nameOf(member)}` : ''}${status === 'rejected' && payment.rejectionReason ? `: ${payment.rejectionReason}` : '.'}`,
+      target: member ? userTarget(member) : { type: 'payment', id: payment._id, label: payment.reference || String(payment._id) },
+      details: { paymentId: payment._id, amount: payment.amount, type: payment.type, reference: payment.reference, method: payment.paymentMethod }
+    });
 
     const populated = await Payment.findById(payment._id)
       .populate('user', 'firstName lastName email regNumber department')
@@ -297,6 +308,13 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
     const payment = await Payment.findById(req.params.id);
     if (!payment) return res.status(404).json({ message: 'Payment not found' });
     await payment.deleteOne();
+    const member = await User.findById(payment.user).select('firstName lastName email').lean();
+    await recordAudit(req, {
+      action: 'payments.deleted',
+      summary: `${nameOf(req.user)} deleted a ${payment.status} KSh ${Number(payment.amount).toLocaleString('en-KE')} ${payment.type} payment record${member ? ` for ${nameOf(member)}` : ''}.`,
+      target: member ? userTarget(member) : { type: 'payment', id: payment._id, label: payment.reference || String(payment._id) },
+      details: { paymentId: payment._id, amount: payment.amount, type: payment.type, status: payment.status, reference: payment.reference, method: payment.paymentMethod }
+    });
     res.json({ message: 'Payment deleted' });
   } catch (error) {
     res.status(500).json({ message: 'Server error deleting payment' });

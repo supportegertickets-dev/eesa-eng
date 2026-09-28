@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/AuthContext';
+import { isPower } from '@/lib/roles';
 import { createArticle, createProject } from '@/lib/api';
 import EventForm from '@/components/events/EventForm';
 import toast from 'react-hot-toast';
@@ -11,7 +12,7 @@ export default function ManagePage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('event');
 
-  if (!['admin', 'chairperson'].includes(user?.role)) {
+  if (!isPower(user?.role)) {
     return (
       <div className="text-center py-20">
         <p className="text-subtle text-lg">Access denied. Admin and Chairperson only.</p>

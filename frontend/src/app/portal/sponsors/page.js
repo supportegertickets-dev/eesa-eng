@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/AuthContext';
+import { isPower } from '@/lib/roles';
 import { getSponsors, createSponsor, updateSponsor, deleteSponsor } from '@/lib/api';
 import toast from 'react-hot-toast';
 import { HiPlus, HiTrash, HiPencil, HiExternalLink, HiStar } from 'react-icons/hi';
@@ -21,7 +22,7 @@ export default function SponsorsManagePage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
-  const isAdmin = ['admin', 'chairperson'].includes(user?.role);
+  const isAdmin = isPower(user?.role);
 
   useEffect(() => { loadSponsors(); }, []);
 

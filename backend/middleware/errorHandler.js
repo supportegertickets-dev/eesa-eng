@@ -72,9 +72,15 @@ const errorHandler = (err, req, res, next) => {
     message = 'The request body is not valid JSON.';
   }
 
-  // Server-side faults are logged in full but never described to the client.
-  if (status >= 500) {
+  // Refusals from the kill switch are deliberate, not faults: pass them on
+  // as they are and keep them out of the logs.
+  if (err.platformBlocked) {
+    res.locals.platformBlocked = true;
+  } else if (status >= 500) {
+    // Server-side faults are logged in full but never described to the client.
     console.error(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} ->`, err);
+    // For the superadmin's health page (utils/serverErrors.js).
+    res.locals.errorMessage = message;
     if (process.env.NODE_ENV === 'production') {
       message = 'Something went wrong on our end. Please try again.';
       details = undefined;
@@ -84,7 +90,7 @@ const errorHandler = (err, req, res, next) => {
   const payload = { message };
   if (code) payload.code = code;
   if (details) payload.errors = details;
-  if (status >= 500 && process.env.NODE_ENV !== 'production') payload.stack = err.stack;
+  if (status >= 500 && !err.platformBlocked && process.env.NODE_ENV !== 'production') payload.stack = err.stack;
 
   res.status(status).json(payload);
 };

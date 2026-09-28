@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
+import { isFullAdmin } from '@/lib/roles';
 import { getAdminOverview } from '@/lib/api';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { HiBell, HiBookOpen, HiCalendar, HiCash, HiCheckCircle, HiClipboardList, HiDocumentText, HiMail, HiRefresh, HiUserAdd, HiUserGroup, HiUsers, HiArrowRight } from 'react-icons/hi';
@@ -45,11 +46,11 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    if (user?.role === 'admin') loadOverview();
+    if (isFullAdmin(user?.role)) loadOverview();
     else setLoading(false);
   }, [user?.role]);
 
-  if (user?.role !== 'admin') return <div className="card text-center py-20"><p className="text-subtle text-lg">Access denied. Admin role required.</p></div>;
+  if (!isFullAdmin(user?.role)) return <div className="card text-center py-20"><p className="text-subtle text-lg">Access denied. Admin role required.</p></div>;
   if (loading) return <LoadingSpinner size="lg" />;
 
   return (

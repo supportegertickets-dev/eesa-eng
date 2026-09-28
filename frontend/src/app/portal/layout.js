@@ -5,13 +5,14 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthContext';
 import { getContactMessages, getNotifications, getPassportPhotos, getShopSummary } from '@/lib/api';
-import { roleLabel, LEADERSHIP_ROLES, POWER_ROLES, MERCHANDISE_ROLES } from '@/lib/roles';
+import { roleLabel, LEADERSHIP_ROLES, POWER_ROLES, MERCHANDISE_ROLES, isFullAdmin } from '@/lib/roles';
 import Avatar from '@/components/ui/Avatar';
+import PlatformBanner from '@/components/platform/PlatformBanner';
 import { SkeletonList } from '@/components/ui/Skeleton';
 import {
   HiHome, HiUser, HiCalendar, HiUsers, HiCog, HiLogout, HiCash, HiBookOpen,
   HiBell, HiPhotograph, HiClipboardList, HiStar, HiInformationCircle,
-  HiDotsHorizontal, HiX, HiUserGroup, HiMail, HiIdentification, HiShoppingBag, HiTag, HiScale, HiAcademicCap,
+  HiDotsHorizontal, HiX, HiUserGroup, HiMail, HiIdentification, HiShoppingBag, HiTag, HiScale, HiAcademicCap, HiServer,
 } from 'react-icons/hi';
 
 // How often the unread badge re-checks. The count was previously fetched once
@@ -121,7 +122,7 @@ export default function PortalLayout({ children }) {
     if (MERCHANDISE_ROLES.includes(user.role)) {
       items.push({ href: '/portal/merchandise', icon: HiTag, label: 'Merchandise', badge: shopActions });
     }
-    if (user.role === 'admin') {
+    if (isFullAdmin(user.role)) {
       items.push({ href: '/portal/admin', icon: HiCog, label: 'Admin Overview' });
     }
     if (POWER_ROLES.includes(user.role)) {
@@ -129,6 +130,9 @@ export default function PortalLayout({ children }) {
       items.push({ href: '/portal/messages', icon: HiMail, label: 'Messages', badge: unreadMessages });
       items.push({ href: '/portal/constitution', icon: HiScale, label: 'Constitution' });
       items.push({ href: '/portal/manage', icon: HiCog, label: 'Manage' });
+    }
+    if (user.role === 'superadmin') {
+      items.push({ href: '/portal/platform', icon: HiServer, label: 'Platform Control' });
     }
 
     return items;
@@ -309,6 +313,7 @@ export default function PortalLayout({ children }) {
         )}
 
         <div className="flex-1 lg:ml-64 pb-24 lg:pb-0 min-w-0">
+          <PlatformBanner inPortal />
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             {children}
           </div>

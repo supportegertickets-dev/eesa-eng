@@ -82,6 +82,7 @@ EESA2/
 | `member`   | View content, RSVP, update profile, vote, upload payments  |
 | `leader`   | Create/edit events, news, projects, manage elections        |
 | `admin`    | Full control: manage users, roles, all content, approvals   |
+| `superadmin` | Everything an admin can do, plus Platform Control: the kill switch, system health and the audit log. Granted only on the server |
 | `treasurer`| Runs the merchandise shop, together with the admin and chairperson |
 
 ---
@@ -179,6 +180,8 @@ SEED_ADMIN_PASSWORD=          # optional; leave empty to generate one
 npm run seed
 ```
 If `SEED_ADMIN_PASSWORD` is empty, a strong password is generated and printed once. Sign in and change it from your profile. Running the seed again never resets an existing account's password.
+
+To create the superadmin who runs the platform, see [How the superadmin and the kill switch work](#how-the-superadmin-and-the-kill-switch-work).
 
 ### 5. Start both servers
 
@@ -280,6 +283,39 @@ Every certificate is an A4 landscape page drawn in the browser, like the members
 3. They check the articles (edit, reorder, join, add or delete) and preview the result, then publish or save a draft.
 4. `/constitution` shows the current version with a contents list and search, and offers the original file for download. Older versions stay readable. Scanned PDFs have no text to read, so their articles are typed in by hand; the file is still kept for download.
 
+## How the superadmin and the kill switch work
+
+The **superadmin** runs the platform itself. It can do everything an admin can, and only the superadmin has **Portal › Platform Control**. The role cannot be given from the website, not even by another superadmin, so a stolen admin login can never reach it. Admins cannot edit, deactivate, delete or demote a superadmin account. It is left out of the member directory, the leaders list and the public member counts, but admins still see it under Manage Members.
+
+Create and manage superadmins from a machine that has the production `MONGODB_URI` in `backend/.env`:
+
+```bash
+cd backend
+npm run superadmin -- grant you@example.com --first-name Jane --last-name Doe
+npm run superadmin -- list
+npm run superadmin -- reset-password you@example.com
+npm run superadmin -- revoke you@example.com --role admin   # the default is member
+```
+
+`grant` promotes an existing account or creates a new one. A new password comes from `SUPERADMIN_PASSWORD`, or is generated and printed once. `reset-password` also lifts a sign-in lock and signs the account out on its other devices. Each use is recorded in the audit log as "Server script".
+
+Platform Control has four tabs:
+
+- **Controls** holds the kill switch:
+  - **Maintenance mode** closes the whole site. Everyone except the superadmin, admins included, sees a maintenance page with your message and the time you expect to be back, and the API answers 503. The superadmin can still sign in at `/login`.
+  - **Read-only mode** lets people browse and sign in, but refuses every change: uploads, payments, orders, votes and edits.
+  - **Feature switches** turn off one thing at a time: new sign-ups, sign-ins, payments, shop orders, library uploads, gallery uploads, election voting and the contact form.
+  - **Scheduled maintenance** shows everyone a notice beforehand, then closes the site and reopens it by itself.
+  - **Site announcement** puts a banner on every page.
+  - **Sign everyone out** ends every session except superadmins', for a suspected breach.
+
+  Changing the mode, a switch or the schedule, and signing everyone out, all ask for the superadmin's password again. The superadmin is never blocked by any of them. M-Pesa's payment callback is never blocked either, so a payment already taken from a phone is always recorded.
+- **System health** shows the database status and response time, uptime, memory use, and whether Cloudinary, email, M-Pesa, the fees and the website address are set up (the keys are never shown). It also shows record counts and the last 50 server errors since the server last started.
+- **Audit log** is a searchable record of sensitive actions: platform changes, role changes, approvals, deactivations, deletions, corrected details, membership changes, payment verifications and deletions, account lockouts, superadmin sign-ins, and wrong passwords entered at the controls.
+- **Admins & accounts** lets the superadmin make or remove admins, unlock accounts locked by wrong passwords, and run the background jobs (expiring unpaid shop orders, the academic-year rollover) straight away.
+
+**Locked out?** Set `MAINTENANCE_OVERRIDE` on Render. It overrides whatever Platform Control says: `off` reopens the site, `on` closes it (for when the database itself cannot be trusted) and `read_only` freezes it. Remove the variable to hand control back to Platform Control. If the superadmin has lost their password, run `npm run superadmin -- reset-password`.
+
 ## Upgrading an existing deployment
 
 Earlier versions HTML-escaped text as it was saved, so names such as O'Brien were stored as `O&#x27;Brien`. After deploying this version, repair existing records once:
@@ -298,6 +334,8 @@ The script is idempotent, so running it twice is safe. Other changes to be aware
 - Registration no longer signs the new member in. Their account waits for an administrator's approval, and the registration number is required and must be an engineering number. Existing accounts are unaffected and count as approved.
 - Only the `admin` role can change roles; the chairperson can still deactivate and restore ordinary members.
 - `JWT_SECRET` must be at least 32 characters when `NODE_ENV=production`.
+- Sessions now record when they were issued, so that "Sign everyone out" can end them. Sessions issued before this version keep working until someone uses it.
+- There is no superadmin until you create one with `npm run superadmin -- grant <email>`. Until then, admins work exactly as before.
 - M-Pesa payments charge `REGISTRATION_FEE` or `RENEWAL_FEE` instead of an amount the member types, and a fee that is not set cannot be paid by M-Pesa. Set both before deploying.
 - M-Pesa uses the Daraja sandbox unless `MPESA_ENV=production`. Set it, together with live Daraja credentials, to take real payments.
 - An unpublished news article can no longer be opened by its id, except by the admin and chairperson.
@@ -390,5 +428,7 @@ When `eesa.ac.ke` is bought:
 | `GOOGLE_SITE_VERIFICATION` | Vercel | Search Console HTML-tag token (optional; comma-separate several) |
 | `BING_SITE_VERIFICATION` | Vercel | Bing Webmaster Tools meta-tag token (optional) |
 | `SEED_ADMIN_EMAIL` | Local, when seeding | Administrator's email |
+| `SUPERADMIN_PASSWORD` | Local, with `npm run superadmin` | Optional; a password is generated if empty |
+| `MAINTENANCE_OVERRIDE` | Render | Normally unset. `off`, `on` or `read_only` overrides Platform Control |
 
 ---
