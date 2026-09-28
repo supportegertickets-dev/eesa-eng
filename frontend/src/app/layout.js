@@ -1,4 +1,4 @@
-import { Inter, Poppins } from 'next/font/google';
+import { Inter, Playfair_Display, Poppins } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/lib/AuthContext';
 import { ThemeProvider } from '@/lib/ThemeContext';
@@ -26,6 +26,17 @@ const poppins = Poppins({
   weight: ['500', '600', '700', '800'],
   display: 'swap',
   variable: '--font-poppins',
+});
+
+// The lettering on certificates. Nothing else uses it, so it is not preloaded;
+// the certificate renderer loads it before drawing.
+const playfair = Playfair_Display({
+  subsets: ['latin'],
+  weight: ['600', '700'],
+  style: ['normal', 'italic'],
+  display: 'swap',
+  preload: false,
+  variable: '--font-display',
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://eesa-en.vercel.app';
@@ -78,7 +89,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={`${inter.variable} ${poppins.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${poppins.variable} ${playfair.variable}`} suppressHydrationWarning>
       <head>
         {/*
           Applies the stored theme before first paint. Any later and the page

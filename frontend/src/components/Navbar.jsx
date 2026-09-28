@@ -24,7 +24,7 @@ const NAV_LINKS = [
 const MORE_LINKS = [
   { href: '/constitution', label: 'Constitution', description: 'How the association is run', icon: HiScale },
   { href: '/partner', label: 'Partner with us', description: 'Sponsor, mentor or recruit', icon: HiHand },
-  { href: '/verify', label: 'Verify a membership card', description: 'Check a card is genuine', icon: HiBadgeCheck },
+  { href: '/verify', label: 'Verify a card or certificate', description: 'Check a card or certificate is genuine', icon: HiBadgeCheck },
 ];
 
 export default function Navbar() {

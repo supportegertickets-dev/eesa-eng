@@ -53,7 +53,7 @@ EESA2/
 - Official merchandise shop: products by category with sizes, colours and stock, a cart, and checkout for signed-in members
 - Constitution: the current version as searchable articles with a contents list, earlier versions, download and print
 - Partner with us: ways to partner, partnership levels, current sponsors and an enquiry form
-- Membership card verification: scan a card's QR code or enter its member number
+- Card and certificate verification: scan the QR code on a membership card or certificate, or enter its number
 - Contact form
 
 ### Member Portal
@@ -62,6 +62,7 @@ EESA2/
 - Elections: self-nomination with admin approval, secret ballot, automatic scheduling, results published when voting closes
 - Payments: M-Pesa STK Push for the configured registration and renewal fees, or a manual receipt upload for review
 - Membership card: paid-up members upload a passport photo, an administrator approves it, and the member downloads or prints a card with a QR code; administrators can mark members paid, add photos, and print members' cards one at a time or in bulk
+- Certificates: paid-up members download a certificate of membership for each academic year they paid in; office holders receive a certificate of leadership for each term served. Every certificate carries a number and a QR code, and prints on A4
 - My Orders: pay for shop orders by M-Pesa prompt or with an M-Pesa code, and follow them until collection
 - Merchandise (treasurer, chairperson, admin): manage products and stock, check payments, and mark orders ready and collected
 - Constitution (admin, chairperson): upload the document, check the articles read from it, and publish
@@ -144,9 +145,14 @@ MPESA_ENV=sandbox          # or production for real payments
 REGISTRATION_FEE=500
 RENEWAL_FEE=500
 
+# Month the academic year starts (1-12), for membership certificates
+ACADEMIC_YEAR_START_MONTH=9        # September
+
 # Merchandise shop (optional)
 SHOP_PICKUP_LOCATION=the EESA office
-SHOP_PAYMENT_INSTRUCTIONS=         # e.g. Paybill 123456, account: your order number
+SHOP_PAYBILL=522522                # paybill for payments made outside the app
+SHOP_ACCOUNT=1286744210            # its account number
+SHOP_PAYMENT_INSTRUCTIONS=         # any extra note shown under the paybill steps
 ORDER_HOLD_HOURS=72                # unpaid orders are cancelled after this
 ```
 
@@ -230,11 +236,27 @@ Administrators (admin and chairperson) can also produce cards themselves, from P
 
 Members are notified when their membership becomes active, whether an administrator marks it paid or verifies a submitted payment, with what their card still needs.
 
+## How certificates work
+
+Every certificate is an A4 landscape page drawn in the browser, like the membership card, with the association's crest, up to three signatures, a seal, its number (such as `EESA-CERT-26-7K3M9Q`) and a QR code that opens `/verify/<number>`. Everything printed on it is saved when it is issued, so later changes to a profile, a term or the signatories never alter a certificate already given out.
+
+**Membership certificates.** A member can get one for each academic year they had a payment verified in, and for the current year while their subscription is current (which covers members marked paid by hand). They get it themselves from Portal › Certificates; getting it again returns the same certificate. The academic year starts in the month set by `ACADEMIC_YEAR_START_MONTH` (September by default), on Nairobi time.
+
+**Leadership certificates.** Terms are recorded from role changes: giving a member an office in Manage Members starts a term that day, and taking it away ends it. The admin role is not an office, so it records no term. In Portal › Certificates › Leadership terms, the admin or chairperson:
+
+- enters start dates for office holders who were already in office when recording began,
+- adds leaders from before the platform by hand, with or without an account,
+- corrects a term's office or dates, and issues the certificate for a term once it has both dates. The leader is notified. Nobody can edit or certify their own term.
+
+**Signatories.** Up to three people sign each kind of certificate, in the order set under Signatories. Signature images are uploaded as a photo or scan; the browser makes the paper transparent and crops to the signature. Nothing can be issued until someone signs that kind of certificate.
+
+**Correcting a mistake.** Revoke the certificate under Issued, with a reason (the holder is notified), then correct the term and issue a new one. A member whose membership certificate was revoked can get a new one while still eligible. The verification page reports a revoked certificate as withdrawn without naming the holder, and administrators see it marked REVOKED.
+
 ## How the shop works
 
 1. The treasurer, chairperson or admin adds products in Portal › Merchandise, with photos, sizes, colours and optional stock.
 2. Anyone can browse `/merchandise`; ordering needs an account. The server prices every order from the catalogue, and placing it holds the stock.
-3. The member pays on the order's page: an M-Pesa prompt to their phone, or an M-Pesa code for money sent another way (`SHOP_PAYMENT_INSTRUCTIONS` says where to send it).
+3. The member pays on the order's page: an M-Pesa prompt to their phone, or through Pay Bill to the association's account (Paybill 522 522, account 1286744210, set by `SHOP_PAYBILL` and `SHOP_ACCOUNT`), then enters the M-Pesa code.
 4. M-Pesa payments confirm automatically through the existing callback URL (no new Daraja setup). Codes wait under Payments to check.
 5. The treasurer marks the order ready, with optional collection details, and the member is notified. Then it is marked collected.
 6. Unpaid orders are cancelled after `ORDER_HOLD_HOURS` and their stock is returned. Members can cancel an unpaid order themselves; only the shop can cancel a paid one.
@@ -322,8 +344,11 @@ Gallery photos upload one request per file and have their own rate limit, `GALLE
 | `REGISTRATION_FEE` | Render | `500` (whole shillings) |
 | `RENEWAL_FEE` | Render | `500` (whole shillings) |
 | `SHOP_PICKUP_LOCATION` | Render | Where orders are collected (optional) |
-| `SHOP_PAYMENT_INSTRUCTIONS` | Render | Where to send manual shop payments (optional) |
+| `SHOP_PAYBILL` | Render | `522522` (the default) |
+| `SHOP_ACCOUNT` | Render | `1286744210` (the default) |
+| `SHOP_PAYMENT_INSTRUCTIONS` | Render | Extra note for manual shop payments (optional) |
 | `ORDER_HOLD_HOURS` | Render | `72` (optional) |
+| `ACADEMIC_YEAR_START_MONTH` | Render | `9` (September, the default) |
 | `NEXT_PUBLIC_API_URL` | Vercel | `https://your-backend.onrender.com/api` |
 | `NEXT_PUBLIC_SITE_URL` | Vercel | `https://eesa-en.vercel.app` |
 | `SEED_ADMIN_EMAIL` | Local, when seeding | Administrator's email |

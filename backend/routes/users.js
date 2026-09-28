@@ -16,6 +16,7 @@ const { toCsv } = require('../utils/csv');
 const { ALL_ROLES, LEADERSHIP_ROLES, ROLES, labelFor } = require('../utils/roles');
 const { DEPARTMENTS } = require('../models/User');
 const { membershipClause, membershipActivatedNotice } = require('../utils/membership');
+const { recordRoleChange } = require('../utils/certificates');
 
 const router = express.Router();
 
@@ -351,8 +352,11 @@ router.put('/:id/role', protect, adminRoleOnly, [
     await assertNotLastAdmin(target._id, 'demoted');
   }
 
+  const previousRole = target.role;
   target.role = role;
   await target.save({ validateBeforeSave: false });
+  // Offices are recorded as terms, which leadership certificates are issued from.
+  await recordRoleChange(target, previousRole, role, req.user);
 
   res.json({ message: `${target.firstName} ${target.lastName} is now ${labelFor(role)}.`, user: target.toJSON() });
 }));

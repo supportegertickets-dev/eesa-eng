@@ -25,12 +25,15 @@ const membershipClause = (state, now = new Date()) => {
 const isMembershipCurrent = (user, now = new Date()) =>
   Boolean(user?.membershipPaid) && (!user.membershipExpiry || new Date(user.membershipExpiry) > now);
 
-/** "EESA-26-7K3M9Q": the year it was issued and six random characters. */
-const generateMemberNumber = (now = new Date()) => {
-  let suffix = '';
-  for (let i = 0; i < NUMBER_LENGTH; i += 1) suffix += NUMBER_ALPHABET[crypto.randomInt(NUMBER_ALPHABET.length)];
-  return `EESA-${String(now.getFullYear()).slice(-2)}-${suffix}`;
+/** Random characters from an alphabet that cannot be misread off paper. */
+const randomCode = (length = NUMBER_LENGTH) => {
+  let code = '';
+  for (let i = 0; i < length; i += 1) code += NUMBER_ALPHABET[crypto.randomInt(NUMBER_ALPHABET.length)];
+  return code;
 };
+
+/** "EESA-26-7K3M9Q": the year it was issued and six random characters. */
+const generateMemberNumber = (now = new Date()) => `EESA-${String(now.getFullYear()).slice(-2)}-${randomCode()}`;
 
 const normalizeMemberNumber = (value) => String(value || '').trim().toUpperCase().replace(/\s+/g, '');
 
@@ -106,6 +109,6 @@ const membershipActivatedNotice = (member, createdBy) => notifyUsers([member._id
 });
 
 module.exports = {
-  membershipClause, isMembershipCurrent, generateMemberNumber, normalizeMemberNumber, ensureMemberNumber, cardDetails, notifyUsers,
+  membershipClause, isMembershipCurrent, randomCode, generateMemberNumber, normalizeMemberNumber, ensureMemberNumber, cardDetails, notifyUsers,
   membershipActivatedNotice, MEMBER_NUMBER_PATTERN
 };

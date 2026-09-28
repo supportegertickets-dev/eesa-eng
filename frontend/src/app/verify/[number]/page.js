@@ -8,6 +8,7 @@ import { verifyMembership } from '@/lib/api';
 import { formatDate } from '@/lib/dates';
 import { cloudinaryImage } from '@/lib/images';
 import VerifyForm from '@/components/membership/VerifyForm';
+import CertificateVerifyResult from '@/components/certificates/CertificateVerifyResult';
 import { LoadingRegion, Skeleton } from '@/components/ui/Skeleton';
 
 const OUTCOMES = {
@@ -31,9 +32,14 @@ const OUTCOMES = {
   },
 };
 
+/** One link for both: a card's QR code carries a member number, a certificate's a certificate number. */
 export default function VerifyResultPage() {
   const { number } = useParams();
-  const memberNumber = decodeURIComponent(String(number || '')).toUpperCase();
+  const value = decodeURIComponent(String(number || '')).trim().toUpperCase();
+  return value.startsWith('EESA-CERT-') ? <CertificateVerifyResult number={value} /> : <CardResult memberNumber={value} />;
+}
+
+function CardResult({ memberNumber }) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
 
@@ -122,7 +128,7 @@ export default function VerifyResultPage() {
         </div>
 
         <div className="mt-10 pt-6 border-t border-line">
-          <h2 className="text-sm font-semibold text-strong mb-3">Check another card</h2>
+          <h2 className="text-sm font-semibold text-strong mb-3">Check another card or certificate</h2>
           <VerifyForm compact />
           <p className="form-hint mt-3">
             <Link href="/verify" className="underline hover:text-body">How verification works</Link>

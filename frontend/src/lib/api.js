@@ -504,4 +504,24 @@ export const deleteConstitution = (id) => api.delete(`/constitution/${id}`);
 export const constitutionFileUrl = (id, { download = false } = {}) =>
   `${API_URL}/constitution/versions/${id}/file${download ? '?download=1' : ''}`;
 
+/* ------------------------------------------------------------------ *
+ * Certificates
+ * ------------------------------------------------------------------ */
+export const getMyCertificates = () => api.get('/certificates/my');
+export const claimMembershipCertificate = (academicYear) => api.post('/certificates/membership', academicYear ? { academicYear } : {});
+export const verifyCertificate = (number) => api.get(`/certificates/verify/${encodeURIComponent(number)}`);
+// Administrators: leadership terms, issued certificates and signatories.
+export const getLeadershipTerms = (params = '') => api.get(`/certificates/terms${params}`);
+export const createLeadershipTerm = (data) => api.post('/certificates/terms', data);
+export const updateLeadershipTerm = (id, data) => api.put(`/certificates/terms/${id}`, data);
+export const deleteLeadershipTerm = (id) => api.delete(`/certificates/terms/${id}`);
+export const issueLeadershipCertificate = (termId) => api.post(`/certificates/terms/${termId}/certificate`);
+export const getCertificates = (params = '') => api.get(`/certificates${params}`);
+export const revokeCertificate = (id, reason) => api.post(`/certificates/${id}/revoke`, { reason });
+export const getSignatories = () => api.get('/certificates/signatories');
+export const createSignatory = (formData, onProgress) => api.upload('/certificates/signatories', formData, onProgress);
+export const updateSignatory = (id, formData, onProgress) => api.upload(`/certificates/signatories/${id}`, formData, onProgress, 'PUT');
+export const reorderSignatories = (ids) => api.put('/certificates/signatories/order', { ids });
+export const deleteSignatory = (id) => api.delete(`/certificates/signatories/${id}`);
+
 export default api;

@@ -13,7 +13,7 @@ const QUICK_LINKS = [
   { href: '/merchandise', label: 'Official merchandise' },
   { href: '/constitution', label: 'Constitution' },
   { href: '/partner', label: 'Partner with us' },
-  { href: '/verify', label: 'Verify a membership card' },
+  { href: '/verify', label: 'Verify a card or certificate' },
   { href: '/contact', label: 'Contact' },
 ];
 

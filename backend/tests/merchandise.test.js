@@ -271,6 +271,20 @@ describe('catalogue', () => {
   });
 });
 
+describe('paying outside the app', () => {
+  test('checkout and every order show the association\'s paybill', async () => {
+    const paybill = { businessNumber: '522522', accountNumber: '1286744210' };
+    const settings = await request(app).get('/api/merchandise/settings');
+    assert.deepEqual(settings.body.paybill, paybill);
+
+    const member = await makeUser();
+    const product = await makeProduct();
+    const placed = await placeOrder(member, [{ product: product._id, quantity: 1 }]);
+    const order = await request(app).get(`/api/merchandise/orders/${placed.body.order._id}`).set(member.auth);
+    assert.deepEqual(order.body.paybill, paybill);
+  });
+});
+
 describe('placing orders', () => {
   test('signing in is required', async () => {
     const product = await makeProduct();

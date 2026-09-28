@@ -7,6 +7,7 @@ import { getMemberCards } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 import { formatDate } from '@/lib/dates';
 import { cardFileName, printCardSheet, renderCardImage } from '@/lib/membershipCard';
+import { downloadZip } from '@/lib/print';
 import Avatar from '@/components/ui/Avatar';
 import EmptyState from '@/components/ui/EmptyState';
 import ErrorState from '@/components/ui/ErrorState';
@@ -111,16 +112,10 @@ export default function MemberCardsPanel({ onReviewPhotos, onChanged }) {
   const downloadSelected = async () => {
     try {
       const images = await renderSelected('download');
-      const { default: JSZip } = await import('jszip');
-      const zip = new JSZip();
-      images.forEach(({ card, dataUrl }) => zip.file(cardFileName(card), dataUrl.split(',')[1], { base64: true }));
-      const blob = await zip.generateAsync({ type: 'blob' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `EESA-membership-cards-${new Date().toISOString().slice(0, 10)}.zip`;
-      link.click();
-      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      await downloadZip(
+        images.map(({ card, dataUrl }) => ({ name: cardFileName(card), dataUrl })),
+        `EESA-membership-cards-${new Date().toISOString().slice(0, 10)}.zip`,
+      );
     } catch {
       toast.error('The cards could not be prepared. Try again.');
     } finally {
