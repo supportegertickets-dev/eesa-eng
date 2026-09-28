@@ -15,7 +15,9 @@ const { buildSearchRegex } = require('../utils/sanitize');
 const { toCsv } = require('../utils/csv');
 const { ALL_ROLES, LEADERSHIP_ROLES, ROLES, labelFor } = require('../utils/roles');
 const { DEPARTMENTS } = require('../models/User');
-const { membershipClause, membershipActivatedNotice } = require('../utils/membership');
+const {
+  membershipClause, membershipActivatedNotice, membershipActivatedNotices, membershipFee, isMembershipCurrent
+} = require('../utils/membership');
 const { recordRoleChange } = require('../utils/certificates');
 
 const router = express.Router();
@@ -112,7 +114,8 @@ router.get('/stats', asyncHandler(async (req, res) => {
  * Member administration
  * ------------------------------------------------------------------ */
 
-const MEMBERSHIP_STATES = ['current', 'expired', 'none'];
+// "unpaid" is everyone not paid up: never paid, or expired.
+const MEMBERSHIP_STATES = ['current', 'expired', 'none', 'unpaid'];
 const ADMIN_SORTS = {
   newest: { createdAt: -1 },
   name: { firstName: 1, lastName: 1 },
@@ -145,7 +148,7 @@ const buildAdminFilter = (q) => {
   if (q.year) clauses.push({ yearOfStudy: q.year });
   if (q.status) clauses.push({ academicStatus: q.status });
 
-  const membership = membershipClause(q.membership);
+  const membership = q.membership === 'unpaid' ? { $nor: [membershipClause('current')] } : membershipClause(q.membership);
   if (membership) clauses.push(membership);
 
   const search = buildSearchRegex(q.search);
@@ -462,6 +465,8 @@ router.patch('/:id/membership', protect, adminOnly, [
   const { membershipPaid, membershipExpiry } = req.body;
   const cash = req.body.payment?.amount ? req.body.payment : null;
   const now = new Date();
+  // Already paid up means this is a change of expiry, and the message says so.
+  const wasCurrent = isMembershipCurrent(target, now);
 
   if (cash && !membershipPaid) {
     throw new ApiError(400, 'A payment can only be recorded when marking the membership as paid.');
@@ -497,12 +502,151 @@ router.patch('/:id/membership', protect, adminOnly, [
   if (membershipPaid) await membershipActivatedNotice(target, req.user._id);
 
   res.json({
-    message: membershipPaid
-      ? `${target.firstName}'s membership is marked as paid.`
-      : `${target.firstName}'s membership is marked as not paid.`,
+    message: !membershipPaid
+      ? `${target.firstName}'s membership is marked as not paid.`
+      : wasCurrent
+        ? `${target.firstName}'s membership now runs until ${longDay(target.membershipExpiry)}.`
+        : `${target.firstName}'s membership is marked as paid.`,
     user: target.toJSON(),
     payment
   });
+}));
+
+const BULK_MEMBERSHIP_LIMIT = 1000;
+
+/**
+ * The member-list filters sent with "mark all matching", checked as strictly
+ * as the list's own query string, so the action covers exactly the list shown.
+ */
+const readListFilter = (filter) => {
+  const q = {};
+  const pick = (key, allowed) => {
+    const value = filter[key];
+    if (value === undefined || value === null || value === '') return;
+    if (!allowed(String(value))) throw new ApiError(400, 'The filters are invalid. Refresh the page and try again.');
+    q[key] = String(value);
+  };
+  if (filter.search) q.search = String(filter.search).slice(0, 80);
+  pick('role', (v) => ALL_ROLES.includes(v));
+  pick('active', (v) => ['true', 'false'].includes(v));
+  pick('department', (v) => DEPARTMENTS.includes(v));
+  pick('status', (v) => ['student', 'alumni'].includes(v));
+  pick('membership', (v) => MEMBERSHIP_STATES.includes(v));
+  pick('year', (v) => /^[1-5]$/.test(v));
+  if (q.year) q.year = Number(q.year);
+  return q;
+};
+
+const longDay = (date) => date.toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Nairobi' });
+const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
+
+// POST /api/users/admin/membership - mark ticked members, or everyone matching the list filters, as paid (or ticked ones as not paid)
+router.post('/admin/membership', protect, adminOnly, [
+  body('membershipPaid').isBoolean().withMessage('Choose paid or not paid').toBoolean(),
+  body('ids').optional().isArray({ min: 1, max: BULK_MEMBERSHIP_LIMIT }).withMessage(`Choose between 1 and ${BULK_MEMBERSHIP_LIMIT} members.`),
+  body('ids.*').isMongoId().withMessage('One of the chosen members could not be found.'),
+  body('filter').optional().isObject().withMessage('The filters are invalid.'),
+  body('membershipExpiry').optional({ values: 'falsy' }).isISO8601().withMessage('Enter a valid expiry date').toDate(),
+  body('recordPayment').optional().isBoolean().toBoolean(),
+  // Report what would happen without changing anything, for the confirmation.
+  body('dryRun').optional().isBoolean().toBoolean(),
+  validate
+], asyncHandler(async (req, res) => {
+  const { membershipPaid, ids, filter, membershipExpiry, recordPayment, dryRun } = req.body;
+  const now = new Date();
+
+  if (Boolean(ids) === Boolean(filter)) throw new ApiError(400, 'Choose members, or mark everyone matching the filters.');
+  if (!membershipPaid && filter) throw new ApiError(400, 'Tick the members to mark as not paid.');
+  if (!membershipPaid && recordPayment) throw new ApiError(400, 'A payment can only be recorded when marking members as paid.');
+  if (membershipPaid) {
+    if (!membershipExpiry) throw new ApiError(400, 'Choose the date the membership is paid until.');
+    if (membershipExpiry <= now) throw new ApiError(400, 'The expiry date must be in the future.');
+  }
+
+  const scope = ids ? { _id: { $in: ids } } : buildAdminFilter(readListFilter(filter));
+  const candidates = await User.find(scope)
+    .select('firstName lastName isActive membershipPaid membershipExpiry lastPaymentDate passportPhoto')
+    .limit(BULK_MEMBERSHIP_LIMIT + 1)
+    .lean();
+  if (candidates.length > BULK_MEMBERSHIP_LIMIT) {
+    throw new ApiError(400, `That is more than ${BULK_MEMBERSHIP_LIMIT} members. Narrow the filters and do it in parts.`);
+  }
+
+  // Who changes, and why the rest are left alone.
+  const skipped = { self: 0, inactive: 0, unchanged: 0 };
+  const targets = [];
+  for (const member of candidates) {
+    // Treasury records should always involve a second person.
+    if (sameId(member._id, req.user._id)) skipped.self += 1;
+    else if (!member.isActive) skipped.inactive += 1;
+    else if (membershipPaid
+      // Already paid up to the chosen date or later: a bulk action never shortens a membership.
+      ? isMembershipCurrent(member, now) && (!member.membershipExpiry || member.membershipExpiry >= membershipExpiry)
+      : !member.membershipPaid) skipped.unchanged += 1;
+    else targets.push(member);
+  }
+
+  // Returning members pay renewal; anyone never paid before pays registration.
+  let payments = null;
+  if (recordPayment && targets.length) {
+    const paidBefore = new Set((await Payment.distinct('user', { user: { $in: targets.map((t) => t._id) }, status: 'verified' })).map(String));
+    const typeOf = (member) => (member.lastPaymentDate || paidBefore.has(String(member._id)) ? 'renewal' : 'registration');
+    payments = { registration: { count: 0, fee: membershipFee('registration') }, renewal: { count: 0, fee: membershipFee('renewal') }, total: 0 };
+    targets.forEach((member) => { payments[typeOf(member)].count += 1; });
+    for (const type of ['registration', 'renewal']) {
+      if (payments[type].count && !payments[type].fee) {
+        throw new ApiError(400, `The ${type} fee is not set on the server, so payments cannot be recorded. Untick “Record a payment”, or set ${type === 'registration' ? 'REGISTRATION_FEE' : 'RENEWAL_FEE'} first.`);
+      }
+      payments.total += payments[type].count * (payments[type].fee || 0);
+    }
+    payments.typeOf = typeOf;
+  }
+
+  const summary = {
+    matched: candidates.length,
+    updated: targets.length,
+    skipped,
+    payments: payments && { registration: payments.registration, renewal: payments.renewal, total: payments.total }
+  };
+  if (dryRun) return res.json({ ...summary, dryRun: true });
+
+  const targetIds = targets.map((t) => t._id);
+  if (targetIds.length) {
+    if (membershipPaid) {
+      await User.updateMany({ _id: { $in: targetIds } }, { membershipPaid: true, membershipExpiry });
+      if (payments) {
+        const recorder = `${req.user.firstName} ${req.user.lastName}`;
+        await Payment.insertMany(targets.map((member) => {
+          const type = payments.typeOf(member);
+          return {
+            user: member._id,
+            type,
+            amount: payments[type].fee,
+            paymentMethod: 'manual',
+            status: 'verified',
+            verifiedBy: req.user._id,
+            verifiedAt: now,
+            notes: `Recorded by ${recorder} when marking members paid together.`
+          };
+        }));
+        await User.updateMany({ _id: { $in: targetIds } }, { lastPaymentDate: now });
+      }
+      await membershipActivatedNotices(targets.map((member) => ({ ...member, membershipExpiry })), req.user._id);
+    } else {
+      await User.updateMany({ _id: { $in: targetIds } }, { membershipPaid: false, $unset: { membershipExpiry: 1 } });
+    }
+  }
+
+  const done = membershipPaid
+    ? `${plural(targets.length, 'member')} marked as paid until ${longDay(membershipExpiry)}.`
+    : `${plural(targets.length, 'member')} marked as not paid.`;
+  const notes = [
+    skipped.unchanged && (membershipPaid ? `${skipped.unchanged} already paid until then or later` : `${skipped.unchanged} already not paid`),
+    skipped.inactive && `${skipped.inactive} deactivated`,
+    skipped.self && 'your own account, which another administrator marks'
+  ].filter(Boolean);
+
+  res.json({ ...summary, message: notes.length ? `${done} Left alone: ${notes.join('; ')}.` : done });
 }));
 
 // DELETE /api/users/:id - retained for compatibility; deactivates rather than deletes

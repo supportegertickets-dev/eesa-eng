@@ -345,6 +345,8 @@ export const updateUserRole = (id, role) => api.put(`/users/${id}/role`, { role 
 export const setUserStatus = (id, isActive) => api.patch(`/users/${id}/status`, { isActive });
 export const updateMemberDetails = (id, data) => api.patch(`/users/${id}`, data);
 export const updateMembership = (id, data) => api.patch(`/users/${id}/membership`, data);
+// Many at once: { membershipPaid, ids } or { membershipPaid: true, filter }, with dryRun to preview.
+export const bulkUpdateMembership = (data) => api.post('/users/admin/membership', data);
 export const deactivateUser = (id) => api.delete(`/users/${id}`);
 
 /* ------------------------------------------------------------------ *
@@ -518,6 +520,7 @@ export const deleteLeadershipTerm = (id) => api.delete(`/certificates/terms/${id
 export const issueLeadershipCertificate = (termId) => api.post(`/certificates/terms/${termId}/certificate`);
 export const getCertificates = (params = '') => api.get(`/certificates${params}`);
 export const revokeCertificate = (id, reason) => api.post(`/certificates/${id}/revoke`, { reason });
+export const updateCertificate = (id, data) => api.put(`/certificates/${id}`, data);
 export const getSignatories = () => api.get('/certificates/signatories');
 export const createSignatory = (formData, onProgress) => api.upload('/certificates/signatories', formData, onProgress);
 export const updateSignatory = (id, formData, onProgress) => api.upload(`/certificates/signatories/${id}`, formData, onProgress, 'PUT');

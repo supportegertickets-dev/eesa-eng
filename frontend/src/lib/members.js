@@ -26,8 +26,9 @@ export const membershipState = (member, now = new Date()) => {
 export const MEMBERSHIP_FILTERS = [
   { value: '', label: 'Any membership' },
   { value: 'current', label: 'Paid' },
+  { value: 'unpaid', label: 'Not paid up (never or expired)' },
   { value: 'expired', label: 'Expired' },
-  { value: 'none', label: 'Not paid' },
+  { value: 'none', label: 'Never paid' },
 ];
 
 /** Review states used by payments, library uploads and nominations. */

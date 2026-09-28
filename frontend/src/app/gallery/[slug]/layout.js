@@ -1,4 +1,5 @@
 import { cloudinaryImage } from '@/lib/images';
+import { NOINDEX } from '@/lib/site';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -8,13 +9,18 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
  * the browser; this runs on the server only to describe it.
  */
 export async function generateMetadata({ params }) {
+  // The canonical is set even when the API cannot answer. Without it the album
+  // would inherit /gallery and be treated as a copy of the album list.
+  const fallback = { title: 'Gallery', alternates: { canonical: `/gallery/${params.slug}` } };
+
   try {
     const response = await fetch(`${API_URL}/gallery/albums/${encodeURIComponent(params.slug)}`, {
       next: { revalidate: 300 },
       // A sleeping API must not hold up the page.
       signal: AbortSignal.timeout(5000),
     });
-    if (!response.ok) return { title: 'Gallery' };
+    if (response.status === 404) return { ...fallback, robots: NOINDEX };
+    if (!response.ok) return fallback;
 
     const { album } = await response.json();
     const count = album.photoCount || 0;
@@ -41,7 +47,7 @@ export async function generateMetadata({ params }) {
       },
     };
   } catch {
-    return { title: 'Gallery' };
+    return fallback;
   }
 }
 

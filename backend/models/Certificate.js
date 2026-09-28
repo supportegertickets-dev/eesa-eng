@@ -7,10 +7,26 @@ const mongoose = require('mongoose');
  * office and dates or academic year, and the signatories with their signature
  * images. The certificate is drawn from this record every time it is viewed,
  * so later changes to a profile, a term or the signatories never alter one
- * already given out. A mistake is corrected by revoking it and issuing another.
+ * already given out. An administrator corrects a mistake by editing it, which
+ * keeps its number and QR code and is recorded in `edits`, or by revoking it
+ * and issuing another.
  */
 const CERTIFICATE_TYPES = ['leadership', 'membership'];
 const CERTIFICATE_STATUSES = ['valid', 'revoked'];
+
+// One correction: who made it, when, and each field's value before and after.
+// Values are kept as text (dates as ISO strings) so the log reads the same
+// however the field is stored.
+const editSchema = new mongoose.Schema({
+  editedAt: { type: Date, default: Date.now },
+  editedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  changes: [{
+    _id: false,
+    field: { type: String, required: true },
+    from: { type: String, default: '' },
+    to: { type: String, default: '' }
+  }]
+}, { _id: false });
 
 const signatureSchema = new mongoose.Schema({
   name: { type: String, required: true, trim: true },
@@ -39,6 +55,8 @@ const certificateSchema = new mongoose.Schema({
   signatories: { type: [signatureSchema], default: [] },
   issuedAt: { type: Date, default: Date.now },
   issuedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+
+  edits: { type: [editSchema], default: [] },
 
   status: { type: String, enum: CERTIFICATE_STATUSES, default: 'valid' },
   revokedAt: Date,

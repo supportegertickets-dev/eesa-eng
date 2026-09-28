@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { HiCash, HiChevronRight, HiDownload, HiIdentification, HiPrinter, HiSearch } from 'react-icons/hi';
+import { HiBadgeCheck, HiBan, HiCalendar, HiCash, HiChevronRight, HiDownload, HiIdentification, HiPrinter, HiSearch } from 'react-icons/hi';
 import { getMemberCards } from '@/lib/api';
 import { useAuth } from '@/lib/AuthContext';
 import { formatDate } from '@/lib/dates';
+import { membershipState } from '@/lib/members';
 import { cardFileName, printCardSheet, renderCardImage } from '@/lib/membershipCard';
 import { downloadZip } from '@/lib/print';
+import ActionMenu from '@/components/ui/ActionMenu';
 import Avatar from '@/components/ui/Avatar';
 import EmptyState from '@/components/ui/EmptyState';
 import ErrorState from '@/components/ui/ErrorState';
@@ -15,6 +17,8 @@ import FilterChips from '@/components/ui/FilterChips';
 import Pagination from '@/components/ui/Pagination';
 import { LoadingRegion, SkeletonList } from '@/components/ui/Skeleton';
 import MembershipDialog from '@/components/members/MembershipDialog';
+import BulkMembershipDialog from '@/components/members/BulkMembershipDialog';
+import MarkUnpaidDialog from '@/components/members/MarkUnpaidDialog';
 import MemberCardDialog from '@/components/membership/MemberCardDialog';
 
 const STATES = {
@@ -42,6 +46,9 @@ const PAGE_SIZE = 20;
 export default function MemberCardsPanel({ onReviewPhotos, onChanged }) {
   const { user: currentUser } = useAuth();
   const [payingFor, setPayingFor] = useState(null);
+  const [expiryFor, setExpiryFor] = useState(null);
+  const [unpaying, setUnpaying] = useState(null);
+  const [bulk, setBulk] = useState(null); // { scope, description }
   const [state, setState] = useState('ready');
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
@@ -125,6 +132,16 @@ export default function MemberCardsPanel({ onReviewPhotos, onChanged }) {
 
   const chips = FILTERS.map((filter) => ({ ...filter, count: filter.id ? data?.counts?.[filter.id] : undefined }));
 
+  const afterMembershipChange = () => { load(); onChanged?.(); };
+
+  // "Not paid up" and "All members" are the views where marking everyone paid makes sense.
+  const canMarkAll = (state === 'unpaid' || state === '') && data?.total > 0;
+  const markAllPaid = () => {
+    const filter = { active: 'true', ...(state === 'unpaid' ? { membership: 'unpaid' } : {}), ...(query ? { search: query } : {}) };
+    const who = state === 'unpaid' ? 'Every member who is not paid up' : 'Every active member';
+    setBulk({ scope: { filter }, description: `${who}${query ? ` matching “${query}”` : ''}.` });
+  };
+
   return (
     <div>
       <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-4">
@@ -136,6 +153,11 @@ export default function MemberCardsPanel({ onReviewPhotos, onChanged }) {
           <HiSearch className="w-4 h-4 text-faint absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
           <input id="card-search" type="text" inputMode="search" className="input-field pl-9 py-2" placeholder="Name, reg. or member number" value={search} onChange={(e) => setSearch(e.target.value)} />
         </form>
+        {canMarkAll && (
+          <button type="button" className="btn-outline shrink-0" onClick={markAllPaid}>
+            <HiBadgeCheck className="w-4 h-4" aria-hidden="true" /> Mark all paid
+          </button>
+        )}
       </div>
 
       {selected.size > 0 && (
@@ -210,6 +232,18 @@ export default function MemberCardsPanel({ onReviewPhotos, onChanged }) {
                       <HiCash className="w-4 h-4" aria-hidden="true" /> Mark paid
                     </button>
                   )}
+                  {/* Put right a mistake: the wrong expiry, or the wrong person marked paid. */}
+                  {membershipState(member).id === 'current' && member._id !== currentUser?._id && (
+                    <span className="mr-3 shrink-0">
+                      <ActionMenu
+                        label={`Membership actions for ${name}`}
+                        actions={[
+                          { label: 'Change expiry', icon: HiCalendar, onClick: () => setExpiryFor(member) },
+                          { label: 'Mark not paid', icon: HiBan, danger: true, onClick: () => setUnpaying([member]) },
+                        ]}
+                      />
+                    </span>
+                  )}
                 </li>
               );
             })}
@@ -228,8 +262,22 @@ export default function MemberCardsPanel({ onReviewPhotos, onChanged }) {
         open={Boolean(payingFor)}
         member={payingFor}
         onClose={() => setPayingFor(null)}
-        onSaved={() => { load(); onChanged?.(); }}
+        onSaved={afterMembershipChange}
       />
+
+      <MembershipDialog
+        open={Boolean(expiryFor)}
+        member={expiryFor}
+        title="Change membership expiry"
+        onClose={() => setExpiryFor(null)}
+        onSaved={afterMembershipChange}
+      />
+
+      <MarkUnpaidDialog members={unpaying} onClose={() => setUnpaying(null)} onDone={afterMembershipChange} />
+
+      {bulk && (
+        <BulkMembershipDialog scope={bulk.scope} description={bulk.description} onClose={() => setBulk(null)} onDone={afterMembershipChange} />
+      )}
 
       {openId && (
         <MemberCardDialog

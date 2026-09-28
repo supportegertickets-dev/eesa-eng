@@ -256,6 +256,18 @@ describe('manual membership', () => {
     assert.equal(await Notification.countDocuments({ targetUsers: noPhoto.id }), 1);
   });
 
+  test('changing a paid member\'s expiry says so', async () => {
+    const admin = await makeUser('admin');
+    const subject = await makeUser('member', { membershipPaid: true, membershipExpiry: new Date(Date.now() + 30 * DAY) });
+    const expiry = new Date(Date.now() + 90 * DAY);
+
+    const res = await request(app).patch(`/api/users/${subject.id}/membership`).set(admin.auth)
+      .send({ membershipPaid: true, membershipExpiry: expiry.toISOString() });
+    assert.equal(res.status, 200, res.body.message);
+    assert.match(res.body.message, /membership now runs until/);
+    assert.equal(new Date(res.body.user.membershipExpiry).toISOString(), expiry.toISOString());
+  });
+
   test('marking a membership unpaid clears its expiry', async () => {
     const admin = await makeUser('admin');
     const subject = await makeUser('member', { membershipPaid: true, membershipExpiry: new Date(Date.now() + 30 * DAY) });
@@ -302,6 +314,7 @@ describe('member administration list', () => {
     assert.deepEqual(await idsFor('current'), [paid.id]);
     assert.deepEqual(await idsFor('expired'), [lapsed.id]);
     assert.deepEqual(await idsFor('none'), [unpaid.id]);
+    assert.deepEqual((await idsFor('unpaid')).sort(), [lapsed.id, unpaid.id].sort(), 'not paid up: never paid or expired');
   });
 
   test('summary counts are available to administrators', async () => {
@@ -330,5 +343,141 @@ describe('member administration list', () => {
   test('export is limited to administrators', async () => {
     const member = await makeUser();
     assert.equal((await request(app).get('/api/users/admin/export').set(member.auth)).status, 403);
+  });
+});
+
+describe('marking members paid together', () => {
+  const bulk = (admin, body) => request(app).post('/api/users/admin/membership').set(admin.auth).send(body);
+  const inDays = (days) => new Date(Date.now() + days * DAY);
+  const stored = (member) => User.findById(member.id).lean();
+
+  test('ticked members are marked paid until the chosen date; the preview changes nothing', async () => {
+    const admin = await makeUser('admin');
+    const unpaid = await makeUser();
+    const lapsed = await makeUser('member', { membershipPaid: true, membershipExpiry: inDays(-5) });
+    const paidLonger = await makeUser('member', { membershipPaid: true, membershipExpiry: inDays(400) });
+    const deactivated = await makeUser('member', { isActive: false });
+    const expiry = inDays(120).toISOString();
+    const ids = [unpaid.id, lapsed.id, paidLonger.id, deactivated.id, admin.id];
+
+    const preview = await bulk(admin, { membershipPaid: true, ids, membershipExpiry: expiry, dryRun: true });
+    assert.equal(preview.status, 200, preview.body.message);
+    assert.equal(preview.body.dryRun, true);
+    assert.equal(preview.body.matched, 5);
+    assert.equal(preview.body.updated, 2);
+    assert.deepEqual(preview.body.skipped, { self: 1, inactive: 1, unchanged: 1 });
+    assert.equal((await stored(unpaid)).membershipPaid, false, 'a preview changes nothing');
+
+    const res = await bulk(admin, { membershipPaid: true, ids, membershipExpiry: expiry });
+    assert.equal(res.status, 200, res.body.message);
+    assert.equal(res.body.updated, 2);
+    assert.match(res.body.message, /2 members marked as paid until/);
+    assert.match(res.body.message, /1 already paid until then or later; 1 deactivated; your own account/);
+
+    for (const member of [unpaid, lapsed]) {
+      const user = await stored(member);
+      assert.equal(user.membershipPaid, true);
+      assert.equal(user.membershipExpiry.toISOString(), expiry);
+    }
+    assert.ok((await stored(paidLonger)).membershipExpiry > inDays(399), 'a longer membership is never shortened');
+    assert.equal((await stored(deactivated)).membershipPaid, false);
+    assert.equal((await stored(admin)).membershipPaid, false);
+
+    // Both are told, in one shared notification since their message is the same.
+    const Notification = mongoose.model('Notification');
+    const notices = await Notification.find({ targetUsers: { $in: [unpaid.id, lapsed.id] }, title: 'Membership active' }).lean();
+    assert.equal(notices.length, 1);
+    assert.equal(notices[0].targetUsers.length, 2);
+    assert.equal(await Payment.countDocuments({ user: { $in: [unpaid.id, lapsed.id] } }), 0, 'no payment unless asked for');
+  });
+
+  test('everyone matching the list filters can be marked paid at once', async () => {
+    const chair = await makeUser('chairperson');
+    const tag = `Bulk${Date.now()}`;
+    const first = await makeUser('member', { lastName: tag, yearOfStudy: 2 });
+    const second = await makeUser('member', { lastName: tag, yearOfStudy: 2, membershipPaid: true, membershipExpiry: inDays(-1) });
+    const otherYear = await makeUser('member', { lastName: tag, yearOfStudy: 3 });
+
+    const res = await bulk(chair, {
+      membershipPaid: true,
+      filter: { search: tag, year: '2', status: 'student', membership: 'unpaid', active: 'true' },
+      membershipExpiry: inDays(90).toISOString()
+    });
+    assert.equal(res.status, 200, res.body.message);
+    assert.equal(res.body.matched, 2);
+    assert.equal(res.body.updated, 2);
+    assert.equal((await stored(first)).membershipPaid, true);
+    assert.ok((await stored(second)).membershipExpiry > new Date());
+    assert.equal((await stored(otherYear)).membershipPaid, false);
+
+    const invalid = await bulk(chair, { membershipPaid: true, filter: { department: 'Astronomy' }, membershipExpiry: inDays(90).toISOString() });
+    assert.equal(invalid.status, 400);
+  });
+
+  test('a payment of the standard fee can be recorded for each: registration if new, renewal if returning', async () => {
+    const admin = await makeUser('admin');
+    const newcomer = await makeUser();
+    const returning = await makeUser('member', { lastPaymentDate: inDays(-200), membershipPaid: true, membershipExpiry: inDays(-20) });
+    const body = { membershipPaid: true, ids: [newcomer.id, returning.id], membershipExpiry: inDays(180).toISOString(), recordPayment: true };
+
+    const saved = { registration: process.env.REGISTRATION_FEE, renewal: process.env.RENEWAL_FEE };
+    try {
+      process.env.REGISTRATION_FEE = '500';
+      delete process.env.RENEWAL_FEE;
+      const missingFee = await bulk(admin, body);
+      assert.equal(missingFee.status, 400);
+      assert.match(missingFee.body.message, /renewal fee is not set/);
+
+      process.env.RENEWAL_FEE = '300';
+      const preview = await bulk(admin, { ...body, dryRun: true });
+      assert.deepEqual(preview.body.payments, { registration: { count: 1, fee: 500 }, renewal: { count: 1, fee: 300 }, total: 800 });
+
+      const res = await bulk(admin, body);
+      assert.equal(res.status, 200, res.body.message);
+    } finally {
+      for (const [key, value] of [['REGISTRATION_FEE', saved.registration], ['RENEWAL_FEE', saved.renewal]]) {
+        if (value === undefined) delete process.env[key]; else process.env[key] = value;
+      }
+    }
+
+    const payments = await Payment.find({ user: { $in: [newcomer.id, returning.id] } }).lean();
+    const byUser = Object.fromEntries(payments.map((p) => [String(p.user), p]));
+    assert.equal(byUser[newcomer.id].type, 'registration');
+    assert.equal(byUser[newcomer.id].amount, 500);
+    assert.equal(byUser[returning.id].type, 'renewal');
+    assert.equal(byUser[returning.id].amount, 300);
+    assert.ok(payments.every((p) => p.status === 'verified' && String(p.verifiedBy) === admin.id));
+    assert.ok((await stored(newcomer)).lastPaymentDate);
+  });
+
+  test('ticked members can be marked not paid again, to undo a mistake', async () => {
+    const admin = await makeUser('admin');
+    const paid = await makeUser('member', { membershipPaid: true, membershipExpiry: inDays(60) });
+    const neverPaid = await makeUser();
+
+    const res = await bulk(admin, { membershipPaid: false, ids: [paid.id, neverPaid.id] });
+    assert.equal(res.status, 200, res.body.message);
+    assert.equal(res.body.updated, 1);
+    assert.match(res.body.message, /1 member marked as not paid\. Left alone: 1 already not paid/);
+    const user = await stored(paid);
+    assert.equal(user.membershipPaid, false);
+    assert.equal(user.membershipExpiry, undefined);
+
+    // Marking everyone matching the filters as not paid is too easy to do by accident.
+    const everyone = await bulk(admin, { membershipPaid: false, filter: { membership: 'current' } });
+    assert.equal(everyone.status, 400);
+  });
+
+  test('refuses a missing or past expiry, both kinds of selection, and non-administrators', async () => {
+    const admin = await makeUser('admin');
+    const subject = await makeUser();
+    const treasurer = await makeUser('treasurer');
+
+    assert.equal((await bulk(admin, { membershipPaid: true, ids: [subject.id] })).status, 400);
+    assert.equal((await bulk(admin, { membershipPaid: true, ids: [subject.id], membershipExpiry: '2020-01-01' })).status, 400);
+    assert.equal((await bulk(admin, { membershipPaid: true, ids: [subject.id], filter: {}, membershipExpiry: inDays(30).toISOString() })).status, 400);
+    assert.equal((await bulk(admin, { membershipPaid: true, membershipExpiry: inDays(30).toISOString() })).status, 400);
+    assert.equal((await bulk(treasurer, { membershipPaid: true, ids: [subject.id], membershipExpiry: inDays(30).toISOString() })).status, 403);
+    assert.equal((await stored(subject)).membershipPaid, false);
   });
 });

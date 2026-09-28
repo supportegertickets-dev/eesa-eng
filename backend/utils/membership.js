@@ -96,19 +96,48 @@ const formatDay = (date) => new Date(date).toLocaleDateString('en-KE', { day: 'n
  * Tell a member their membership is now paid, and what that means for their
  * card: ready to download if a photo is on file, otherwise the photo to add.
  */
+const activatedMessage = (member) => [
+  member.membershipExpiry ? `Your EESA membership is paid until ${formatDay(member.membershipExpiry)}.` : 'Your EESA membership is paid.',
+  member.passportPhoto
+    ? 'Your membership card is valid. Open Membership Card in the portal to download or print it.'
+    : 'Upload a passport photo under Membership Card in the portal to get your membership card.'
+].join(' ');
+
 const membershipActivatedNotice = (member, createdBy) => notifyUsers([member._id], {
   title: 'Membership active',
-  message: [
-    member.membershipExpiry ? `Your EESA membership is paid until ${formatDay(member.membershipExpiry)}.` : 'Your EESA membership is paid.',
-    member.passportPhoto
-      ? 'Your membership card is valid. Open Membership Card in the portal to download or print it.'
-      : 'Upload a passport photo under Membership Card in the portal to get your membership card.'
-  ].join(' '),
+  message: activatedMessage(member),
   type: 'membership',
   createdBy
 });
 
+/**
+ * The same notice for many members at once. Members whose message is the same
+ * share one notification, so marking a whole class paid writes a couple of
+ * records rather than one per member.
+ */
+const membershipActivatedNotices = (members, createdBy) => {
+  const groups = new Map();
+  for (const member of members) {
+    const message = activatedMessage(member);
+    groups.set(message, [...(groups.get(message) || []), member._id]);
+  }
+  return Promise.all([...groups].map(([message, ids]) => notifyUsers(ids, { title: 'Membership active', message, type: 'membership', createdBy })));
+};
+
+const FEE_SETTINGS = { registration: 'REGISTRATION_FEE', renewal: 'RENEWAL_FEE' };
+
+/**
+ * The fee for a payment type in whole shillings, or null when it is not set.
+ *
+ * Payments recorded automatically (M-Pesa, or marking members paid together)
+ * take the amount from here rather than from the browser.
+ */
+const membershipFee = (type) => {
+  const fee = Number(process.env[FEE_SETTINGS[type]]);
+  return Number.isInteger(fee) && fee > 0 ? fee : null;
+};
+
 module.exports = {
   membershipClause, isMembershipCurrent, randomCode, generateMemberNumber, normalizeMemberNumber, ensureMemberNumber, cardDetails, notifyUsers,
-  membershipActivatedNotice, MEMBER_NUMBER_PATTERN
+  membershipActivatedNotice, membershipActivatedNotices, membershipFee, FEE_SETTINGS, MEMBER_NUMBER_PATTERN
 };

@@ -7,7 +7,7 @@ const { uploadImage } = require('../middleware/upload');
 const cloudinary = require('../config/cloudinary');
 const { mpesaHost, mpesaConfigured, formatPhone, requestStkPush, receiptFrom } = require('../utils/mpesa');
 const { applyOrderMpesaResult } = require('../utils/merchandise');
-const { membershipActivatedNotice } = require('../utils/membership');
+const { membershipActivatedNotice, membershipFee: feeFor } = require('../utils/membership');
 
 const { validate } = require('../middleware/validate');
 
@@ -17,19 +17,9 @@ const PAYMENT_TYPES = ['registration', 'renewal'];
 
 // ─── Fees ───────────────────────────────────────────────────────────
 
-const FEE_SETTINGS = { registration: 'REGISTRATION_FEE', renewal: 'RENEWAL_FEE' };
-
-/**
- * The fee for a payment type in whole shillings, or null when it is not set.
- *
- * M-Pesa payments are verified automatically, so the amount charged has to come
- * from the server. It used to be whatever the browser sent, which let a member
- * pay KES 1 for a full membership term.
- */
-const feeFor = (type) => {
-  const fee = Number(process.env[FEE_SETTINGS[type]]);
-  return Number.isInteger(fee) && fee > 0 ? fee : null;
-};
+// M-Pesa payments are verified automatically, so the amount charged comes from
+// the server's configured fee (feeFor). It used to be whatever the browser
+// sent, which let a member pay KES 1 for a full membership term.
 
 // GET /api/payments/fees - the amounts members pay, and whether M-Pesa is available
 router.get('/fees', protect, (req, res) => {

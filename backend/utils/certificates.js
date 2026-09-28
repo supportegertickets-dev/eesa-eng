@@ -122,7 +122,8 @@ const certificateDetails = (certificate) => {
     status: c.status,
     revokedAt: c.revokedAt || null,
     revokedBy: person(c.revokedBy),
-    revokeReason: c.revokeReason || ''
+    revokeReason: c.revokeReason || '',
+    edits: (c.edits || []).map((e) => ({ editedAt: e.editedAt, editedBy: person(e.editedBy), changes: e.changes || [] }))
   };
 };
 

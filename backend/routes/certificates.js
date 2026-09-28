@@ -37,6 +37,12 @@ const idParam = param('id').isMongoId().withMessage('That record could not be fo
 const sameId = (a, b) => Boolean(a && b) && String(a) === String(b);
 const longDate = (date) => new Date(date).toLocaleDateString('en-KE', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Nairobi' });
 const ISSUER_FIELDS = 'firstName lastName';
+// Everyone named on a certificate's record, for the admin views.
+const PEOPLE = [
+  { path: 'issuedBy', select: ISSUER_FIELDS },
+  { path: 'revokedBy', select: ISSUER_FIELDS },
+  { path: 'edits.editedBy', select: ISSUER_FIELDS }
+];
 
 /* ------------------------------------------------------------------ *
  * Members
@@ -45,7 +51,7 @@ const ISSUER_FIELDS = 'firstName lastName';
 // GET /api/certificates/my - the member's certificates, and the membership years they can still claim
 router.get('/my', protect, asyncHandler(async (req, res) => {
   const [certificates, years, membershipSigners] = await Promise.all([
-    Certificate.find({ user: req.user._id, status: 'valid' }).sort({ issuedAt: -1 }).lean(),
+    Certificate.find({ user: req.user._id, status: 'valid' }).sort({ issuedAt: -1 }).populate('edits.editedBy', ISSUER_FIELDS).lean(),
     membershipYears(req.user),
     Signatory.countDocuments({ certificateTypes: 'membership' })
   ]);
@@ -150,7 +156,7 @@ const termSummary = (term, certificate, now) => ({
 /** Attach each term's valid certificate. */
 const withCertificates = async (terms, now) => {
   const certificates = await Certificate.find({ term: { $in: terms.map((t) => t._id) }, status: 'valid' })
-    .populate('issuedBy', ISSUER_FIELDS)
+    .populate(PEOPLE)
     .lean();
   const byTerm = new Map(certificates.map((c) => [String(c.term), c]));
   return terms.map((term) => termSummary(term, byTerm.get(String(term._id)), now));
@@ -168,10 +174,17 @@ const assertNotOwnTerm = (term, actor) => {
   }
 };
 
-const assertNoValidCertificate = async (term) => {
+const CERTIFIED_TERM = {
+  edit: 'Correct it with Edit details on the certificate, which updates the term as well.',
+  remove: 'Revoke it before removing the term.',
+  issue: 'Revoke it first to issue a new one.'
+};
+
+/** Terms with a valid certificate change through the certificate, so the two never disagree. */
+const assertNoValidCertificate = async (term, action) => {
   const certificate = await Certificate.findOne({ term: term._id, status: 'valid' }).select('number').lean();
   if (certificate) {
-    throw new ApiError(409, `Certificate ${certificate.number} has been issued for this term. Revoke it first, then make the change and issue a new one.`);
+    throw new ApiError(409, `Certificate ${certificate.number} has been issued for this term. ${CERTIFIED_TERM[action]}`);
   }
 };
 
@@ -272,7 +285,7 @@ router.put('/terms/:id', protect, adminOnly, [
 ], asyncHandler(async (req, res) => {
   const term = await loadTerm(req.params.id);
   assertNotOwnTerm(term, req.user);
-  await assertNoValidCertificate(term);
+  await assertNoValidCertificate(term, 'edit');
 
   // A member's name comes from their profile, so it is corrected there.
   if (req.body.name !== undefined && !term.user) term.name = req.body.name;
@@ -297,7 +310,7 @@ router.put('/terms/:id', protect, adminOnly, [
 router.delete('/terms/:id', protect, adminOnly, [idParam, validate], asyncHandler(async (req, res) => {
   const term = await loadTerm(req.params.id);
   assertNotOwnTerm(term, req.user);
-  await assertNoValidCertificate(term);
+  await assertNoValidCertificate(term, 'remove');
 
   if (term.role && !term.endDate && (await User.exists({ _id: term.user, role: term.role, isActive: true }))) {
     throw new ApiError(409, 'This person still holds the office, so the term would be recorded again. Change their role, or correct the dates instead.');
@@ -314,7 +327,7 @@ router.post('/terms/:id/certificate', protect, adminOnly, [idParam, validate], a
   if (!term.startDate || !term.endDate) {
     throw new ApiError(400, 'Enter when the term started and ended before issuing its certificate.');
   }
-  await assertNoValidCertificate(term);
+  await assertNoValidCertificate(term, 'issue');
 
   const signatories = await signatoriesFor('leadership');
   if (!signatories.length) {
@@ -519,8 +532,7 @@ router.get('/', protect, adminOnly, [
 
   const [certificates, total, ...counts] = await Promise.all([
     Certificate.find(filter)
-      .populate('issuedBy', ISSUER_FIELDS)
-      .populate('revokedBy', ISSUER_FIELDS)
+      .populate(PEOPLE)
       .sort({ issuedAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
@@ -565,8 +577,138 @@ router.post('/:id/revoke', protect, adminOnly, [
     });
   }
 
-  await certificate.populate([{ path: 'issuedBy', select: ISSUER_FIELDS }, { path: 'revokedBy', select: ISSUER_FIELDS }]);
+  await certificate.populate(PEOPLE);
   res.json({ certificate: certificateDetails(certificate) });
+}));
+
+/* ------------------------------------------------------------------ *
+ * Corrections
+ * ------------------------------------------------------------------ */
+
+// What can be corrected on each kind of certificate.
+const EDITABLE = {
+  leadership: ['recipientName', 'regNumber', 'department', 'office', 'startDate', 'endDate', 'issuedAt'],
+  membership: ['recipientName', 'regNumber', 'department', 'academicYear', 'issuedAt']
+};
+const DATE_FIELDS = new Set(['startDate', 'endDate', 'issuedAt']);
+const FIELD_NAMES = {
+  recipientName: 'name',
+  regNumber: 'registration number',
+  department: 'department',
+  office: 'office',
+  startDate: 'start date',
+  endDate: 'end date',
+  academicYear: 'academic year',
+  issuedAt: 'issue date',
+  signatories: 'signatures'
+};
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const asText = (field, value) => {
+  if (value === undefined || value === null || value === '') return '';
+  return DATE_FIELDS.has(field) ? new Date(value).toISOString() : String(value);
+};
+/** "name, office and end date" */
+const listOf = (items) => (items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}` : items[0]);
+const signatureList = (signatories) => signatories.map((s) => `${s.name} (${s.title})`).join(', ');
+const sameSignatures = (a, b) => JSON.stringify(a.map(({ name, title, signatureUrl }) => [name, title, signatureUrl]))
+  === JSON.stringify(b.map(({ name, title, signatureUrl }) => [name, title, signatureUrl]));
+
+// PUT /api/certificates/:id - admin: correct the details printed on a certificate
+router.put('/:id', protect, adminOnly, [
+  idParam,
+  body('recipientName').optional().trim().notEmpty().withMessage('Enter the name to print.')
+    .isLength({ max: 100 }).withMessage('Keep the name under 100 characters.'),
+  body('regNumber').optional({ values: 'null' }).trim().isLength({ max: 40 }).withMessage('Keep the registration number under 40 characters.').toUpperCase(),
+  body('department').optional({ values: 'null' }).trim().isLength({ max: 80 }).withMessage('Keep the department under 80 characters.'),
+  body('office').optional().trim().notEmpty().withMessage('Enter the office held.')
+    .isLength({ max: 80 }).withMessage('Keep the office under 80 characters.'),
+  body('startDate').optional().isISO8601().withMessage('Enter a valid start date.').toDate(),
+  body('endDate').optional().isISO8601().withMessage('Enter a valid end date.').toDate(),
+  body('academicYear').optional().custom(isAcademicYearLabel).withMessage('Enter an academic year such as 2026/2027.'),
+  body('issuedAt').optional().isISO8601().withMessage('Enter a valid issue date.').toDate(),
+  body('refreshSignatories').optional().isBoolean().withMessage('Choose whether to update the signatures.').toBoolean(),
+  validate
+], asyncHandler(async (req, res) => {
+  const certificate = await Certificate.findById(req.params.id);
+  if (!certificate) throw new ApiError(404, 'That certificate could not be found.');
+  if (certificate.status !== 'valid') throw new ApiError(409, 'A revoked certificate cannot be edited.');
+  if (sameId(certificate.user, req.user._id)) {
+    throw new ApiError(403, 'You cannot edit your own certificate. Ask another administrator.');
+  }
+
+  const changes = [];
+  for (const field of EDITABLE[certificate.type]) {
+    if (req.body[field] === undefined) continue;
+    const value = req.body[field] ?? '';
+    const before = asText(field, certificate[field]);
+    const after = asText(field, value);
+    if (before === after) continue;
+    changes.push({ field, from: before, to: after });
+    certificate[field] = value;
+  }
+
+  if (certificate.type === 'leadership' && certificate.endDate < certificate.startDate) {
+    throw new ApiError(400, 'The term must end after it starts.');
+  }
+  // A day's grace, since a date alone is midnight UTC, three hours into the Nairobi day.
+  if (certificate.issuedAt > new Date(Date.now() + DAY_MS)) {
+    throw new ApiError(400, 'The issue date cannot be in the future.');
+  }
+  if (changes.some((c) => c.field === 'academicYear')) {
+    const taken = await Certificate.exists({
+      _id: { $ne: certificate._id }, type: 'membership', user: certificate.user, academicYear: certificate.academicYear, status: 'valid'
+    });
+    if (taken) throw new ApiError(409, `${certificate.recipientName} already has a membership certificate for ${certificate.academicYear}.`);
+  }
+
+  if (req.body.refreshSignatories) {
+    const current = await signatoriesFor(certificate.type);
+    if (!current.length) throw new ApiError(409, `Nobody signs ${certificate.type} certificates at the moment. Add a signatory first.`);
+    if (!sameSignatures(certificate.signatories, current)) {
+      changes.push({ field: 'signatories', from: signatureList(certificate.signatories), to: signatureList(current) });
+      certificate.signatories = current;
+    }
+  }
+
+  if (!changes.length) {
+    await certificate.populate(PEOPLE);
+    return res.json({ certificate: certificateDetails(certificate), changed: false });
+  }
+
+  certificate.edits.push({ editedAt: new Date(), editedBy: req.user._id, changes });
+  try {
+    await certificate.save();
+  } catch (error) {
+    if (error.code === 11000) throw new ApiError(409, 'Another valid certificate already has these details.');
+    throw error;
+  }
+
+  // The term is the record the certificate was issued from; keep them in step.
+  const changed = new Set(changes.map((c) => c.field));
+  if (certificate.term && ['office', 'startDate', 'endDate', 'recipientName'].some((f) => changed.has(f))) {
+    const term = await LeadershipTerm.findById(certificate.term);
+    if (term) {
+      term.office = certificate.office;
+      term.startDate = certificate.startDate;
+      term.endDate = certificate.endDate;
+      // A member's name lives in their profile; only a name typed for someone without an account follows.
+      if (!term.user) term.name = certificate.recipientName;
+      await term.save();
+    }
+  }
+
+  if (certificate.user) {
+    await notifyUsers([certificate.user], {
+      title: 'Your certificate was updated',
+      message: `The ${listOf(changes.map((c) => FIELD_NAMES[c.field]))} on your ${certificate.type} certificate ${certificate.number} ${changes.length === 1 ? 'was' : 'were'} corrected. Open Certificates in the portal to download the updated copy.`,
+      type: 'certificate',
+      createdBy: req.user._id
+    });
+  }
+
+  await certificate.populate(PEOPLE);
+  res.json({ certificate: certificateDetails(certificate), changed: true });
 }));
 
 module.exports = router;
