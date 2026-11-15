@@ -2,7 +2,7 @@
  * The site's public address, without a trailing slash.
  *
  * Canonical links, the sitemap and robots.txt are all built from it, so every
- * domain that serves the site (eesa-en.vercel.app, eesa.ac.ke, www.eesa.ac.ke)
+ * domain that serves the site (eesa-en.vercel.app, eesa.co.ke, www.eesa.co.ke)
  * points search engines at this one address and none of them is indexed as a
  * duplicate of another. Moving to a new domain is one change to
  * NEXT_PUBLIC_SITE_URL and a redeploy.
