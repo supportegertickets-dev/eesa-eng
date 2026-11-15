@@ -9,7 +9,7 @@ const mongoose = require('mongoose');
 const ORDER_STATUSES = ['awaiting_payment', 'paid', 'ready', 'collected', 'cancelled'];
 
 /** unpaid: nothing submitted; pending: an STK Push or a receipt awaiting a result. */
-const PAYMENT_STATUSES = ['unpaid', 'pending', 'verified', 'rejected'];
+const PAYMENT_STATUSES = ['unpaid', 'pending', 'verified', 'rejected', 'disputed'];
 
 // Items copy the product's name, price and photo at the time of ordering, so
 // later edits to the catalogue never change what a member agreed to pay.
@@ -42,7 +42,7 @@ const orderSchema = new mongoose.Schema({
   contactPhone: { type: String, trim: true, maxlength: 20 },
   notes: { type: String, trim: true, maxlength: 500 },
   payment: {
-    method: { type: String, enum: ['mpesa', 'manual'] },
+    method: { type: String, enum: ['mpesa', 'isa_hub', 'manual'] },
     status: { type: String, enum: PAYMENT_STATUSES, default: 'unpaid' },
     reference: { type: String, trim: true, uppercase: true },
     proofUrl: { type: String, default: '' },
@@ -52,6 +52,8 @@ const orderSchema = new mongoose.Schema({
     mpesaCheckoutRequestID: { type: String },
     mpesaAttempts: { type: [String], default: [] },
     mpesaReceiptNumber: { type: String },
+    hubPayment: { type: mongoose.Schema.Types.ObjectId, ref: 'HubPayment' },
+    hubProviderPaymentId: { type: String },
     submittedAt: { type: Date },
     verifiedAt: { type: Date },
     verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

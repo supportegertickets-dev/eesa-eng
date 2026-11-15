@@ -46,6 +46,20 @@ services:
         sync: false
       - key: MPESA_ENV
         sync: false
+      - key: ISA_HUB_ENABLED
+        value: "false"
+      - key: ISA_HUB_BASE_URL
+        sync: false
+      - key: ISA_HUB_API_KEY
+        sync: false
+      - key: ISA_HUB_WEBHOOK_SECRET
+        sync: false
+      - key: ISA_HUB_WEBHOOK_TOLERANCE_SECONDS
+        value: "300"
+      - key: ISA_HUB_TIMEOUT_MS
+        value: "15000"
+      - key: ISA_HUB_RECONCILE_INTERVAL_MS
+        value: "300000"
       - key: REGISTRATION_FEE
         sync: false
       - key: RENEWAL_FEE

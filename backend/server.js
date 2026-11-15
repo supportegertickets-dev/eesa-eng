@@ -35,6 +35,15 @@ if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET.length < 32)
   process.exit(1);
 }
 
+if (process.env.ISA_HUB_ENABLED !== undefined && !['true', 'false'].includes(process.env.ISA_HUB_ENABLED)) {
+  console.error('FATAL: ISA_HUB_ENABLED must be "true" or "false".');
+  process.exit(1);
+}
+if (process.env.ISA_HUB_ENABLED === 'true' && !require('./utils/isaTechHub').configured()) {
+  console.error('FATAL: ISA Tech Hub is enabled but its base URL, API key, or webhook secret is missing or invalid.');
+  process.exit(1);
+}
+
 const app = express();
 
 // Render and most PaaS hosts sit behind a single reverse proxy. This makes
@@ -60,6 +69,12 @@ connectDB().then(() => {
     expireStaleOrders({ force: true }).catch((error) => console.error('Order expiry failed:', error.message));
   runOrderExpiry();
   setInterval(runOrderExpiry, 60 * 60 * 1000).unref();
+
+  const { reconcilePendingPayments } = require('./utils/isaTechHubPayments');
+  const runHubReconciliation = () => reconcilePendingPayments()
+    .catch((error) => console.error('ISA Tech Hub reconciliation failed:', error.message));
+  runHubReconciliation();
+  setInterval(runHubReconciliation, Math.max(60000, Number(process.env.ISA_HUB_RECONCILE_INTERVAL_MS) || 5 * 60 * 1000)).unref();
 });
 
 /* ------------------------------------------------------------------ *
@@ -93,6 +108,7 @@ app.use(corsMiddleware);
 // budget of their own instead. The route itself requires a leadership session.
 const GALLERY_PHOTO_UPLOAD = /^\/gallery\/albums\/[a-f0-9]{24}\/photos\/?$/i;
 const isGalleryPhotoUpload = (req) => req.method === 'POST' && GALLERY_PHOTO_UPLOAD.test(req.path);
+const isIsaHubWebhook = (req) => req.method === 'POST' && /^\/payments\/isa-hub\/webhook\/?$/i.test(req.path);
 
 // A portal page can legitimately fire a dozen requests on load, so the global
 // budget is generous. Credential endpoints impose their own far tighter limits
@@ -102,7 +118,7 @@ const globalLimiter = createLimiter({
   max: Number(process.env.RATE_LIMIT_MAX) || 600,
   // Health checks come from uptime monitors and must never be throttled. Every
   // open page polls the platform status, and a campus shares one address.
-  skip: (req) => req.path === '/health' || req.path === '/platform/status' || isGalleryPhotoUpload(req),
+  skip: (req) => req.path === '/health' || req.path === '/platform/status' || isGalleryPhotoUpload(req) || isIsaHubWebhook(req),
   message: 'Too many requests. Please slow down and try again shortly.'
 });
 
@@ -110,7 +126,7 @@ const globalLimiter = createLimiter({
 const writeLimiter = createLimiter({
   windowMs: 15 * 60 * 1000,
   max: Number(process.env.WRITE_RATE_LIMIT_MAX) || 150,
-  skip: (req) => req.method === 'GET' || req.method === 'OPTIONS' || isGalleryPhotoUpload(req),
+  skip: (req) => req.method === 'GET' || req.method === 'OPTIONS' || isGalleryPhotoUpload(req) || isIsaHubWebhook(req),
   message: 'Too many changes submitted. Please wait a moment and try again.'
 });
 
@@ -129,7 +145,15 @@ app.use('/api/', galleryUploadLimiter);
  * Body parsing
  * ------------------------------------------------------------------ */
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({
+  limit: '2mb',
+  // Retain the exact bytes for ISA Hub's signature check; never stringify the
+  // parsed JSON to reconstruct a webhook signing payload.
+  verify: (req, res, buffer) => {
+    if (req.originalUrl.split('?')[0] === '/api/payments/isa-hub/webhook') req.rawBody = Buffer.from(buffer);
+  }
+}));
+
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // Strip Mongo operators from every request before any route reads them.

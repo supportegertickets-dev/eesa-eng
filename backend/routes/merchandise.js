@@ -14,6 +14,9 @@ const { buildSearchRegex, escapeRegex } = require('../utils/sanitize');
 const { isMerchandise } = require('../utils/roles');
 const { mpesaConfigured, normalizeKenyanPhone, requestStkPush } = require('../utils/mpesa');
 const { notifyUsers } = require('../utils/membership');
+const HubPayment = require('../models/HubPayment');
+const hub = require('../utils/isaTechHub');
+const { saveProviderPayment, unwrapPayment } = require('../utils/isaTechHubPayments');
 const {
   ORDER_HOLD_HOURS, generateOrderNumber, uniqueProductSlug, addHistory,
   reserveStock, releaseStock, expireStaleOrders
@@ -37,7 +40,13 @@ const PAYMENT_INSTRUCTIONS = process.env.SHOP_PAYMENT_INSTRUCTIONS || '';
 
 const ORDER_USER_FIELDS = 'firstName lastName email phone regNumber department avatar';
 // Orders whose manual receipt is waiting for the treasurer.
-const REVIEW_FILTER = { status: 'awaiting_payment', 'payment.status': 'pending', 'payment.method': 'manual' };
+const REVIEW_FILTER = {
+  status: 'awaiting_payment',
+  $or: [
+    { 'payment.status': 'pending', 'payment.method': 'manual' },
+    { 'payment.status': 'disputed' }
+  ]
+};
 
 const idParam = param('id').isMongoId().withMessage('That order could not be found.');
 const productIdParam = param('id').isMongoId().withMessage('That product could not be found.');
@@ -121,6 +130,7 @@ const assertCanPay = (order) => {
     throw new ApiError(409, order.status === 'cancelled' ? 'This order was cancelled. Place a new order instead.' : 'This order has already been paid.');
   }
   if (order.payment.status === 'verified') throw new ApiError(409, 'This order has already been paid.');
+  if (order.payment.status === 'disputed') throw new ApiError(409, 'This payment is held for review. Please contact the treasurer before trying again.');
   if (order.payment.status === 'pending' && order.payment.method === 'manual') {
     throw new ApiError(409, 'Your payment receipt is being checked. You will be notified once it is confirmed.');
   }
@@ -133,7 +143,7 @@ const assertCanPay = (order) => {
 // GET /api/merchandise/settings - what checkout can offer
 router.get('/settings', (req, res) => {
   res.json({
-    mpesa: mpesaConfigured(),
+    mpesa: hub.config().enabled ? hub.configured() : mpesaConfigured(),
     holdHours: ORDER_HOLD_HOURS,
     pickupLocation: PICKUP_LOCATION,
     paybill: PAYBILL,
@@ -353,7 +363,7 @@ router.get('/orders/:id', protect, [idParam, validate], asyncHandler(async (req,
   const order = await loadOrder(req);
   res.json({
     order: await populateOrder(order._id).lean(),
-    mpesa: mpesaConfigured(),
+    mpesa: hub.config().enabled ? hub.configured() : mpesaConfigured(),
     pickupLocation: PICKUP_LOCATION,
     paybill: PAYBILL,
     paymentInstructions: PAYMENT_INSTRUCTIONS
@@ -369,6 +379,65 @@ router.post('/orders/:id/mpesa', protect, [
   const order = await Order.findById(req.params.id);
   if (!order || String(order.user) !== String(req.user._id)) throw new ApiError(404, 'That order could not be found.');
   assertCanPay(order);
+  if (!hub.config().enabled && order.payment.method === 'isa_hub' && order.payment.status === 'pending') {
+    throw new ApiError(409, 'This ISA Tech Hub payment is still being checked. Please wait for its result before starting another payment.');
+  }
+
+  if (hub.config().enabled) {
+    if (!hub.configured()) throw new ApiError(503, 'ISA Tech Hub payments are not configured. Pay to the shop number and submit your M-Pesa code instead.');
+    let attempt = order.payment.hubPayment
+      ? await HubPayment.findById(order.payment.hubPayment).select('+phone')
+      : null;
+    const phone = attempt?.phone || normalizeKenyanPhone(req.body.phone);
+    if (!phone) throw new ApiError(400, 'Enter a valid mobile money number such as 0712 345 678.');
+    if (attempt?.initiationStatus === 'accepted' && attempt.providerPaymentId) {
+      return res.status(201).json({ message: 'Check your phone and enter your PIN to pay.', checkoutRequestID: String(attempt._id), order: await populateOrder(order._id).lean() });
+    }
+    if (!attempt || attempt.status !== 'pending' || ['rejected'].includes(attempt.initiationStatus)) {
+      attempt = await HubPayment.create({
+        user: req.user._id, type: 'order', order: order._id, amount: order.total,
+        reference: `EESA-${order.orderNumber}-${new mongoose.Types.ObjectId()}`,
+        phone, phoneMasked: hub.maskPhone(phone), status: 'pending', initiationStatus: 'prepared'
+      });
+      order.payment.method = 'isa_hub';
+      order.payment.status = 'pending';
+      order.payment.phone = hub.maskPhone(phone);
+      order.payment.hubPayment = attempt._id;
+      order.payment.submittedAt = new Date();
+      order.payment.rejectionReason = undefined;
+      await order.save();
+    }
+    try {
+      const response = await hub.request('/v1/payments', {
+        method: 'POST', idempotencyKey: String(attempt._id),
+        body: {
+          phone, amount: order.total, reference: attempt.reference,
+          purpose: 'merchandise', description: `EESA shop order ${order.orderNumber}`,
+          metadata: { hubPaymentAttemptId: String(attempt._id), orderId: String(order._id), userId: String(req.user._id) }
+        }
+      });
+      const remote = unwrapPayment(response);
+      if (!remote?.id) throw Object.assign(new Error('Hub response omitted payment ID'), { uncertain: true });
+      await saveProviderPayment(attempt, remote);
+      attempt.initiationStatus = 'accepted';
+      await attempt.save();
+      return res.status(201).json({ message: 'Check your phone and enter your PIN to pay.', checkoutRequestID: String(attempt._id), order: await populateOrder(order._id).lean() });
+    } catch (error) {
+      console.error('ISA Tech Hub order initiation failed:', { code: error.code, status: error.status, message: error.message, attemptId: String(attempt._id) });
+      if (error.status && error.status >= 400 && error.status < 500 && ![408, 409, 425, 429].includes(error.status)) {
+        attempt.status = 'rejected';
+        attempt.initiationStatus = 'rejected';
+        await attempt.save();
+        await Order.updateOne({ _id: order._id, 'payment.hubPayment': attempt._id }, {
+          'payment.status': 'rejected', 'payment.rejectionReason': 'ISA Tech Hub declined the payment request.'
+        });
+        throw new ApiError(400, 'ISA Tech Hub could not start this payment. Please check the number or submit your M-Pesa code instead.');
+      }
+      attempt.initiationStatus = 'uncertain';
+      await attempt.save();
+      return res.status(202).json({ message: 'We are confirming whether the payment prompt was accepted. Check order status shortly; do not start another payment yet.', checkoutRequestID: String(attempt._id), order: await populateOrder(order._id).lean() });
+    }
+  }
 
   if (!mpesaConfigured()) {
     throw new ApiError(503, 'M-Pesa payments are not available right now. Pay to the shop number and submit your M-Pesa code instead.');
@@ -567,7 +636,9 @@ router.put('/orders/:id/payment', protect, merchandiseOnly, [
   validate
 ], asyncHandler(async (req, res) => {
   const order = await loadOrder(req, { manage: true });
-  if (order.status !== 'awaiting_payment' || order.payment.status !== 'pending') {
+  const manualReceipt = order.payment.status === 'pending' && order.payment.method === 'manual';
+  const disputedForReview = order.payment.status === 'disputed';
+  if (order.status !== 'awaiting_payment' || (!manualReceipt && !disputedForReview)) {
     throw new ApiError(409, 'There is no payment waiting to be checked on this order.');
   }
 

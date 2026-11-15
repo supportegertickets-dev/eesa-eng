@@ -26,7 +26,7 @@ const ALWAYS_OPEN = [
   { method: 'POST', path: /^\/auth\/login\/?$/i },
   // Safaricom reporting a payment already taken from someone's phone. Refusing
   // it would lose the record of money received.
-  { method: 'POST', path: /^\/payments\/mpesa\/callback\/?$/i }
+  { method: 'POST', path: /^\/payments\/(?:mpesa\/callback|isa-hub\/webhook)\/?$/i }
 ];
 
 // Writes that are side effects of reading, allowed in read-only mode so
