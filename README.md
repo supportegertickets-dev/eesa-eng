@@ -151,7 +151,8 @@ ISA_HUB_API_KEY=           # keep out of the frontend and logs
 ISA_HUB_WEBHOOK_SECRET=    # Hub HMAC signing secret; keep server-side
 ISA_HUB_WEBHOOK_TOLERANCE_SECONDS=300
 ISA_HUB_TIMEOUT_MS=15000
-ISA_HUB_RECONCILE_INTERVAL_MS=300000
+ISA_HUB_STATUS_CHECK_COOLDOWN_MS=8000
+ISA_HUB_RECONCILE_INTERVAL_MS=60000
 
 # Membership fees in whole shillings; M-Pesa charges exactly these
 REGISTRATION_FEE=500
@@ -231,7 +232,7 @@ ISA Tech Hub is an optional server-side payment provider for membership fees and
 2. Register the webhook URL with ISA Tech Hub: `https://<your-backend-host>/api/payments/isa-hub/webhook`. The endpoint accepts `payment.paid`, `payment.failed`, `payment.disputed`, and `ping` events. Hub must sign the exact JSON request bytes using `ISA-Signature: t=<unix>,v1=<hex HMAC-SHA256>` with the configured webhook secret. Keep the system clocks synchronized; signatures outside the configured `ISA_HUB_WEBHOOK_TOLERANCE_SECONDS` window (300 seconds by default) are rejected.
 3. Check connectivity using the admin-only `GET /api/payments/isa-hub/health` endpoint; it requests Hub `GET /v1/config` but does not return the Hub configuration payload.
 4. After confirming the configured registration/renewal fees and webhook delivery, set `ISA_HUB_ENABLED=true` and redeploy. New membership and merchandise prompts route through Hub. Each local attempt is stored before the request and its ID is the Hub `Idempotency-Key`; phone values are not returned and logs do not include phone numbers or credentials. Signed-in owners can refresh membership attempt status with `GET /api/payments/isa-hub/verify/:attemptId`; the existing `/api/payments/mpesa/status/:checkoutRequestID` response remains compatible for the membership checkout UI.
-5. Monitor local payment status and webhook delivery. Pending/uncertain attempts are reconciled on the server at the `ISA_HUB_RECONCILE_INTERVAL_MS` interval (five minutes by default). Paid amounts must exactly match the locally expected amount; mismatches and Hub disputes are held for manual review and are never fulfilled automatically.
+5. Monitor local payment status and webhook delivery. The member portal refreshes active Hub payments automatically, with server-side request throttling, and pending/uncertain attempts are reconciled on the server at the `ISA_HUB_RECONCILE_INTERVAL_MS` interval (one minute by default). Paid amounts must exactly match the locally expected amount; mismatches and Hub disputes are held for manual review and are never fulfilled automatically.
 
 ### Rollback
 

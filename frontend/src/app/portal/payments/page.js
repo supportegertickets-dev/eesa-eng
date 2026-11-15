@@ -214,7 +214,8 @@ function PaymentForm({ fees, onSubmitted, onCancel }) {
       setCheckoutId(res.checkoutRequestID);
       setMpesaStatus('sent');
 
-      // Poll for status
+      // Keep checking while the provider processes the prompt. Server-side
+      // cooldowns prevent every UI poll from becoming a Hub API request.
       let attempts = 0;
       pollRef.current = setInterval(async () => {
         attempts++;
@@ -235,14 +236,31 @@ function PaymentForm({ fees, onSubmitted, onCancel }) {
             toast.error('Payment is held for review. Please contact the treasurer.');
           }
         } catch {}
-        if (attempts >= 30) {
+        if (attempts >= 120) {
           clearInterval(pollRef.current);
-          setMpesaStatus(null);
-          toast('Timeout — check your payments list for the status.', { icon: '⏰' });
+          setMpesaStatus('checking');
+          toast('Still waiting for the payment result. You can leave this page; status will continue updating in your payments list.', { icon: '⏰' });
         }
       }, 5000);
     } catch (err) { toast.error(err.message); }
     finally { setSubmitting(false); }
+  };
+
+  const checkPaymentNow = async () => {
+    if (!checkoutId) return;
+    try {
+      const current = await checkMpesaStatus(checkoutId);
+      if (current.status === 'verified') {
+        setMpesaStatus('success');
+        toast.success('Payment confirmed!');
+        setTimeout(() => onSubmitted(), 1000);
+      } else if (['rejected', 'disputed'].includes(current.status)) {
+        setMpesaStatus('failed');
+        toast.error(current.status === 'disputed' ? 'Payment held for review. Please contact the treasurer.' : 'Payment was not completed.');
+      } else {
+        toast('Payment is still processing. We will update its status automatically.', { icon: '⏳' });
+      }
+    } catch (err) { toast.error(err.message); }
   };
 
   const handleManual = async (e) => {
@@ -293,6 +311,13 @@ function PaymentForm({ fees, onSubmitted, onCancel }) {
               <HiXCircle className="w-12 h-12 mx-auto text-red-500 dark:text-red-300 mb-3" />
               <p className="font-semibold text-red-700 dark:text-red-300">Payment Failed</p>
               <button type="button" onClick={() => setMpesaStatus(null)} className="text-sm text-primary-500 dark:text-primary-300 mt-2 underline">Try again</button>
+            </div>
+          ) : mpesaStatus === 'checking' ? (
+            <div className="text-center py-8">
+              <HiClock className="w-12 h-12 mx-auto text-yellow-500 mb-3" />
+              <p className="font-semibold text-strong">Payment is still processing</p>
+              <p className="text-sm text-subtle mt-1">You can leave this page; verified Hub updates will be applied automatically.</p>
+              <button type="button" onClick={checkPaymentNow} className="text-sm text-primary-500 dark:text-primary-300 mt-3 underline">Check status now</button>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

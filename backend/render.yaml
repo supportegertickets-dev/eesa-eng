@@ -58,8 +58,10 @@ services:
         value: "300"
       - key: ISA_HUB_TIMEOUT_MS
         value: "15000"
+      - key: ISA_HUB_STATUS_CHECK_COOLDOWN_MS
+        value: "8000"
       - key: ISA_HUB_RECONCILE_INTERVAL_MS
-        value: "300000"
+        value: "60000"
       - key: REGISTRATION_FEE
         sync: false
       - key: RENEWAL_FEE

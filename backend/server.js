@@ -74,7 +74,7 @@ connectDB().then(() => {
   const runHubReconciliation = () => reconcilePendingPayments()
     .catch((error) => console.error('ISA Tech Hub reconciliation failed:', error.message));
   runHubReconciliation();
-  setInterval(runHubReconciliation, Math.max(60000, Number(process.env.ISA_HUB_RECONCILE_INTERVAL_MS) || 5 * 60 * 1000)).unref();
+  setInterval(runHubReconciliation, Math.max(30000, Number(process.env.ISA_HUB_RECONCILE_INTERVAL_MS) || 60000)).unref();
 });
 
 /* ------------------------------------------------------------------ *

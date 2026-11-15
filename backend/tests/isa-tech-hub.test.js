@@ -20,7 +20,8 @@ const HUB_SETTINGS = {
   ISA_HUB_BASE_URL: 'https://hub.example.test',
   ISA_HUB_API_KEY: 'test-server-key',
   ISA_HUB_WEBHOOK_SECRET: 'test-webhook-secret',
-  ISA_HUB_WEBHOOK_TOLERANCE_SECONDS: '300'
+  ISA_HUB_WEBHOOK_TOLERANCE_SECONDS: '300',
+  ISA_HUB_STATUS_CHECK_COOLDOWN_MS: '8000'
 };
 const MPESA_SETTINGS = {
   MPESA_CONSUMER_KEY: 'consumer-key', MPESA_CONSUMER_SECRET: 'consumer-secret',
@@ -345,6 +346,36 @@ describe('ISA Tech Hub merchandise payments', () => {
     assert.equal(order.history.filter((entry) => entry.status === 'paid').length, 1);
     assert.equal(await Notification.countDocuments({ targetUsers: member.id, title: `Payment confirmed for ${order.orderNumber}` }), 1);
     assert.match(order.payment.phone, /^\*+5678$/);
+  });
+
+  test('opening an active order automatically checks Hub and confirms it without waiting for the webhook', async () => {
+    const member = await registerApproved(app);
+    const product = await Product.create({ name: 'Auto-check item', slug: `auto-${crypto.randomUUID()}`, price: 950, category: 'other', stock: null });
+    const placed = await request(app).post('/api/merchandise/orders').set(member.auth).send({ items: [{ product: product._id, quantity: 1 }] });
+    const pushed = await request(app).post(`/api/merchandise/orders/${placed.body.order._id}/mpesa`).set(member.auth).send({ phone: '0712345678' });
+    const attempt = await HubPayment.findById(pushed.body.checkoutRequestID);
+    getBehavior = async () => reply(200, { payment: {
+      id: attempt.providerPaymentId, status: 'paid', paidAmount: 950, receipt: 'AUTO-ORDER-1'
+    } });
+
+    const latest = await request(app).get(`/api/merchandise/orders/${placed.body.order._id}`).set(member.auth);
+    assert.equal(latest.status, 200);
+    assert.equal(latest.body.order.status, 'paid');
+    assert.equal(latest.body.order.payment.status, 'verified');
+    assert.ok(calls.some((call) => call.url.includes(`/v1/payments/${attempt.providerPaymentId}`)));
+  });
+
+  test('repeated order refreshes are throttled so they do not flood Hub status API', async () => {
+    const member = await registerApproved(app);
+    const product = await Product.create({ name: 'Throttle item', slug: `throttle-${crypto.randomUUID()}`, price: 400, category: 'other', stock: null });
+    const placed = await request(app).post('/api/merchandise/orders').set(member.auth).send({ items: [{ product: product._id, quantity: 1 }] });
+    const pushed = await request(app).post(`/api/merchandise/orders/${placed.body.order._id}/mpesa`).set(member.auth).send({ phone: '0712345678' });
+    const attempt = await HubPayment.findById(pushed.body.checkoutRequestID);
+    getBehavior = async () => reply(200, { payment: { id: attempt.providerPaymentId, status: 'pending' } });
+
+    await request(app).get(`/api/merchandise/orders/${placed.body.order._id}`).set(member.auth);
+    await request(app).get(`/api/merchandise/orders/${placed.body.order._id}`).set(member.auth);
+    assert.equal(calls.filter((call) => call.url.includes(`/v1/payments/${attempt.providerPaymentId}`)).length, 1);
   });
 
   test('an order amount mismatch is visible to the shop and stays unpaid until a manager reviews it', async () => {
