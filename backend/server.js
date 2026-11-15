@@ -2,7 +2,6 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const express = require('express');
-const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const { createLimiter } = require('./utils/rateLimit');
@@ -14,6 +13,7 @@ const { expireStaleOrders } = require('./utils/merchandise');
 const { mongoSanitize } = require('./utils/sanitize');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const { platformGate } = require('./middleware/platform');
+const { allowedOrigins, corsMiddleware } = require('./middleware/cors');
 const { trackServerErrors } = require('./utils/serverErrors');
 
 /* ------------------------------------------------------------------ *
@@ -82,24 +82,7 @@ app.use(compression());
 // Remember recent 5xx responses for the superadmin's health page.
 app.use(trackServerErrors);
 
-const allowedOrigins = [
-  ...(process.env.FRONTEND_URL ? process.env.FRONTEND_URL.split(',').map((u) => u.trim()) : []),
-  'http://localhost:3000'
-].filter(Boolean);
-
-app.use(cors({
-  origin(origin, callback) {
-    // A missing Origin header means a same-origin, curl or mobile-app request.
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-    console.warn('CORS blocked origin:', origin);
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  // Cache preflight results for a day to cut a round trip off every mutation.
-  maxAge: 86400
-}));
+app.use(corsMiddleware);
 
 /* ------------------------------------------------------------------ *
  * Rate limiting

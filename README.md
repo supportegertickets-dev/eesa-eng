@@ -364,7 +364,7 @@ Gallery photos upload one request per file and have their own rate limit, `GALLE
 4. **Build Command:** `npm install`
 5. **Start Command:** `node server.js`
 6. Add all environment variables from `backend/.env.example` with production values.
-7. Set `FRONTEND_URL` to your Vercel frontend URL (e.g. `https://eesa-en.vercel.app`).
+7. Set `FRONTEND_URL` to the canonical website first, followed by any other frontend origins the API should accept (e.g. `https://eesa.co.ke,https://eesa-en.vercel.app`). The backend also explicitly permits `https://eesa.co.ke` and `https://eesa.egerton.ac.ke` through CORS.
 
 ### Frontend → Vercel
 
@@ -375,26 +375,26 @@ Gallery photos upload one request per file and have their own rate limit, `GALLE
 
 ### Search engines and domains
 
-The frontend serves `/sitemap.xml` and `/robots.txt` on every domain it runs on. Both files, and every page's canonical link, use `NEXT_PUBLIC_SITE_URL`. Whichever address Google finds the site by, it is pointed at that one and indexes a single copy.
+The frontend serves `/sitemap.xml` and `/robots.txt` on every domain it runs on. Both files, and every page's canonical link, use `NEXT_PUBLIC_SITE_URL`. Whichever address Google finds the site by, it is pointed at that one and indexes a single copy. The chosen primary domain is `eesa.co.ke`; keep the current Vercel address canonical until DNS and HTTPS for the new domain are working.
 
 The sitemap lists the fixed public pages, each department, and every public event, published article and gallery album with photos. It is rebuilt at most once an hour, so new items appear without a redeploy. If the API is asleep or down, the sitemap still lists the fixed pages and adds the rest on the next rebuild. The portal is left out and blocked in `robots.txt`. Sign-in, password and card/certificate result pages carry `noindex`.
 
 To get the site into Google:
 
-1. In [Google Search Console](https://search.google.com/search-console), add a **URL prefix** property for the address in `NEXT_PUBLIC_SITE_URL` (today `https://eesa-en.vercel.app`).
+1. In [Google Search Console](https://search.google.com/search-console), add a **URL prefix** property for the address in `NEXT_PUBLIC_SITE_URL` (currently `https://eesa-en.vercel.app`; switch to `https://eesa.co.ke` after it is live).
 2. Choose **HTML tag** verification. Copy the tag's `content` value into `GOOGLE_SITE_VERIFICATION` in Vercel, redeploy, then click **Verify**.
 3. Under **Sitemaps**, submit `sitemap.xml`.
 
 [Bing Webmaster Tools](https://www.bing.com/webmasters) can import the site from Search Console. Otherwise put its meta-tag token in `BING_SITE_VERIFICATION`.
 
-When `eesa.ac.ke` is bought:
+When setting up the purchased `eesa.co.ke` domain:
 
-1. In Vercel, **Settings › Domains**, add `eesa.ac.ke` and `www.eesa.ac.ke`, add the DNS records Vercel shows at the registrar, and set `www.eesa.ac.ke` to redirect to `eesa.ac.ke`.
-2. Once `https://eesa.ac.ke` loads, set `NEXT_PUBLIC_SITE_URL=https://eesa.ac.ke` in Vercel and redeploy. Doing it earlier points the sitemap and canonical links at an address that does not answer.
-3. On Render, put `https://eesa.ac.ke` first in `FRONTEND_URL` and keep the Vercel address after it, e.g. `https://eesa.ac.ke,https://eesa-en.vercel.app`. The API only accepts requests from these addresses, and links in emails use the first one.
-4. In Search Console, add a **Domain** property for `eesa.ac.ke`. It is verified with a DNS TXT record and covers `www` as well. Submit `https://eesa.ac.ke/sitemap.xml`.
+1. In Vercel, open **Settings › Domains** and add `eesa.co.ke` and `www.eesa.co.ke`. At the registrar, add the DNS records Vercel specifies. Set `www.eesa.co.ke` to redirect to `eesa.co.ke`, so there is one primary hostname.
+2. Wait until `https://eesa.co.ke` loads successfully over HTTPS. Then set `NEXT_PUBLIC_SITE_URL=https://eesa.co.ke` in Vercel and redeploy. This updates canonical links, sitemap URLs and `robots.txt`; setting it before the domain serves the site would point search engines at an unavailable address.
+3. On Render, set `FRONTEND_URL=https://eesa.co.ke,https://eesa-en.vercel.app` (add other actively used frontend origins if needed). The API accepts these configured origins plus `https://eesa.egerton.ac.ke`, and links in emails use the first configured origin.
+4. In Search Console, add a **Domain** property for `eesa.co.ke` and verify it with the DNS TXT record. Submit `https://eesa.co.ke/sitemap.xml` after the Vercel deployment.
 
-`eesa-en.vercel.app` keeps working. Its pages name `eesa.ac.ke` as canonical, so Google replaces its results with the new addresses over the following weeks.
+`eesa-en.vercel.app` keeps working. Its pages name `eesa.co.ke` as canonical, so Google can consolidate search results under the purchased domain over time.
 
 ### Environment Variables Checklist (Production)
 
@@ -402,7 +402,7 @@ When `eesa.ac.ke` is bought:
 |----------|-------|---------|
 | `MONGODB_URI` | Render | `mongodb+srv://...` |
 | `JWT_SECRET` | Render | At least 32 random characters |
-| `FRONTEND_URL` | Render | `https://eesa-en.vercel.app` |
+| `FRONTEND_URL` | Render | `https://eesa.co.ke,https://eesa-en.vercel.app` |
 | `NODE_ENV` | Render | `production` |
 | `CLOUDINARY_CLOUD_NAME` | Render | Your Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | Render | Your Cloudinary API key |
@@ -424,7 +424,7 @@ When `eesa.ac.ke` is bought:
 | `ORDER_HOLD_HOURS` | Render | `72` (optional) |
 | `ACADEMIC_YEAR_START_MONTH` | Render | `9` (September, the default) |
 | `NEXT_PUBLIC_API_URL` | Vercel | `https://your-backend.onrender.com/api` |
-| `NEXT_PUBLIC_SITE_URL` | Vercel | `https://eesa-en.vercel.app`; `https://eesa.ac.ke` once that domain is live |
+| `NEXT_PUBLIC_SITE_URL` | Vercel | `https://eesa.co.ke` once DNS and HTTPS are live; until then `https://eesa-en.vercel.app` |
 | `GOOGLE_SITE_VERIFICATION` | Vercel | Search Console HTML-tag token (optional; comma-separate several) |
 | `BING_SITE_VERIFICATION` | Vercel | Bing Webmaster Tools meta-tag token (optional) |
 | `SEED_ADMIN_EMAIL` | Local, when seeding | Administrator's email |
