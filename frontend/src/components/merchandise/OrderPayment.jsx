@@ -151,7 +151,7 @@ export default function OrderPayment({ order, mpesaAvailable, paybill, paymentIn
             <p className="font-semibold text-strong">{polling ? 'Check your phone' : 'Still waiting for M-Pesa'}</p>
             <p className="text-sm text-body mt-0.5">
               {polling
-                ? `Enter your M-Pesa PIN on ${payment.phone ? `+${payment.phone}` : 'your phone'} to pay ${formatKES(order.total)}.`
+                ? `Enter your payment PIN on ${payment.phone && !payment.phone.includes('*') ? `+${payment.phone}` : 'your phone'} to pay ${formatKES(order.total)}.`
                 : 'If you paid, it will show here shortly. If no prompt arrived, send another one or enter an M-Pesa code instead.'}
             </p>
           </div>

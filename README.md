@@ -12,7 +12,7 @@ A professional web portal for the Egerton Engineering Student Association. Featu
 | Auth       | JWT (jsonwebtoken + bcryptjs)       |
 | Uploads    | Cloudinary + Multer                 |
 | Email      | Brevo REST API + SMTP fallback      |
-| Payments   | M-Pesa Daraja API (STK Push)        |
+| Payments   | M-Pesa Daraja API (STK Push), optional ISA Tech Hub |
 | Hosting    | Vercel (frontend), Render (backend) |
 
 ## Project Structure
@@ -144,6 +144,15 @@ MPESA_PASSKEY=your_passkey
 MPESA_CALLBACK_URL=http://localhost:5000/api/payments/mpesa/callback
 MPESA_ENV=sandbox          # or production for real payments
 
+# ISA Tech Hub (optional; all values are server-side only)
+ISA_HUB_ENABLED=false      # set true only after Hub credentials and webhook are configured
+ISA_HUB_BASE_URL=https://your-isa-tech-hub.example
+ISA_HUB_API_KEY=           # keep out of the frontend and logs
+ISA_HUB_WEBHOOK_SECRET=    # Hub HMAC signing secret; keep server-side
+ISA_HUB_WEBHOOK_TOLERANCE_SECONDS=300
+ISA_HUB_TIMEOUT_MS=15000
+ISA_HUB_RECONCILE_INTERVAL_MS=300000
+
 # Membership fees in whole shillings; M-Pesa charges exactly these
 REGISTRATION_FEE=500
 RENEWAL_FEE=500
@@ -211,6 +220,26 @@ The backend has an API test suite covering authentication, authorisation, input 
 cd backend
 npm test
 ```
+
+## ISA Tech Hub payments
+
+ISA Tech Hub is an optional server-side payment provider for membership fees and merchandise orders. `ISA_HUB_ENABLED=false` is the default, so the existing Daraja flow remains unchanged unless explicitly switched on. The Hub API key and webhook signing secret must only be configured in the backend environment (for Render, use the service's secret environment variables); never add them to `frontend/.env` or any `NEXT_PUBLIC_*` setting.
+
+### Setup and rollout
+
+1. In the backend deployment environment, set `ISA_HUB_BASE_URL` to the Hub API origin (without a trailing `/v1`), `ISA_HUB_API_KEY`, and `ISA_HUB_WEBHOOK_SECRET`. Use HTTPS for production. Set `ISA_HUB_ENABLED=false` initially.
+2. Register the webhook URL with ISA Tech Hub: `https://<your-backend-host>/api/payments/isa-hub/webhook`. The endpoint accepts `payment.paid`, `payment.failed`, `payment.disputed`, and `ping` events. Hub must sign the exact JSON request bytes using `ISA-Signature: t=<unix>,v1=<hex HMAC-SHA256>` with the configured webhook secret. Keep the system clocks synchronized; signatures outside the configured `ISA_HUB_WEBHOOK_TOLERANCE_SECONDS` window (300 seconds by default) are rejected.
+3. Check connectivity using the admin-only `GET /api/payments/isa-hub/health` endpoint; it requests Hub `GET /v1/config` but does not return the Hub configuration payload.
+4. After confirming the configured registration/renewal fees and webhook delivery, set `ISA_HUB_ENABLED=true` and redeploy. New membership and merchandise prompts route through Hub. Each local attempt is stored before the request and its ID is the Hub `Idempotency-Key`; phone values are not returned and logs do not include phone numbers or credentials. Signed-in owners can refresh membership attempt status with `GET /api/payments/isa-hub/verify/:attemptId`; the existing `/api/payments/mpesa/status/:checkoutRequestID` response remains compatible for the membership checkout UI.
+5. Monitor local payment status and webhook delivery. Pending/uncertain attempts are reconciled on the server at the `ISA_HUB_RECONCILE_INTERVAL_MS` interval (five minutes by default). Paid amounts must exactly match the locally expected amount; mismatches and Hub disputes are held for manual review and are never fulfilled automatically.
+
+### Rollback
+
+Set `ISA_HUB_ENABLED=false` and redeploy to stop routing new prompts to Hub. New payments return to the existing Daraja provider (if configured); manual payment submissions remain available. Existing Hub attempts continue to accept verified webhooks, authenticated status checks and scheduled reconciliation even while the feature switch is off. Do not remove the Hub credentials or disable its webhook until all Hub attempts are settled or reviewed. Collections and payouts/disbursements are not routed through Hub.
+
+### API contract note
+
+The integration relies on Hub create/status responses containing a `payment` (or direct payment) object with `id` and `status`, and on `paidAmount` being expressed in the same whole KES units as the local order/fee. The supplied contract does not define the exact `GET /v1/config` fields or the exact list envelope for `GET /v1/payments`; the connectivity check intentionally discards config fields, and reconciliation accepts common `{payments: [...]}`, `{data: {payments: [...]}}`, or array envelopes, matching by local `reference`/metadata. Confirm these response envelopes and amount units with the Hub operator before enabling production collection. If a timeout occurs before the Hub ID is saved, reconciliation searches by the stable local `reference` and metadata; confirm the Hub list endpoint returns recent entries for that reference.
 
 ## How sign-ups are checked
 

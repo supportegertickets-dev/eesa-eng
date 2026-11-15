@@ -9,12 +9,29 @@ const { mpesaHost, mpesaConfigured, formatPhone, requestStkPush, receiptFrom } =
 const { applyOrderMpesaResult } = require('../utils/merchandise');
 const { membershipActivatedNotice, membershipFee: feeFor } = require('../utils/membership');
 const { recordAudit, userTarget, nameOf } = require('../utils/audit');
+const { POWER_ROLES } = require('../utils/roles');
+const HubPayment = require('../models/HubPayment');
+const hub = require('../utils/isaTechHub');
+const { applyHubPayment, findAttempt, saveProviderPayment, verifyAttempt, unwrapPayment } = require('../utils/isaTechHubPayments');
 
 const { validate } = require('../middleware/validate');
 
 const router = express.Router();
 
 const PAYMENT_TYPES = ['registration', 'renewal'];
+
+// GET /api/payments/isa-hub/health - administrator-only connectivity check.
+// The provider config payload is intentionally not forwarded to clients.
+router.get('/isa-hub/health', protect, adminOnly, async (req, res) => {
+  if (!hub.configured()) return res.status(503).json({ enabled: hub.config().enabled, reachable: false });
+  try {
+    await hub.request('/v1/config');
+    return res.json({ enabled: hub.config().enabled, reachable: true });
+  } catch (error) {
+    console.error('ISA Tech Hub config check failed:', { message: error.message, status: error.status });
+    return res.status(503).json({ enabled: hub.config().enabled, reachable: false });
+  }
+});
 
 // ─── Fees ───────────────────────────────────────────────────────────
 
@@ -27,7 +44,7 @@ router.get('/fees', protect, (req, res) => {
   res.json({
     registration: feeFor('registration'),
     renewal: feeFor('renewal'),
-    mpesa: mpesaConfigured()
+    mpesa: hub.config().enabled ? hub.configured() : mpesaConfigured()
   });
 });
 
@@ -43,7 +60,7 @@ router.post('/mpesa/stkpush', protect, [
     // Any amount in the request is ignored; the member pays the configured fee.
     const { phone, type, semester, academicYear } = req.body;
 
-    if (!mpesaConfigured()) {
+    if (!hub.config().enabled && !mpesaConfigured()) {
       if (!mpesaHost()) console.error(`MPESA_ENV must be "sandbox" or "production", not "${process.env.MPESA_ENV}".`);
       return res.status(503).json({ message: 'M-Pesa payments are not available right now. Please submit your payment manually.' });
     }
@@ -51,6 +68,98 @@ router.post('/mpesa/stkpush', protect, [
     const amount = feeFor(type);
     if (!amount) {
       return res.status(503).json({ message: `The ${type} fee has not been set up yet, so it cannot be paid by M-Pesa. Please contact the treasurer.` });
+    }
+
+    if (!hub.config().enabled) {
+      const activeHubAttempt = await HubPayment.findOne({ user: req.user._id, type, status: { $in: ['pending', 'disputed'] } }).sort({ createdAt: -1 });
+      if (activeHubAttempt?.status === 'disputed') {
+        return res.status(409).json({ message: 'This payment is held for review. Please contact the treasurer before trying again.' });
+      }
+      if (activeHubAttempt) {
+        return res.status(409).json({ message: 'A payment request is already being checked. Please wait for its status before starting another payment.' });
+      }
+    }
+
+    if (hub.config().enabled) {
+      if (!hub.configured()) return res.status(503).json({ message: 'ISA Tech Hub payments are not configured. Please submit your payment manually.' });
+      const normalizedPhone = formatPhone(phone);
+      let attempt = await HubPayment.findOne({
+        user: req.user._id,
+        type,
+        status: 'pending',
+        initiationStatus: { $in: ['prepared', 'uncertain', 'accepted'] }
+      }).select('+phone').sort({ createdAt: -1 });
+      let payment = attempt?.membershipPayment ? await Payment.findById(attempt.membershipPayment) : null;
+      const requestPhone = attempt?.phone || normalizedPhone;
+
+      if (!attempt) {
+        payment = await Payment.create({
+          user: req.user._id, type, amount, paymentMethod: 'mpesa', status: 'pending',
+          mpesaPhoneNumber: hub.maskPhone(normalizedPhone), semester, academicYear
+        });
+        attempt = await HubPayment.create({
+          user: req.user._id, type, membershipPayment: payment._id, amount,
+          reference: `EESA-MEM-${payment._id}`, phone: normalizedPhone, phoneMasked: hub.maskPhone(normalizedPhone),
+          status: 'pending', initiationStatus: 'prepared'
+        });
+        payment.hubPaymentAttempt = attempt._id;
+        payment.reference = attempt.reference;
+        await payment.save();
+      }
+
+      if (attempt.initiationStatus === 'accepted' && attempt.providerPaymentId) {
+        return res.status(201).json({
+          message: 'Check your phone and enter your PIN to complete payment.',
+          checkoutRequestID: String(attempt._id), paymentId: payment?._id, amount: attempt.amount
+        });
+      }
+
+      try {
+        const response = await hub.request('/v1/payments', {
+          method: 'POST',
+          idempotencyKey: String(attempt._id),
+          body: {
+            phone: requestPhone,
+            amount: attempt.amount,
+            reference: attempt.reference,
+            purpose: type,
+            description: `EESA ${type} membership payment`,
+            metadata: {
+              hubPaymentAttemptId: String(attempt._id),
+              localPaymentId: String(payment?._id),
+              userId: String(req.user._id)
+            }
+          }
+        });
+        const remote = unwrapPayment(response);
+        if (!remote?.id) throw Object.assign(new Error('Hub response omitted payment ID'), { uncertain: true });
+        await saveProviderPayment(attempt, remote);
+        attempt.initiationStatus = 'accepted';
+        await attempt.save();
+        return res.status(201).json({
+          message: 'Check your phone and enter your PIN to complete payment.',
+          checkoutRequestID: String(attempt._id), paymentId: payment?._id, amount: attempt.amount
+        });
+      } catch (error) {
+        console.error('ISA Tech Hub membership initiation failed:', {
+          code: error.code, status: error.status, message: error.message, attemptId: String(attempt._id)
+        });
+        if (error.status && error.status >= 400 && error.status < 500 && ![408, 409, 425, 429].includes(error.status)) {
+          attempt.initiationStatus = 'rejected';
+          attempt.status = 'rejected';
+          await attempt.save();
+          await Payment.updateOne({ _id: payment?._id, status: 'pending' }, {
+            status: 'rejected', rejectionReason: 'ISA Tech Hub declined the payment request.'
+          });
+          return res.status(400).json({ message: 'ISA Tech Hub could not start this payment. Please check the number or submit your payment manually.' });
+        }
+        attempt.initiationStatus = 'uncertain';
+        await attempt.save();
+        return res.status(202).json({
+          message: 'We are confirming whether the payment prompt was accepted. Check payment status shortly; do not start another payment yet.',
+          checkoutRequestID: String(attempt._id), paymentId: payment?._id, amount: attempt.amount
+        });
+      }
     }
 
     let stkData;
@@ -149,6 +258,20 @@ router.post('/mpesa/callback', async (req, res) => {
 // GET /api/payments/mpesa/status/:checkoutRequestId - check STK push status
 router.get('/mpesa/status/:checkoutRequestId', protect, async (req, res) => {
   try {
+    const hubAttempt = /^[a-f\d]{24}$/i.test(req.params.checkoutRequestId)
+      ? await HubPayment.findById(req.params.checkoutRequestId)
+      : null;
+    if (hubAttempt) {
+      if (String(hubAttempt.user) !== String(req.user._id)) return res.status(404).json({ message: 'Payment not found' });
+      if (hubAttempt.initiationStatus === 'uncertain' || (hubAttempt.status === 'pending' && hubAttempt.providerPaymentId)) {
+        try { await verifyAttempt(hubAttempt); } catch (error) {
+          console.error('ISA Tech Hub status check failed:', { message: error.message, attemptId: String(hubAttempt._id) });
+        }
+      }
+      const current = await HubPayment.findById(hubAttempt._id).lean();
+      const legacyStatus = current.status === 'verified' ? 'verified' : ['rejected', 'disputed'].includes(current.status) ? current.status : 'pending';
+      return res.json({ status: legacyStatus, paymentId: current.membershipPayment, payment: current });
+    }
     const payment = await Payment.findOne({
       mpesaCheckoutRequestID: req.params.checkoutRequestId,
       user: req.user._id,
@@ -157,6 +280,60 @@ router.get('/mpesa/status/:checkoutRequestId', protect, async (req, res) => {
     res.json({ status: payment.status, payment });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// GET /api/payments/isa-hub/verify/:attemptId - authenticated status reconciliation
+router.get('/isa-hub/verify/:attemptId', protect, async (req, res) => {
+  try {
+    if (!/^[a-f\d]{24}$/i.test(req.params.attemptId)) return res.status(404).json({ message: 'Payment not found' });
+    const attempt = await HubPayment.findById(req.params.attemptId);
+    if (!attempt || (String(attempt.user) !== String(req.user._id) && !POWER_ROLES.includes(req.user.role))) {
+      return res.status(404).json({ message: 'Payment not found' });
+    }
+    if (attempt.status !== 'verified' && attempt.status !== 'disputed') {
+      try { await verifyAttempt(attempt); } catch (error) {
+        console.error('ISA Tech Hub verification failed:', { message: error.message, attemptId: String(attempt._id) });
+        return res.status(502).json({ message: 'We could not verify this payment right now. Please try again shortly.' });
+      }
+    }
+    const latest = await HubPayment.findById(attempt._id).lean();
+    return res.json({ status: latest.status, payment: latest });
+  } catch (error) {
+    console.error('ISA Tech Hub verification error:', error.message);
+    return res.status(500).json({ message: 'Could not verify payment status.' });
+  }
+});
+
+// POST /api/payments/isa-hub/webhook - public provider callback; HMAC-authenticated.
+router.post('/isa-hub/webhook', async (req, res) => {
+  const rawBody = req.rawBody;
+  if (!hub.verifyWebhook(req.get('ISA-Signature'), rawBody)) {
+    return res.status(401).json({ message: 'Invalid webhook signature.' });
+  }
+  let event;
+  try { event = JSON.parse(rawBody.toString('utf8')); } catch {
+    return res.status(400).json({ message: 'Invalid webhook JSON.' });
+  }
+  if (event?.type === 'ping') return res.status(200).json({ received: true });
+  const paymentData = event?.data?.payment;
+  if (!['payment.paid', 'payment.failed', 'payment.disputed'].includes(event?.type)) {
+    return res.status(200).json({ received: true, ignored: true });
+  }
+  if (!paymentData) return res.status(200).json({ received: true, ignored: true });
+  try {
+    let attempt = await findAttempt(paymentData, paymentData.metadata || event?.data?.metadata || {});
+    if (!attempt && paymentData.id) attempt = await HubPayment.findOne({ providerPaymentId: String(paymentData.id) });
+    if (!attempt) return res.status(200).json({ received: true, ignored: true });
+    if (event.type === 'payment.disputed') paymentData.status = 'disputed';
+    if (event.type === 'payment.failed') paymentData.status = 'failed';
+    if (event.type === 'payment.paid') paymentData.status = 'paid';
+    await applyHubPayment(attempt, paymentData);
+    return res.status(200).json({ received: true });
+  } catch (error) {
+    console.error('ISA Tech Hub webhook processing failed:', { message: error.message });
+    // Non-2xx asks the provider to retry; state transitions are idempotent.
+    return res.status(500).json({ message: 'Webhook processing failed.' });
   }
 });
 
@@ -263,6 +440,13 @@ router.put('/:id/verify', protect, adminOnly, [
     const payment = await Payment.findById(req.params.id);
     if (!payment) return res.status(404).json({ message: 'Payment not found' });
 
+    if (payment.hubPaymentAttempt) {
+      const hubAttempt = await HubPayment.findById(payment.hubPaymentAttempt).select('status');
+      if (hubAttempt && ['pending', 'verified'].includes(hubAttempt.status)) {
+        return res.status(409).json({ message: 'This ISA Tech Hub payment is being settled automatically and cannot be changed here.' });
+      }
+    }
+
     payment.status = status;
     payment.verifiedBy = req.user._id;
     payment.verifiedAt = new Date();
@@ -307,6 +491,9 @@ router.delete('/:id', protect, adminOnly, async (req, res) => {
   try {
     const payment = await Payment.findById(req.params.id);
     if (!payment) return res.status(404).json({ message: 'Payment not found' });
+    if (payment.hubPaymentAttempt && await HubPayment.exists({ _id: payment.hubPaymentAttempt, status: { $in: ['pending', 'disputed'] } })) {
+      return res.status(409).json({ message: 'This ISA Tech Hub payment is still active or held for review and cannot be deleted.' });
+    }
     await payment.deleteOne();
     const member = await User.findById(payment.user).select('firstName lastName email').lean();
     await recordAudit(req, {

@@ -65,6 +65,7 @@ export default function PaymentsPage() {
       pending: 'bg-yellow-100 dark:bg-yellow-500/15 text-yellow-700 dark:text-yellow-300',
       verified: 'bg-green-100 dark:bg-green-500/15 text-green-700 dark:text-green-300',
       rejected: 'bg-red-100 dark:bg-red-500/15 text-red-700 dark:text-red-300',
+      disputed: 'bg-orange-100 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300',
     };
     return map[s] || 'bg-muted text-body';
   };
@@ -143,7 +144,7 @@ export default function PaymentsPage() {
                       <HiEye className="w-5 h-5" />
                     </a>
                   )}
-                  {tab === 'all' && isAdmin && p.status === 'pending' && (
+                  {tab === 'all' && isAdmin && ['pending', 'disputed'].includes(p.status) && (
                     <>
                       <button onClick={() => handleVerify(p._id, 'verified')} className="p-2 text-green-600 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg" title="Verify">
                         <HiCheckCircle className="w-5 h-5" />
@@ -228,6 +229,10 @@ function PaymentForm({ fees, onSubmitted, onCancel }) {
             clearInterval(pollRef.current);
             setMpesaStatus('failed');
             toast.error('Payment was not completed');
+          } else if (s.status === 'disputed') {
+            clearInterval(pollRef.current);
+            setMpesaStatus('failed');
+            toast.error('Payment is held for review. Please contact the treasurer.');
           }
         } catch {}
         if (attempts >= 30) {

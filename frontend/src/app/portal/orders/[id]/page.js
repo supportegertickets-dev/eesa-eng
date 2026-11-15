@@ -74,7 +74,7 @@ export default function OrderPage() {
   const { order } = data;
   const status = ORDER_STATUS[order.status] || {};
   const payment = paymentState(order);
-  const awaitingPayment = order.status === 'awaiting_payment' && order.payment?.status !== 'verified';
+  const awaitingPayment = order.status === 'awaiting_payment' && !['verified', 'disputed'].includes(order.payment?.status);
   const canCancel = order.status === 'awaiting_payment' && ['unpaid', 'rejected'].includes(order.payment?.status);
   const readyNote = [...(order.history || [])].reverse().find((entry) => entry.status === 'ready')?.note;
 
@@ -111,6 +111,13 @@ export default function OrderPage() {
               defaultPhone={order.contactPhone || user?.phone}
               onChange={setOrder}
             />
+          </section>
+        )}
+
+        {order.payment?.status === 'disputed' && (
+          <section className="rounded-xl border border-warning/40 bg-warning-soft p-4" role="status">
+            <p className="font-semibold text-strong">Payment held for review</p>
+            <p className="text-sm text-body mt-1">We are checking the payment amount before confirming this order. Please contact the treasurer; do not send another payment.</p>
           </section>
         )}
 

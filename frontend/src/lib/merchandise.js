@@ -27,11 +27,12 @@ export const orderStatusLabel = (status) => ORDER_STATUS[status]?.label || statu
 export const paymentState = (order) => {
   const { payment = {}, status } = order;
   if (payment.status === 'verified') return { label: payment.method === 'mpesa' ? 'Paid by M-Pesa' : 'Payment confirmed', badge: 'badge-success' };
+  if (payment.status === 'disputed') return { label: 'Payment held for review', badge: 'badge-warning' };
   if (status === 'cancelled') return { label: 'Not paid', badge: 'badge-neutral' };
   if (payment.status === 'pending') {
     return payment.method === 'manual'
       ? { label: 'Receipt being checked', badge: 'badge-warning' }
-      : { label: 'Waiting for M-Pesa', badge: 'badge-warning' };
+      : { label: payment.method === 'isa_hub' ? 'Waiting for mobile payment' : 'Waiting for M-Pesa', badge: 'badge-warning' };
   }
   if (payment.status === 'rejected') return { label: 'Payment failed', badge: 'badge-danger' };
   return { label: 'Not paid', badge: 'badge-neutral' };

@@ -29,9 +29,11 @@ const paymentSchema = new mongoose.Schema({
   mpesaMerchantRequestID: { type: String },
   mpesaReceiptNumber: { type: String },
   mpesaPhoneNumber: { type: String },
+  hubPaymentAttempt: { type: mongoose.Schema.Types.ObjectId, ref: 'HubPayment' },
+  hubProviderPaymentId: { type: String },
   status: {
     type: String,
-    enum: ['pending', 'verified', 'rejected'],
+    enum: ['pending', 'verified', 'rejected', 'disputed'],
     default: 'pending'
   },
   verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
