@@ -2,6 +2,7 @@ const cors = require('cors');
 
 const EESA_ORIGINS = [
   'https://eesa.co.ke',
+  'https://www.eesa.co.ke',
   'https://eesa.egerton.ac.ke'
 ];
 
