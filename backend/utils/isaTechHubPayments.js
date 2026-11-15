@@ -214,36 +214,59 @@ const recoverProviderPayment = async (attempt) => {
   return match || null;
 };
 
-const verifyAttempt = async (attempt) => {
-  const remote = await recoverProviderPayment(attempt);
-  attempt.lastCheckedAt = new Date();
-  await attempt.save();
-  return remote ? applyHubPayment(attempt, remote) : { applied: true, status: attempt.status, found: false };
+const verifyAttempt = async (attempt, { force = false } = {}) => {
+  const now = new Date();
+  const cooldownMs = Math.max(1000, Number(process.env.ISA_HUB_STATUS_CHECK_COOLDOWN_MS) || 8000);
+  const lockUntil = new Date(now.getTime() + 30000);
+  let claimed = attempt;
+
+  if (!force) {
+    claimed = await HubPayment.findOneAndUpdate({
+      _id: attempt._id,
+      status: { $in: ['pending', 'rejected'] },
+      $and: [
+        { $or: [{ lastCheckedAt: null }, { lastCheckedAt: { $lt: new Date(now.getTime() - cooldownMs) } }] },
+        { $or: [{ reconciliationLockUntil: null }, { reconciliationLockUntil: { $lt: now } }] }
+      ]
+    }, { $set: { reconciliationLockUntil: lockUntil, lastCheckedAt: now } }, { new: true });
+
+    if (!claimed) {
+      const current = await HubPayment.findById(attempt._id).select('status lastCheckedAt');
+      return { applied: true, status: current?.status || attempt.status, checked: false };
+    }
+  }
+
+  try {
+    const remote = await recoverProviderPayment(claimed);
+    return remote
+      ? { ...(await applyHubPayment(claimed, remote)), checked: true }
+      : { applied: true, status: claimed.status, found: false, checked: true };
+  } finally {
+    if (!force) {
+      await HubPayment.updateOne({ _id: claimed._id, reconciliationLockUntil: lockUntil }, {
+        $unset: { reconciliationLockUntil: 1 }
+      });
+    }
+  }
 };
 
 const reconcilePendingPayments = async ({ limit = 20 } = {}) => {
   const now = new Date();
   const attempts = await HubPayment.find({
-    status: 'pending',
+    status: { $in: ['pending', 'rejected'] },
     initiationStatus: { $in: ['accepted', 'uncertain'] },
+    createdAt: { $gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
     $or: [{ reconciliationLockUntil: null }, { reconciliationLockUntil: { $lt: now } }]
   }).sort({ updatedAt: 1 }).limit(limit).select('_id').lean();
   let checked = 0;
   for (const { _id } of attempts) {
-    const lockUntil = new Date(Date.now() + 60000);
-    const claimed = await HubPayment.findOneAndUpdate({
-      _id,
-      status: 'pending',
-      $or: [{ reconciliationLockUntil: null }, { reconciliationLockUntil: { $lt: new Date() } }]
-    }, { $set: { reconciliationLockUntil: lockUntil } }, { new: true });
-    if (!claimed) continue;
     try {
-      await verifyAttempt(claimed);
-      checked += 1;
+      const attempt = await HubPayment.findById(_id);
+      if (!attempt) continue;
+      const result = await verifyAttempt(attempt);
+      if (result.checked) checked += 1;
     } catch (error) {
       console.error('ISA Tech Hub reconciliation failed:', error.message);
-    } finally {
-      await HubPayment.updateOne({ _id, reconciliationLockUntil: lockUntil }, { $unset: { reconciliationLockUntil: 1 } });
     }
   }
   return checked;

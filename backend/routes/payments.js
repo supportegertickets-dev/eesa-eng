@@ -263,7 +263,8 @@ router.get('/mpesa/status/:checkoutRequestId', protect, async (req, res) => {
       : null;
     if (hubAttempt) {
       if (String(hubAttempt.user) !== String(req.user._id)) return res.status(404).json({ message: 'Payment not found' });
-      if (hubAttempt.initiationStatus === 'uncertain' || (hubAttempt.status === 'pending' && hubAttempt.providerPaymentId)) {
+      if (['pending', 'rejected'].includes(hubAttempt.status)
+        && ['accepted', 'uncertain'].includes(hubAttempt.initiationStatus)) {
         try { await verifyAttempt(hubAttempt); } catch (error) {
           console.error('ISA Tech Hub status check failed:', { message: error.message, attemptId: String(hubAttempt._id) });
         }

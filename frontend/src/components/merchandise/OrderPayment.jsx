@@ -8,7 +8,7 @@ import { formatKES } from '@/lib/merchandise';
 import { relativeTime } from '@/lib/dates';
 
 const POLL_MS = 5000;
-const POLL_LIMIT = 24; // Two minutes: Safaricom times an unanswered prompt out before then.
+const POLL_LIMIT = 120; // Keep automatic checks going for ten minutes; the server throttles provider lookups.
 
 /** "522522" -> "522 522", the way paybill numbers are usually written. */
 const groupDigits = (value) => String(value).replace(/(\d{3})(?=\d)/g, '$1 ');
@@ -40,7 +40,7 @@ function CopyValue({ label, value, display = value }) {
  */
 export default function OrderPayment({ order, mpesaAvailable, paybill, paymentInstructions, defaultPhone, onChange }) {
   const { payment = {} } = order;
-  const waitingForMpesa = payment.status === 'pending' && payment.method === 'mpesa';
+  const waitingForMpesa = payment.status === 'pending' && ['mpesa', 'isa_hub'].includes(payment.method);
   const receiptInReview = payment.status === 'pending' && payment.method === 'manual';
 
   const [method, setMethod] = useState(mpesaAvailable ? 'mpesa' : 'manual');
@@ -62,11 +62,12 @@ export default function OrderPayment({ order, mpesaAvailable, paybill, paymentIn
       attempts += 1;
       try {
         const { order: latest } = await getOrder(order._id);
-        if (latest.payment?.status !== 'pending' || latest.payment?.method !== 'mpesa') {
+        if (latest.payment?.status !== 'pending' || !['mpesa', 'isa_hub'].includes(latest.payment?.method)) {
           clearInterval(pollRef.current);
           setPolling(false);
           if (latest.payment?.status === 'verified') toast.success('Payment received. Thank you!');
           else if (latest.payment?.status === 'rejected') toast.error('The M-Pesa payment did not go through.');
+          else if (latest.payment?.status === 'disputed') toast.error('Payment held for review. Please contact the treasurer.');
           onChange(latest);
           return;
         }
@@ -148,11 +149,11 @@ export default function OrderPayment({ order, mpesaAvailable, paybill, paymentIn
             ? <span className="w-6 h-6 shrink-0 animate-spin rounded-full border-[3px] border-info border-t-transparent" aria-hidden="true" />
             : <HiDeviceMobile className="w-6 h-6 text-info shrink-0" aria-hidden="true" />}
           <div>
-            <p className="font-semibold text-strong">{polling ? 'Check your phone' : 'Still waiting for M-Pesa'}</p>
+            <p className="font-semibold text-strong">{polling ? 'Check your phone' : 'Still waiting for payment'}</p>
             <p className="text-sm text-body mt-0.5">
               {polling
                 ? `Enter your payment PIN on ${payment.phone && !payment.phone.includes('*') ? `+${payment.phone}` : 'your phone'} to pay ${formatKES(order.total)}.`
-                : 'If you paid, it will show here shortly. If no prompt arrived, send another one or enter an M-Pesa code instead.'}
+                : 'We are still checking your payment. If you have not received a prompt, wait a moment before trying again or use the manual payment option.'}
             </p>
           </div>
         </div>
@@ -179,8 +180,8 @@ export default function OrderPayment({ order, mpesaAvailable, paybill, paymentIn
             <label htmlFor="pay-phone" className="form-label">M-Pesa number</label>
             <input id="pay-phone" type="tel" className="input-field" required value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0712 345 678" autoComplete="tel" />
           </div>
-          <button type="submit" className="bg-green-600 hover:bg-green-700 text-white btn" disabled={busy || !phone.trim()}>
-            {busy ? 'Sending…' : waitingForMpesa ? 'Send another prompt' : `Pay ${formatKES(order.total)}`}
+          <button type="submit" className="bg-green-600 hover:bg-green-700 text-white btn" disabled={busy || !phone.trim() || (waitingForMpesa && payment.method === 'isa_hub')}>
+            {busy ? 'Sending…' : waitingForMpesa && payment.method === 'isa_hub' ? 'Prompt already sent' : waitingForMpesa ? 'Send another prompt' : `Pay ${formatKES(order.total)}`}
           </button>
         </form>
       ) : (

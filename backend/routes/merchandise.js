@@ -16,7 +16,7 @@ const { mpesaConfigured, normalizeKenyanPhone, requestStkPush } = require('../ut
 const { notifyUsers } = require('../utils/membership');
 const HubPayment = require('../models/HubPayment');
 const hub = require('../utils/isaTechHub');
-const { saveProviderPayment, unwrapPayment } = require('../utils/isaTechHubPayments');
+const { saveProviderPayment, unwrapPayment, verifyAttempt } = require('../utils/isaTechHubPayments');
 const {
   ORDER_HOLD_HOURS, generateOrderNumber, uniqueProductSlug, addHistory,
   reserveStock, releaseStock, expireStaleOrders
@@ -360,7 +360,19 @@ router.get('/orders/my', protect, asyncHandler(async (req, res) => {
 
 // GET /api/merchandise/orders/:id - one order, for its owner or a shop manager
 router.get('/orders/:id', protect, [idParam, validate], asyncHandler(async (req, res) => {
-  const order = await loadOrder(req);
+  let order = await loadOrder(req);
+  if (order.payment.method === 'isa_hub' && order.payment.hubPayment
+    && ['pending', 'rejected'].includes(order.payment.status)) {
+    try {
+      const attempt = await HubPayment.findById(order.payment.hubPayment);
+      if (attempt && ['pending', 'rejected'].includes(attempt.status)) await verifyAttempt(attempt);
+      order = await Order.findById(order._id);
+    } catch (error) {
+      // The order page still shows the last known local state; the background
+      // reconciliation and signed webhook continue independently.
+      console.error('ISA Tech Hub order status check failed:', { message: error.message, orderId: String(order._id) });
+    }
+  }
   res.json({
     order: await populateOrder(order._id).lean(),
     mpesa: hub.config().enabled ? hub.configured() : mpesaConfigured(),
@@ -640,6 +652,9 @@ router.put('/orders/:id/payment', protect, merchandiseOnly, [
   const disputedForReview = order.payment.status === 'disputed';
   if (order.status !== 'awaiting_payment' || (!manualReceipt && !disputedForReview)) {
     throw new ApiError(409, 'There is no payment waiting to be checked on this order.');
+  }
+  if (order.payment.method === 'isa_hub' && order.payment.status === 'pending') {
+    throw new ApiError(409, 'This ISA Tech Hub payment is still processing and cannot be manually changed.');
   }
 
   order.payment.verifiedBy = req.user._id;
