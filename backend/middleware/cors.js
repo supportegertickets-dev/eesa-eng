@@ -3,7 +3,8 @@ const cors = require('cors');
 const EESA_ORIGINS = [
   'https://eesa.co.ke',
   'https://www.eesa.co.ke',
-  'https://eesa.egerton.ac.ke'
+  'https://eesa.egerton.ac.ke',
+  'https://eesa-en.vercel.app'
 ];
 
 const allowedOrigins = [

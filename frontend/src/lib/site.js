@@ -1,13 +1,13 @@
 /**
- * The site's public address, without a trailing slash.
+ * The site's canonical public address, without a trailing slash.
  *
  * Canonical links, the sitemap and robots.txt are all built from it, so every
- * domain that serves the site (eesa-en.vercel.app, eesa.co.ke, www.eesa.co.ke)
+ * domain that serves the site (eesa.co.ke, www.eesa.co.ke, eesa-en.vercel.app)
  * points search engines at this one address and none of them is indexed as a
  * duplicate of another. Moving to a new domain is one change to
  * NEXT_PUBLIC_SITE_URL and a redeploy.
  */
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://eesa-en.vercel.app').replace(/\/+$/, '');
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://eesa.co.ke').replace(/\/+$/, '');
 
 /** A path on the public site as a full URL, e.g. siteUrl('/events') → https://…/events */
 export const siteUrl = (path = '/') => new URL(path, `${SITE_URL}/`).toString();

@@ -2,7 +2,7 @@ const { test, describe } = require('node:test');
 const assert = require('node:assert/strict');
 
 process.env.NODE_ENV = 'test';
-process.env.FRONTEND_URL = 'https://eesa-en.vercel.app';
+process.env.FRONTEND_URL = 'http://localhost:3000';
 
 const express = require('express');
 const request = require('supertest');
@@ -15,7 +15,12 @@ app.get('/health', (req, res) => res.json({ ok: true }));
 app.use(errorHandler);
 
 describe('CORS origins', () => {
-  for (const origin of ['https://eesa.co.ke', 'https://www.eesa.co.ke', 'https://eesa.egerton.ac.ke']) {
+  for (const origin of [
+    'https://eesa.co.ke',
+    'https://www.eesa.co.ke',
+    'https://eesa.egerton.ac.ke',
+    'https://eesa-en.vercel.app'
+  ]) {
     test(`allows ${origin}`, async () => {
       const response = await request(app).get('/health').set('Origin', origin);
       assert.equal(response.status, 200);
