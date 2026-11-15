@@ -15,7 +15,7 @@ app.get('/health', (req, res) => res.json({ ok: true }));
 app.use(errorHandler);
 
 describe('CORS origins', () => {
-  for (const origin of ['https://eesa.co.ke', 'https://eesa.egerton.ac.ke']) {
+  for (const origin of ['https://eesa.co.ke', 'https://www.eesa.co.ke', 'https://eesa.egerton.ac.ke']) {
     test(`allows ${origin}`, async () => {
       const response = await request(app).get('/health').set('Origin', origin);
       assert.equal(response.status, 200);
