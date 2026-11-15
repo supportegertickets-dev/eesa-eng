@@ -1,4 +1,13 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const normalizeApiBaseUrl = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return 'http://localhost:5000/api';
+  const withoutTrailingSlash = raw.replace(/\/+$/, '');
+  return /\/api(?:\/)?$/i.test(withoutTrailingSlash)
+    ? withoutTrailingSlash
+    : `${withoutTrailingSlash}/api`;
+};
+
+const API_URL = normalizeApiBaseUrl(process.env.NEXT_PUBLIC_API_URL);
 
 const TOKEN_KEY = 'eesa_token';
 const DEFAULT_TIMEOUT_MS = 30000;
